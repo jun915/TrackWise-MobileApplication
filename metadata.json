@@ -1,0 +1,6 @@
+{
+  "name": "TrackWise",
+  "description": "Track habits, tasks & health — see your progress clearly",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
