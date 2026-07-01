@@ -166,3 +166,59 @@ data class AlarmEntity(
     val repeatDaysJson: String = "[]", // list of days: e.g. ["Mon", "Wed"]
     val snoozeCount: Int = 0
 )
+
+@Entity(tableName = "sleep_logs")
+data class SleepLogEntity(
+    @PrimaryKey val id: String, // e.g. "userId_date"
+    val userId: String,
+    val date: String, // YYYY-MM-DD
+    val hoursSlept: Double,
+    val startTime: String, // HH:MM
+    val endTime: String, // HH:MM
+    val notes: String? = null
+)
+
+@Entity(tableName = "user_profiles")
+data class UserProfileEntity(
+    @PrimaryKey val userId: String,
+    val firstName: String = "",
+    val middleName: String = "",
+    val lastName: String = "",
+    val dob: String = "",
+    val gender: String = "Prefer not to say",
+    val maritalStatus: String = "Single",
+    val nationality: String = "",
+    val nationalId: String = "",
+    val bloodGroup: String = "O+",
+    val residentialStreet: String = "",
+    val residentialCity: String = "",
+    val residentialState: String = "",
+    val residentialZip: String = "",
+    val residentialCountry: String = "",
+    val permanentStreet: String = "",
+    val permanentCity: String = "",
+    val permanentState: String = "",
+    val permanentZip: String = "",
+    val permanentCountry: String = "",
+    val permanentIsSame: Boolean = true,
+    val mobileNumber: String = "",
+    val alternatePhone: String = "",
+    val emailAddress: String = "",
+    val emergencyName: String = "",
+    val emergencyRelationship: String = "",
+    val emergencyPhone: String = "",
+    val alternateEmergencyPhone: String = "",
+    val height: String = "",
+    val weight: String = "",
+    val primaryDoctor: String = "",
+    val medicalConditions: String = "",
+    val currentMedications: String = "",
+    val allergies: String = "",
+    val dietaryRestrictions: String = "",
+    val vitalsHeight: String = "",
+    val vitalsWeight: String = "",
+    val vitalsBloodPressure: String = "",
+    val vitalsHeartRate: String = "",
+    val vitalsBloodGroup: String = ""
+)
+

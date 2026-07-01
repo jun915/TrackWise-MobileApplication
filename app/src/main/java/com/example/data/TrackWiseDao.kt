@@ -138,4 +138,24 @@ interface TrackWiseDao {
 
     @Query("DELETE FROM alarms WHERE id = :id")
     suspend fun deleteAlarmById(id: String)
+
+    // --- Sleep Logs ---
+    @Query("SELECT * FROM sleep_logs WHERE userId = :userId ORDER BY date DESC")
+    fun getSleepLogsForUserFlow(userId: String): Flow<List<SleepLogEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSleepLog(log: SleepLogEntity)
+
+    @Query("DELETE FROM sleep_logs WHERE id = :id")
+    suspend fun deleteSleepLogById(id: String)
+
+    // --- User Profiles ---
+    @Query("SELECT * FROM user_profiles WHERE userId = :userId")
+    suspend fun getUserProfile(userId: String): UserProfileEntity?
+
+    @Query("SELECT * FROM user_profiles WHERE userId = :userId")
+    fun getUserProfileFlow(userId: String): Flow<UserProfileEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUserProfile(profile: UserProfileEntity)
 }

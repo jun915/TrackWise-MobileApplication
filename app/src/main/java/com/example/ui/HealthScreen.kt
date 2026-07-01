@@ -40,9 +40,10 @@ fun HealthScreen(
     val vitalReadings by viewModel.vitalReadings.collectAsState()
     val exerciseLogs by viewModel.exerciseLogs.collectAsState()
     val healthIssueLogs by viewModel.healthIssueLogs.collectAsState()
+    val sleepLogs by viewModel.sleepLogs.collectAsState()
 
     var activeSubTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Metrics Log", "Exercise", "Symptom Log")
+    val tabs = listOf("Metrics Log", "Exercise", "Symptom Log", "Sleep")
     val focusManager = LocalFocusManager.current
 
     // Dynamic BMI
@@ -140,6 +141,9 @@ fun HealthScreen(
             }
             2 -> { // Symptom Logs
                 item { SymptomLogSection(viewModel = viewModel, logs = healthIssueLogs) }
+            }
+            3 -> { // Sleep Tracker
+                item { SleepLogSection(viewModel = viewModel, sleepLogs = sleepLogs) }
             }
         }
     }
@@ -649,6 +653,185 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
             }
         }
     }
+}
+
+@Composable
+fun SleepLogSection(
+    viewModel: TrackWiseViewModel,
+    sleepLogs: List<SleepLogEntity>
+) {
+    var sleepStart by remember { mutableStateOf("22:30") }
+    var sleepEnd by remember { mutableStateOf("06:30") }
+    var notes by remember { mutableStateOf("") }
+
+    val calculatedHours = calculateHoursDifference(sleepStart, sleepEnd)
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.NightsStay, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(20.dp))
+                    Text(
+                        text = "LOG NEW SLEEP ENTRY",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandViolet
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(BrandViolet.copy(alpha = 0.1f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "%.1f Hours".format(calculatedHours),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandViolet
+                    )
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CompactTextField(
+                    value = sleepStart,
+                    onValueChange = { sleepStart = it },
+                    label = "Sleep Start (HH:MM)",
+                    placeholder = "22:30",
+                    modifier = Modifier.weight(1f)
+                )
+
+                CompactTextField(
+                    value = sleepEnd,
+                    onValueChange = { sleepEnd = it },
+                    label = "Wake Up (HH:MM)",
+                    placeholder = "06:30",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            CompactTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                label = "Sleep Quality Notes",
+                placeholder = "e.g. Felt relaxed, deep sleep",
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Button(
+                onClick = {
+                    viewModel.addSleepLog(
+                        hoursSlept = calculatedHours,
+                        startTime = sleepStart,
+                        endTime = sleepEnd,
+                        notes = notes.ifBlank { "Logged sleep" }
+                    )
+                    notes = ""
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Log Sleep", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+
+            if (sleepLogs.isNotEmpty()) {
+                Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                Text(
+                    text = "SLEEP LOG HISTORY",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                )
+
+                sleepLogs.forEach { log ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = log.date,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(BrandViolet.copy(alpha = 0.1f))
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${log.hoursSlept} hrs",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandViolet
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Times: ${log.startTime} to ${log.endTime} · ${log.notes ?: ""}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                            )
+                        }
+
+                        IconButton(onClick = { viewModel.deleteSleepLog(log.id) }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete sleep entry", tint = BrandRose, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun calculateHoursDifference(start: String, end: String): Double {
+    try {
+        val partsStart = start.split(":")
+        val partsEnd = end.split(":")
+        if (partsStart.size == 2 && partsEnd.size == 2) {
+            val hStart = partsStart[0].toIntOrNull() ?: 22
+            val mStart = partsStart[1].toIntOrNull() ?: 30
+            val hEnd = partsEnd[0].toIntOrNull() ?: 6
+            val mEnd = partsEnd[1].toIntOrNull() ?: 30
+
+            var diffMin = (hEnd * 60 + mEnd) - (hStart * 60 + mStart)
+            if (diffMin < 0) {
+                diffMin += 24 * 60 // spanned midnight
+            }
+            return diffMin / 60.0
+        }
+    } catch (e: Exception) {}
+    return 8.0
 }
 
 // --- HealthTips Evaluations (Part 16 Clinical Rules) ---

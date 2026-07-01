@@ -319,10 +319,123 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
                 id = "${userId}_$today",
                 userId = userId,
                 date = today,
-                glasses = 0,
+                glasses = 6,
                 goal = 8
             )
         )
+
+        // Seed rich logs for Analytics (Water, Sleep, Exercise, Vitals)
+        val datesList = listOf(
+            today,
+            "2026-06-30",
+            "2026-06-29",
+            "2026-06-28",
+            "2026-06-27",
+            "2026-06-26",
+            "2026-06-25",
+            "2026-06-24"
+        )
+
+        // Water Logs (various amounts)
+        val waterAmounts = listOf(6, 4, 8, 3, 7, 5, 9, 2)
+        datesList.forEachIndexed { idx, d ->
+            dao.insertWaterLog(
+                WaterLogEntity("${userId}_$d", userId, d, waterAmounts.getOrElse(idx) { 6 }, 8)
+            )
+        }
+
+        // Sleep Logs (Start Time, End Time, Hours Slept)
+        val sleepRecords = listOf(
+            SleepLogEntity("sl-1", userId, today, 7.5, "23:00", "06:30", "Felt refreshed"),
+            SleepLogEntity("sl-2", userId, "2026-06-30", 6.0, "00:00", "06:00", "Slightly tired"),
+            SleepLogEntity("sl-3", userId, "2026-06-29", 8.5, "22:00", "06:30", "Deep restful sleep"),
+            SleepLogEntity("sl-4", userId, "2026-06-28", 5.0, "01:00", "06:00", "Interrupted sleep"),
+            SleepLogEntity("sl-5", userId, "2026-06-27", 9.0, "21:30", "06:30", "Excellent weekend sleep"),
+            SleepLogEntity("sl-6", userId, "2026-06-26", 7.0, "23:30", "06:30", "Standard weekday"),
+            SleepLogEntity("sl-7", userId, "2026-06-25", 4.5, "02:00", "06:30", "Late coding session"),
+            SleepLogEntity("sl-8", userId, "2026-06-24", 8.0, "22:30", "06:30", "Very peacefull sleep")
+        )
+        sleepRecords.forEach { dao.insertSleepLog(it) }
+
+        // Exercise Logs (varying intensities/durations for intensity split)
+        val exerciseRecords = listOf(
+            ExerciseLogEntity("ex-1", userId, today, "07:30", "HIIT Cardio", 45, true, "Very high intensity"),
+            ExerciseLogEntity("ex-2", userId, "2026-06-30", "18:30", "Weight Lifting", 60, true, "Moderate intensity"),
+            ExerciseLogEntity("ex-3", userId, "2026-06-29", "08:00", "Slow Yoga", 30, true, "Very low intensity"),
+            ExerciseLogEntity("ex-4", userId, "2026-06-28", "07:00", "Outdoor Run", 50, true, "High intensity"),
+            ExerciseLogEntity("ex-5", userId, "2026-06-27", "17:00", "Brisk Walk", 20, true, "Low intensity"),
+            ExerciseLogEntity("ex-6", userId, "2026-06-26", "08:00", "Swimming", 40, true, "High intensity"),
+            ExerciseLogEntity("ex-7", userId, "2026-06-25", "19:00", "Stretching", 15, true, "Very low intensity"),
+            ExerciseLogEntity("ex-8", userId, "2026-06-24", "07:15", "Cycling", 55, true, "Moderate-High intensity")
+        )
+        exerciseRecords.forEach { dao.insertExerciseLog(it) }
+
+        // Vital Readings (Blood Sugar and Blood Pressure with varying readings)
+        val vitals = listOf(
+            VitalReadingEntity("v-1", userId, "blood_pressure", today, "08:00", "120/80", "resting", "Perfect"),
+            VitalReadingEntity("v-2", userId, "blood_pressure", "2026-06-30", "08:00", "130/85", "resting", "Slightly elevated"),
+            VitalReadingEntity("v-3", userId, "blood_pressure", "2026-06-29", "09:00", "118/78", "resting", "Excellent"),
+            VitalReadingEntity("v-4", userId, "blood_pressure", "2026-06-28", "08:30", "125/82", "resting", "Standard"),
+            VitalReadingEntity("v-5", userId, "blood_pressure", "2026-06-27", "08:00", "122/80", "resting", "Good"),
+            VitalReadingEntity("v-6", userId, "blood_pressure", "2026-06-26", "08:00", "140/90", "resting", "High stress morning"),
+            VitalReadingEntity("v-7", userId, "blood_pressure", "2026-06-25", "08:15", "115/75", "resting", "Excellent"),
+            VitalReadingEntity("v-8", userId, "blood_pressure", "2026-06-24", "08:00", "128/84", "resting", "Mild elevation"),
+
+            VitalReadingEntity("v-9", userId, "blood_sugar", today, "07:30", "95", "fasting", "Perfect"),
+            VitalReadingEntity("v-10", userId, "blood_sugar", "2026-06-30", "07:30", "110", "fasting", "Post-dessert hangover"),
+            VitalReadingEntity("v-11", userId, "blood_sugar", "2026-06-29", "07:30", "88", "fasting", "Great"),
+            VitalReadingEntity("v-12", userId, "blood_sugar", "2026-06-28", "07:30", "102", "fasting", "Standard"),
+            VitalReadingEntity("v-13", userId, "blood_sugar", "2026-06-27", "07:30", "97", "fasting", "Good"),
+            VitalReadingEntity("v-14", userId, "blood_sugar", "2026-06-26", "07:30", "125", "fasting", "High carbs dinner"),
+            VitalReadingEntity("v-15", userId, "blood_sugar", "2026-06-25", "07:30", "90", "fasting", "Perfect"),
+            VitalReadingEntity("v-16", userId, "blood_sugar", "2026-06-24", "07:30", "99", "fasting", "Optimal")
+        )
+        vitals.forEach { dao.insertVitalReading(it) }
+
+        // Seed a very complete default User Profile
+        val defaultProfile = UserProfileEntity(
+            userId = userId,
+            firstName = "Syed",
+            middleName = "Junaid",
+            lastName = "Shah",
+            dob = "15/08/1998",
+            gender = "Male",
+            maritalStatus = "Single",
+            nationality = "Indian",
+            nationalId = "9876-5432-1012",
+            bloodGroup = "O+",
+            residentialStreet = "12 Block C, Shalimar Bagh",
+            residentialCity = "New Delhi",
+            residentialState = "Delhi",
+            residentialZip = "110088",
+            residentialCountry = "India",
+            permanentStreet = "12 Block C, Shalimar Bagh",
+            permanentCity = "New Delhi",
+            permanentState = "Delhi",
+            permanentZip = "110088",
+            permanentCountry = "India",
+            permanentIsSame = true,
+            mobileNumber = "9159159150",
+            alternatePhone = "9876543210",
+            emailAddress = "syedjunaid915@gmail.com",
+            emergencyName = "Syed Ahmad Shah",
+            emergencyRelationship = "Father",
+            emergencyPhone = "9900112233",
+            alternateEmergencyPhone = "9887766554",
+            height = "178 cm",
+            weight = "72 kg",
+            primaryDoctor = "Dr. Sameer Kaul",
+            medicalConditions = "None / Active athlete",
+            currentMedications = "Multivitamins daily",
+            allergies = "None / Seasonal dust pollen",
+            dietaryRestrictions = "Halal, high-protein diet preferred",
+            vitalsHeight = "178",
+            vitalsWeight = "72",
+            vitalsBloodPressure = "120/80",
+            vitalsHeartRate = "68",
+            vitalsBloodGroup = "O+"
+        )
+        dao.insertUserProfile(defaultProfile)
     }
 
     // --- Alarms ---
@@ -334,5 +447,25 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
 
     suspend fun deleteAlarm(alarmId: String) {
         dao.deleteAlarmById(alarmId)
+    }
+
+    // --- Sleep Logs ---
+    fun getSleepLogsFlow(userId: String): Flow<List<SleepLogEntity>> = dao.getSleepLogsForUserFlow(userId)
+
+    suspend fun insertSleepLog(log: SleepLogEntity) {
+        dao.insertSleepLog(log)
+    }
+
+    suspend fun deleteSleepLog(id: String) {
+        dao.deleteSleepLogById(id)
+    }
+
+    // --- User Profile ---
+    fun getUserProfileFlow(userId: String): Flow<UserProfileEntity?> = dao.getUserProfileFlow(userId)
+
+    suspend fun getUserProfile(userId: String): UserProfileEntity? = dao.getUserProfile(userId)
+
+    suspend fun insertUserProfile(profile: UserProfileEntity) {
+        dao.insertUserProfile(profile)
     }
 }

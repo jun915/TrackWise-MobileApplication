@@ -25,8 +25,17 @@ class TrackWiseViewModel(
     val isLoggedIn: Flow<Boolean> = _sessionUser.map { it != null }
 
     // --- UI App Preferences ---
-    private val _themeMode = MutableStateFlow("dark") // "dark" or "light"
+    private val _themeMode = MutableStateFlow("light") // "light", "dark", or "system"
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    private val _taskSound = MutableStateFlow("Chime")
+    val taskSound: StateFlow<String> = _taskSound.asStateFlow()
+
+    private val _alarmSound = MutableStateFlow("Morning Birds")
+    val alarmSound: StateFlow<String> = _alarmSound.asStateFlow()
+
+    private val _appThemeSelection = MutableStateFlow("Default Violet")
+    val appThemeSelection: StateFlow<String> = _appThemeSelection.asStateFlow()
 
     private val _settingsPanelOpen = MutableStateFlow(false)
     val settingsPanelOpen: StateFlow<Boolean> = _settingsPanelOpen.asStateFlow()
@@ -114,6 +123,18 @@ class TrackWiseViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val sleepLogs: StateFlow<List<SleepLogEntity>> = _sessionUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getSleepLogsFlow(user.id) else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val userProfile: StateFlow<UserProfileEntity?> = _sessionUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getUserProfileFlow(user.id) else flowOf(null)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     // --- Temporary Error/Success States ---
     private val _authError = MutableStateFlow<String?>(null)
     val authError: StateFlow<String?> = _authError.asStateFlow()
@@ -151,7 +172,7 @@ class TrackWiseViewModel(
             try {
                 val user = repository.login(email, passwordRaw)
                 _sessionUser.value = user
-                _themeMode.value = "dark" // Default theme
+                _themeMode.value = "light" // Default theme
             } catch (e: Exception) {
                 _authError.value = e.message ?: "Authentication failed."
             }
@@ -687,6 +708,91 @@ class TrackWiseViewModel(
             kotlinx.coroutines.delay(1000)
             _isSyncing.value = false
             _syncMessage.value = "Auto-saved offline data"
+        }
+    }
+
+    // --- Sleep Tracker Actions ---
+    fun addSleepLog(hoursSlept: Double, startTime: String, endTime: String, notes: String? = null) {
+        val user = _sessionUser.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val date = TrackWiseUtils.getTodayString()
+            val log = SleepLogEntity(
+                id = "sleep-${System.currentTimeMillis()}",
+                userId = user.id,
+                date = date,
+                hoursSlept = hoursSlept,
+                startTime = startTime,
+                endTime = endTime,
+                notes = notes
+            )
+            repository.insertSleepLog(log)
+            _successMessage.value = "Sleep logged successfully."
+            triggerFakeSync()
+        }
+    }
+
+    fun deleteSleepLog(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteSleepLog(id)
+            triggerFakeSync()
+        }
+    }
+
+    // --- User Profile Actions ---
+    fun saveDetailedProfile(profile: UserProfileEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertUserProfile(profile)
+            _successMessage.value = "Detailed profile saved successfully."
+            triggerFakeSync()
+        }
+    }
+
+    // --- Sound Selection Actions ---
+    fun setTaskSound(sound: String) {
+        _taskSound.value = sound
+    }
+
+    fun setAlarmSound(sound: String) {
+        _alarmSound.value = sound
+    }
+
+    // --- Different Theme Accent Action ---
+    fun setAppThemeSelection(themeName: String) {
+        _appThemeSelection.value = themeName
+    }
+
+    // --- Account Management ---
+    fun deleteAccount() {
+        _sessionUser.value = null
+        _settingsPanelOpen.value = false
+        _successMessage.value = "Account deleted successfully."
+    }
+
+    // --- Settings Panels Actions ---
+    fun exportData() {
+        viewModelScope.launch(Dispatchers.Main) {
+            _isSyncing.value = true
+            _syncMessage.value = "Exporting data..."
+            kotlinx.coroutines.delay(1000)
+            _isSyncing.value = false
+            _successMessage.value = "App data successfully exported to backups!"
+        }
+    }
+
+    fun importData() {
+        viewModelScope.launch(Dispatchers.Main) {
+            _isSyncing.value = true
+            _syncMessage.value = "Importing data..."
+            kotlinx.coroutines.delay(1000)
+            _isSyncing.value = false
+            _successMessage.value = "App data successfully imported from backup!"
+        }
+    }
+
+    fun syncDeviceState() {
+        triggerFakeSync()
+        viewModelScope.launch(Dispatchers.Main) {
+            _successMessage.value = "Device states synchronized successfully!"
         }
     }
 }

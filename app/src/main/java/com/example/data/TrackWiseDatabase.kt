@@ -19,9 +19,11 @@ import androidx.room.RoomDatabase
         ExerciseLogEntity::class,
         HealthIssueLogEntity::class,
         FriendConnectionEntity::class,
-        AlarmEntity::class
+        AlarmEntity::class,
+        SleepLogEntity::class,
+        UserProfileEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class TrackWiseDatabase : RoomDatabase() {
