@@ -26,6 +26,9 @@ import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 import kotlin.math.pow
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
+
 @Composable
 fun HealthScreen(
     viewModel: TrackWiseViewModel,
@@ -40,6 +43,7 @@ fun HealthScreen(
 
     var activeSubTab by remember { mutableStateOf(0) }
     val tabs = listOf("Metrics Log", "Exercise", "Symptom Log")
+    val focusManager = LocalFocusManager.current
 
     // Dynamic BMI
     val height = currentUser?.heightCm ?: 0.0
@@ -51,6 +55,12 @@ fun HealthScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusManager.clearFocus()
+            }
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)

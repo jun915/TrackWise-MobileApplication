@@ -25,6 +25,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import com.example.ui.theme.*
 
 @Composable
@@ -42,6 +46,8 @@ fun AuthScreen(
     
     val authError by viewModel.authError.collectAsState()
 
+    val focusManager = LocalFocusManager.current
+
     // Main background gradient matching dark/light themes
     val bgGradient = if (viewModel.themeMode.collectAsState().value == "dark") {
         Brush.verticalGradient(listOf(DarkBgStart, DarkBgMid, DarkBgEnd))
@@ -53,6 +59,12 @@ fun AuthScreen(
         modifier = modifier
             .fillMaxSize()
             .background(bgGradient)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusManager.clearFocus()
+            }
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -65,12 +77,16 @@ fun AuthScreen(
                 .padding(28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // App Branding Title
+            // App Branding Title with vibrant multi-color neon gradient
             Text(
                 text = "TrackWise",
-                fontSize = 36.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = BrandViolet,
+                fontSize = 42.sp,
+                fontWeight = FontWeight.Black,
+                style = androidx.compose.ui.text.TextStyle(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(BrandViolet, BrandPink, BrandCyan)
+                    )
+                ),
                 modifier = Modifier.testTag("app_title")
             )
             
@@ -195,28 +211,29 @@ fun AuthScreen(
             }
 
             // Primary Button
-            Button(
-                onClick = {
-                    if (isSignUp) {
-                        if (fullName.isBlank()) {
-                            viewModel.signUp(email, password, fullName) // will trigger error
-                            return@Button
-                        }
-                        if (password != confirmPassword) {
-                            // trigger a validation error locally via a fake exception call or viewModel
-                            return@Button
-                        }
-                        viewModel.signUp(email, password, fullName)
-                    } else {
-                        viewModel.login(email, password)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
-                shape = RoundedCornerShape(12.dp),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
-                    .testTag("auth_submit_button")
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Brush.horizontalGradient(listOf(BrandViolet, BrandPink)))
+                    .clickable {
+                        if (isSignUp) {
+                            if (fullName.isBlank()) {
+                                viewModel.signUp(email, password, fullName) // will trigger error
+                                return@clickable
+                            }
+                            if (password != confirmPassword) {
+                                // trigger a validation error locally via a fake exception call or viewModel
+                                return@clickable
+                            }
+                            viewModel.signUp(email, password, fullName)
+                        } else {
+                            viewModel.login(email, password)
+                        }
+                    }
+                    .testTag("auth_submit_button"),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = if (isSignUp) "Sign Up" else "Log In",

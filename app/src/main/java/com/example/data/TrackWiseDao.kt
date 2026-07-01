@@ -128,4 +128,14 @@ interface TrackWiseDao {
 
     @Query("DELETE FROM friend_connections WHERE id = :id")
     suspend fun deleteFriendById(id: String)
+
+    // --- Alarms ---
+    @Query("SELECT * FROM alarms WHERE userId = :userId ORDER BY hour ASC, minute ASC")
+    fun getAlarmsForUserFlow(userId: String): Flow<List<AlarmEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAlarm(alarm: AlarmEntity)
+
+    @Query("DELETE FROM alarms WHERE id = :id")
+    suspend fun deleteAlarmById(id: String)
 }

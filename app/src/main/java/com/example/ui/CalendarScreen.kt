@@ -32,6 +32,9 @@ import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
+
 @Composable
 fun CalendarScreen(
     viewModel: TrackWiseViewModel,
@@ -46,10 +49,17 @@ fun CalendarScreen(
 
     val sdfMonthHeader = SimpleDateFormat("MM000 yyyy", Locale.US) // Will format manually for simplicity
     val todayStr = TrackWiseUtils.formatDate(currentDate.time, "yyyy-MM-dd")
+    val focusManager = LocalFocusManager.current
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusManager.clearFocus()
+            }
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -195,7 +205,7 @@ fun CalendarScreen(
                             text = "${allahName.ar} / ${allahName.ur}",
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -374,8 +384,8 @@ fun CalendarGrid(
                                     if (overlayMode == "islamic") {
                                         val allahName = TrackWiseUtils.getAllahNameForDate(dayStr)
                                         Text(
-                                            text = allahName.ar.take(3), // Arabic initials/first few chars
-                                            fontSize = 7.sp,
+                                            text = allahName.ar, // Full Arabic name (preserves correct spelling and word-shaping)
+                                            fontSize = 8.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = BrandCyan,
                                             maxLines = 1

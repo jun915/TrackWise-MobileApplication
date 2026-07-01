@@ -154,3 +154,15 @@ data class FriendConnectionEntity(
     val displayName: String,
     val addedAt: String
 )
+
+@Entity(tableName = "alarms")
+data class AlarmEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val label: String,
+    val hour: Int, // 0-23
+    val minute: Int, // 0-59
+    val isEnabled: Boolean,
+    val repeatDaysJson: String = "[]", // list of days: e.g. ["Mon", "Wed"]
+    val snoozeCount: Int = 0
+)

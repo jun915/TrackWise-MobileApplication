@@ -3,6 +3,8 @@ package com.example.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,17 +34,27 @@ import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
+
 @Composable
 fun WorkspaceScreen(
     viewModel: TrackWiseViewModel,
     modifier: Modifier = Modifier
 ) {
-    var activeSubTab by remember { mutableStateOf(0) } // 0 = Tasks, 1 = Habits, 2 = Wishlist, 3 = Birthdays
-    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Birthdays")
+    var activeSubTab by remember { mutableStateOf(0) } // 0 = Tasks, 1 = Habits, 2 = Wishlist, 3 = Birthdays, 4 = Alarms & Clocks
+    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Birthdays", "Alarms & Clocks")
+    val focusManager = LocalFocusManager.current
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusManager.clearFocus()
+            }
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -71,17 +83,19 @@ fun WorkspaceScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 subTabs.forEachIndexed { index, label ->
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(if (activeSubTab == index) BrandViolet else Color.Transparent)
                             .clickable { activeSubTab = index }
-                            .padding(vertical = 12.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -108,6 +122,9 @@ fun WorkspaceScreen(
             }
             3 -> { // Birthdays Sub-Tab
                 item { BirthdaySection(viewModel = viewModel) }
+            }
+            4 -> { // Alarms & Clocks Sub-Tab
+                item { AlarmTimerSection(viewModel = viewModel) }
             }
         }
     }
@@ -185,10 +202,11 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                         }
                     }
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
                         // Priority selection
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Priority", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                            Text("Priority", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 priorities.forEach { prio ->
                                     Box(
@@ -197,7 +215,7 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(if (priority == prio) BrandViolet else MaterialTheme.colorScheme.surfaceVariant)
                                             .clickable { priority = prio }
-                                            .padding(vertical = 8.dp),
+                                            .padding(vertical = 12.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(prio.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (priority == prio) Color.White else MaterialTheme.colorScheme.onBackground)
@@ -206,31 +224,32 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                             }
                         }
 
-                        OutlinedTextField(
+                        CompactTextField(
                             value = points,
                             onValueChange = { points = it },
-                            label = { Text("Pts") },
+                            label = "Pts",
+                            placeholder = "3",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.width(60.dp)
+                            modifier = Modifier.width(72.dp)
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(2.dp))
+
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(
+                        CompactTextField(
                             value = deadline,
                             onValueChange = { deadline = it },
-                            label = { Text("Deadline (YYYY-MM-DD)") },
-                            singleLine = true,
+                            label = "Deadline (YYYY-MM-DD)",
+                            placeholder = "2026-06-30",
                             modifier = Modifier.weight(1f)
                         )
 
-                        OutlinedTextField(
+                        CompactTextField(
                             value = reminderTime,
                             onValueChange = { reminderTime = it },
-                            placeholder = { Text("e.g. 08:30") },
-                            label = { Text("Reminder (HH:MM)") },
-                            singleLine = true,
+                            label = "Reminder (HH:MM)",
+                            placeholder = "e.g. 08:30",
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -717,20 +736,20 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                 )
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
+                    CompactTextField(
                         value = price,
                         onValueChange = { price = it },
-                        label = { Text("Price (₹)") },
+                        label = "Price (₹)",
+                        placeholder = "e.g. 1500",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
 
-                    OutlinedTextField(
+                    CompactTextField(
                         value = link,
                         onValueChange = { link = it },
-                        label = { Text("Product URL Link") },
-                        singleLine = true,
+                        label = "Product URL Link",
+                        placeholder = "https://...",
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -863,20 +882,19 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 )
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
+                    CompactTextField(
                         value = date,
                         onValueChange = { date = it },
-                        placeholder = { Text("MM-DD or YYYY-MM-DD") },
-                        label = { Text("Birthday Date *") },
-                        singleLine = true,
+                        label = "Birthday Date *",
+                        placeholder = "MM-DD or YYYY-MM-DD",
                         modifier = Modifier.weight(1f)
                     )
 
-                    OutlinedTextField(
+                    CompactTextField(
                         value = giftIdea,
                         onValueChange = { giftIdea = it },
-                        label = { Text("Gift Idea") },
-                        singleLine = true,
+                        label = "Gift Idea",
+                        placeholder = "e.g. Perfume",
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -940,3 +958,43 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
         }
     }
 }
+
+@Composable
+fun CompactTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String = "",
+    modifier: Modifier = Modifier,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    singleLine: Boolean = true
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = if (placeholder.isNotEmpty()) { { Text(placeholder, fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)) } } else null,
+            singleLine = singleLine,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+            keyboardOptions = keyboardOptions,
+            shape = RoundedCornerShape(10.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = BrandViolet,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.05f)
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        )
+    }
+}
+

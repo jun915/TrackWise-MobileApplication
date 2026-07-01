@@ -28,6 +28,9 @@ import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 import kotlinx.coroutines.launch
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
+
 @Composable
 fun MainScreen(
     viewModel: TrackWiseViewModel,
@@ -40,6 +43,7 @@ fun MainScreen(
     val successMessage by viewModel.successMessage.collectAsState()
 
     val currentTheme = viewModel.themeMode.collectAsState().value
+    val focusManager = LocalFocusManager.current
 
     // Background selection based on dark/light
     val bgGradient = if (currentTheme == "dark") {
@@ -76,6 +80,12 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        focusManager.clearFocus()
+                    }
             ) {
                 // Main Content Switching
                 when (activeTab) {
@@ -358,72 +368,72 @@ fun SettingsPanel(viewModel: TrackWiseViewModel) {
         ) {
             Text("PROFILE & APP CONFIGURATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
 
-            OutlinedTextField(
+            CompactTextField(
                 value = nameInput,
                 onValueChange = { nameInput = it },
-                label = { Text("Display / Full Name") },
-                singleLine = true,
+                label = "Display / Full Name",
+                placeholder = "Your Name",
                 modifier = Modifier.fillMaxWidth()
             )
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                CompactTextField(
                     value = heightInput,
                     onValueChange = { heightInput = it },
-                    label = { Text("Height (cm)") },
-                    singleLine = true,
+                    label = "Height (cm)",
+                    placeholder = "175",
                     modifier = Modifier.weight(1f)
                 )
 
-                OutlinedTextField(
+                CompactTextField(
                     value = weightInput,
                     onValueChange = { weightInput = it },
-                    label = { Text("Weight (kg)") },
-                    singleLine = true,
+                    label = "Weight (kg)",
+                    placeholder = "70",
                     modifier = Modifier.weight(1f)
                 )
 
-                OutlinedTextField(
+                CompactTextField(
                     value = waterGoalInput,
                     onValueChange = { waterGoalInput = it },
-                    label = { Text("Water goal") },
-                    singleLine = true,
+                    label = "Water goal",
+                    placeholder = "8",
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                CompactTextField(
                     value = phoneInput,
                     onValueChange = { phoneInput = it },
-                    label = { Text("Phone (+91)") },
-                    singleLine = true,
+                    label = "Phone (+91)",
+                    placeholder = "9876543210",
                     modifier = Modifier.weight(1.5f)
                 )
 
-                OutlinedTextField(
+                CompactTextField(
                     value = zipInput,
                     onValueChange = { zipInput = it },
-                    label = { Text("PIN Code") },
-                    singleLine = true,
+                    label = "PIN Code",
+                    placeholder = "110001",
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                CompactTextField(
                     value = cityInput,
                     onValueChange = { cityInput = it },
-                    label = { Text("City") },
-                    singleLine = true,
+                    label = "City",
+                    placeholder = "New Delhi",
                     modifier = Modifier.weight(1f)
                 )
 
-                OutlinedTextField(
+                CompactTextField(
                     value = stateInput,
                     onValueChange = { stateInput = it },
-                    label = { Text("State (India)") },
-                    singleLine = true,
+                    label = "State (India)",
+                    placeholder = "Delhi",
                     modifier = Modifier.weight(1f)
                 )
             }

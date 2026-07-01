@@ -36,6 +36,9 @@ import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
+
 @Composable
 fun DashboardScreen(
     viewModel: TrackWiseViewModel,
@@ -60,10 +63,17 @@ fun DashboardScreen(
             else -> "Good evening"
         }
     }
+    val focusManager = LocalFocusManager.current
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusManager.clearFocus()
+            }
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = 96.dp)

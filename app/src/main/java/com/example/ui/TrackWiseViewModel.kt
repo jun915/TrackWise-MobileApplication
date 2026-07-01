@@ -108,6 +108,12 @@ class TrackWiseViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allAlarms: StateFlow<List<AlarmEntity>> = _sessionUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getAlarmsFlow(user.id) else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // --- Temporary Error/Success States ---
     private val _authError = MutableStateFlow<String?>(null)
     val authError: StateFlow<String?> = _authError.asStateFlow()
@@ -610,6 +616,68 @@ class TrackWiseViewModel(
     }
 
     fun getAllUsersFlow(): Flow<List<UserEntity>> = repository.getAllUsersFlow()
+
+    // --- Alarm Actions ---
+    fun addAlarm(hour: Int, minute: Int, label: String, repeatDays: List<String>) {
+        val user = _sessionUser.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val alarmId = "alarm-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(4)}"
+            val alarm = AlarmEntity(
+                id = alarmId,
+                userId = user.id,
+                label = label.ifBlank { "Alarm" },
+                hour = hour,
+                minute = minute,
+                isEnabled = true,
+                repeatDaysJson = TrackWiseUtils.serializeStringList(repeatDays)
+            )
+            repository.insertAlarm(alarm)
+            triggerFakeSync()
+        }
+    }
+
+    fun toggleAlarm(alarm: AlarmEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = alarm.copy(isEnabled = !alarm.isEnabled, snoozeCount = 0)
+            repository.insertAlarm(updated)
+            triggerFakeSync()
+        }
+    }
+
+    fun deleteAlarm(alarmId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteAlarm(alarmId)
+            triggerFakeSync()
+        }
+    }
+
+    fun snoozeAlarm(alarm: AlarmEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Add 5 minutes to snooze
+            var newMin = alarm.minute + 5
+            var newHour = alarm.hour
+            if (newMin >= 60) {
+                newMin -= 60
+                newHour = (newHour + 1) % 24
+            }
+            val updated = alarm.copy(
+                hour = newHour,
+                minute = newMin,
+                snoozeCount = alarm.snoozeCount + 1
+            )
+            repository.insertAlarm(updated)
+            triggerFakeSync()
+        }
+    }
+
+    fun dismissAlarm(alarm: AlarmEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Turn off alarm or keep enabled but reset snooze count
+            val updated = alarm.copy(snoozeCount = 0)
+            repository.insertAlarm(updated)
+            triggerFakeSync()
+        }
+    }
 
     // --- Fake Sync Utility ---
     fun triggerFakeSync() {

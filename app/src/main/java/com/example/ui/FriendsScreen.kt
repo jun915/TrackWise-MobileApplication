@@ -23,6 +23,9 @@ import com.example.data.*
 import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
+
 @Composable
 fun FriendsScreen(
     viewModel: TrackWiseViewModel,
@@ -37,10 +40,17 @@ fun FriendsScreen(
     
     // Privacy toggle
     val shareStats = currentUser?.enabledConditions?.contains("share_stats") ?: true
+    val focusManager = LocalFocusManager.current
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusManager.clearFocus()
+            }
             .padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)

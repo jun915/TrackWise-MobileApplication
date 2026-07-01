@@ -11,37 +11,37 @@ val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
 
 // --- TrackWise Brand Colors (Professional Polish M3) ---
-val BrandViolet = Color(0xFF6750A4) // Professional Polish M3 Primary Purple
-val BrandPink = Color(0xFF7D5260)   // Professional M3 Tertiary Plum
-val BrandCyan = Color(0xFF00658B)   // Polished Secondary Blue-Cyan
-val BrandGreen = Color(0xFF388E3C)  // Rich Success Green
-val BrandOrange = Color(0xFFD84315) // Deep Fire Orange
-val BrandRose = Color(0xFFB3261E)   // Clean Error Red
-val BrandAmber = Color(0xFFF57C00)  // Gold warning Amber
-val BrandIndigo = Color(0xFF3F51B5) // Deep Slate Indigo
+val BrandViolet = Color(0xFF7C3AED) // Radiant modern purple (Vibrant)
+val BrandPink = Color(0xFFEC4899)   // Vibrant hot pink (Vibrant)
+val BrandCyan = Color(0xFF06B6D4)   // Electric Cyan (Vibrant)
+val BrandGreen = Color(0xFF10B981)  // Bright Emerald Green
+val BrandOrange = Color(0xFFF97316) // Energetic Orange
+val BrandRose = Color(0xFFEF4444)   // Modern Red / Rose
+val BrandAmber = Color(0xFFF59E0B)  // Vivid Amber
+val BrandIndigo = Color(0xFF6366F1) // Modern Electric Indigo
 
 // --- TrackWise Dark Theme Glassmorphism Tokens ---
-val DarkBgStart = Color(0xFF141218) // M3 Dark Baseline
-val DarkBgMid = Color(0xFF1D1B20)
-val DarkBgEnd = Color(0xFF211F26)
+val DarkBgStart = Color(0xFF090810) // Very deep rich cosmic black-purple
+val DarkBgMid = Color(0xFF120E25)   // Deep violet-indigo nebula glow
+val DarkBgEnd = Color(0xFF18122F)   // Midnight amethyst glow
 
-val DarkSurface = Color(0xFF141218)
-val DarkSurfaceCard = Color(0xFF211F26)
-val DarkSurfaceMuted = Color(0xFF313033)
+val DarkSurface = Color(0xFF13111C)
+val DarkSurfaceCard = Color(0xFF1D1B2E)
+val DarkSurfaceMuted = Color(0xFF2C283F)
 
-val GlassBgDark = Color(0xCC211F26) // 80% opacity dark purple-grey
-val GlassBorderDark = Color(0x33938F99) // Soft outline
-val GlassBorderHighlightDark = Color(0x4D938F99)
+val GlassBgDark = Color(0xCC1D1B2E) // 80% opacity dark purple-grey
+val GlassBorderDark = Color(0x33A78BFA) // Soft violet outline
+val GlassBorderHighlightDark = Color(0x4DA78BFA)
 
 // --- TrackWise Light Theme Tokens ---
-val LightBgStart = Color(0xFFFEF7FF) // Professional Polish BG
-val LightBgMid = Color(0xFFF7F2FA)
-val LightBgEnd = Color(0xFFF3EDF7)
+val LightBgStart = Color(0xFFEEF2F6) // Fresh morning dew blue
+val LightBgMid = Color(0xFFF5F3FF)   // Warm soft lavender glow
+val LightBgEnd = Color(0xFFFAF5FF)   // Crisp lavender white
 
-val LightSurface = Color(0xFFFEF7FF)
+val LightSurface = Color(0xFFF8FAFC)
 val LightSurfaceCard = Color(0xFFFFFFFF) // Crisp white cards
-val LightSurfaceMuted = Color(0xFFEADDFF) // Highlight lavender
+val LightSurfaceMuted = Color(0xFFE0E7FF) // Highlight indigo
 
 val GlassBgLight = Color(0xD9FFFFFF) // 85% opacity white
-val GlassBorderLight = Color(0xFFE7E0EC) // M3 Lavender Outline
+val GlassBorderLight = Color(0xFFE2E8F0) // Clean border slate
 

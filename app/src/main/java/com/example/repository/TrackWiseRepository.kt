@@ -306,6 +306,13 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
 
         sampleWish.forEach { dao.insertWishItem(it) }
 
+        // Sample Alarms
+        val sampleAlarms = listOf(
+            AlarmEntity("a-1", userId, "Fajr Prayer 🕌", 5, 0, true, "[\"Mon\",\"Tue\",\"Wed\",\"Thu\",\"Fri\",\"Sat\",\"Sun\"]"),
+            AlarmEntity("a-2", userId, "Night Wind Down 🌙", 22, 30, true, "[\"Mon\",\"Tue\",\"Wed\",\"Thu\",\"Fri\",\"Sat\",\"Sun\"]")
+        )
+        sampleAlarms.forEach { dao.insertAlarm(it) }
+
         // Initialize today's water log
         dao.insertWaterLog(
             WaterLogEntity(
@@ -316,5 +323,16 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
                 goal = 8
             )
         )
+    }
+
+    // --- Alarms ---
+    fun getAlarmsFlow(userId: String): Flow<List<AlarmEntity>> = dao.getAlarmsForUserFlow(userId)
+
+    suspend fun insertAlarm(alarm: AlarmEntity) {
+        dao.insertAlarm(alarm)
+    }
+
+    suspend fun deleteAlarm(alarmId: String) {
+        dao.deleteAlarmById(alarmId)
     }
 }

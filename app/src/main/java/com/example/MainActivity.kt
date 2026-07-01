@@ -15,6 +15,12 @@ import com.example.ui.MainScreen
 import com.example.ui.TrackWiseViewModel
 import com.example.ui.theme.MyApplicationTheme
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalFocusManager
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,19 +35,31 @@ class MainActivity : ComponentActivity() {
             val themeMode by viewModel.themeMode.collectAsState()
             MyApplicationTheme(darkTheme = themeMode == "dark") {
                 val isLoggedIn by viewModel.isLoggedIn.collectAsState(initial = false)
+                val focusManager = LocalFocusManager.current
 
-                if (isLoggedIn) {
-                    // Authenticated shell (Section 7.1 bottom nav)
-                    MainScreen(
-                        viewModel = viewModel,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    // Auth gate (Section 3.1)
-                    AuthScreen(
-                        viewModel = viewModel,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        }
+                ) {
+                    if (isLoggedIn) {
+                        // Authenticated shell (Section 7.1 bottom nav)
+                        MainScreen(
+                            viewModel = viewModel,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // Auth gate (Section 3.1)
+                        AuthScreen(
+                            viewModel = viewModel,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }

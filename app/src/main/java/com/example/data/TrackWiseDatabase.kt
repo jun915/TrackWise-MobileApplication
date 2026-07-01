@@ -18,7 +18,8 @@ import androidx.room.RoomDatabase
         WaterLogEntity::class,
         ExerciseLogEntity::class,
         HealthIssueLogEntity::class,
-        FriendConnectionEntity::class
+        FriendConnectionEntity::class,
+        AlarmEntity::class
     ],
     version = 1,
     exportSchema = false
