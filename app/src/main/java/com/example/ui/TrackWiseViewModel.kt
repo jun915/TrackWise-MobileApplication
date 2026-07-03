@@ -86,37 +86,6 @@ class TrackWiseViewModel(
         _notifications.value = emptyList()
     }
 
-    init {
-        // Persistent Session & Monthly Re-login Check (on the 28th)
-        val prefs = application.getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
-        val savedUserId = prefs.getString("saved_user_id", null)
-        val dayOfMonth = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
-        
-        if (savedUserId != null) {
-            if (dayOfMonth == 28) {
-                prefs.edit().remove("saved_user_id").apply()
-                _authError.value = "Monthly security check: Please log in again (28th of the month)."
-                addNotification("Security Check", "Session expired on the 28th for monthly re-login.")
-            } else {
-                viewModelScope.launch(Dispatchers.IO) {
-                    val user = repository.findUserById(savedUserId)
-                    if (user != null) {
-                        _sessionUser.value = user
-                        addNotification("Welcome Back!", "Automated secure login successful.")
-                    }
-                }
-            }
-        }
-
-        // Auto-update home screen widget whenever key data states change
-        viewModelScope.launch {
-            combine(allTasks, allHabits, allFinanceLogs, waterLogs, sessionUser) { _, _, _, _, _ -> Unit }
-                .collect {
-                    updateAppWidget()
-                }
-        }
-    }
-
     fun updateAppWidget() {
         try {
             val context = getApplication<Application>().applicationContext
@@ -1731,6 +1700,37 @@ class TrackWiseViewModel(
         triggerFakeSync()
         viewModelScope.launch(Dispatchers.Main) {
             _successMessage.value = "Device states synchronized successfully!"
+        }
+    }
+
+    init {
+        // Persistent Session & Monthly Re-login Check (on the 28th)
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        val savedUserId = prefs.getString("saved_user_id", null)
+        val dayOfMonth = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+        
+        if (savedUserId != null) {
+            if (dayOfMonth == 28) {
+                prefs.edit().remove("saved_user_id").apply()
+                _authError.value = "Monthly security check: Please log in again (28th of the month)."
+                addNotification("Security Check", "Session expired on the 28th for monthly re-login.")
+            } else {
+                viewModelScope.launch(Dispatchers.IO) {
+                    val user = repository.findUserById(savedUserId)
+                    if (user != null) {
+                        _sessionUser.value = user
+                        addNotification("Welcome Back!", "Automated secure login successful.")
+                    }
+                }
+            }
+        }
+
+        // Auto-update home screen widget whenever key data states change
+        viewModelScope.launch {
+            combine(allTasks, allHabits, allFinanceLogs, waterLogs, sessionUser) { _, _, _, _, _ -> Unit }
+                .collect {
+                    updateAppWidget()
+                }
         }
     }
 }
