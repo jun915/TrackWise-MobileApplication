@@ -16,12 +16,18 @@ interface TrackWiseDao {
     @Query("SELECT * FROM users WHERE email = :email")
     suspend fun getUserByEmail(email: String): UserEntity?
 
+    @Query("SELECT * FROM users")
+    suspend fun getAllUsers(): List<UserEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUser(user: UserEntity)
 
     // --- Tasks ---
     @Query("SELECT * FROM tasks WHERE userId = :userId")
     fun getTasksForUserFlow(userId: String): Flow<List<TaskEntity>>
+
+    @Query("SELECT * FROM tasks WHERE userId = :userId")
+    suspend fun getTasksForUser(userId: String): List<TaskEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTask(task: TaskEntity)
@@ -32,6 +38,9 @@ interface TrackWiseDao {
     // --- Habits ---
     @Query("SELECT * FROM habits WHERE userId = :userId")
     fun getHabitsForUserFlow(userId: String): Flow<List<HabitEntity>>
+
+    @Query("SELECT * FROM habits")
+    fun getAllHabitsFlow(): Flow<List<HabitEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHabit(habit: HabitEntity)
@@ -195,6 +204,15 @@ interface TrackWiseDao {
     // --- Finance Logs ---
     @Query("SELECT * FROM finance_logs WHERE userId = :userId ORDER BY date DESC, id DESC")
     fun getFinanceLogsForUserFlow(userId: String): Flow<List<FinanceLogEntity>>
+
+    @Query("SELECT * FROM finance_logs WHERE userId = :userId")
+    suspend fun getFinanceLogsForUser(userId: String): List<FinanceLogEntity>
+
+    @Query("SELECT * FROM water_logs WHERE userId = :userId")
+    suspend fun getWaterLogsForUser(userId: String): List<WaterLogEntity>
+
+    @Query("SELECT * FROM exercise_logs WHERE userId = :userId")
+    suspend fun getExerciseLogsForUser(userId: String): List<ExerciseLogEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFinanceLog(log: FinanceLogEntity)

@@ -77,13 +77,13 @@ fun CalendarScreen(
             }
         }
 
-        // --- View Toggles (Day / Week / Month) ---
+        // --- View Toggles (Day / Month) ---
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("Day", "Week", "Month").forEach { viewName ->
+                listOf("Day", "Month").forEach { viewName ->
                     val mode = viewName.lowercase()
                     val isSelected = activeView == mode
                     Box(
@@ -364,6 +364,10 @@ fun CalendarDayView(
     val todayBirthdays = birthdays.filter { it.date.endsWith(dayStr.substring(5)) }
     val festivals = TrackWiseUtils.getIndianFestivalsForDate(dayStr)
 
+    // Separate tasks: all-day (no reminder time) vs timed (has reminder time)
+    val allDayTasks = todayTasks.filter { it.reminderTime.isNullOrBlank() }
+    val timedTasks = todayTasks.filter { !it.reminderTime.isNullOrBlank() }
+
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -371,132 +375,275 @@ fun CalendarDayView(
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.US).format(currentDate.time),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = BrandViolet
-            )
-
-            if (festivals.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandRose.copy(alpha = 0.1f)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Celebration, contentDescription = null, tint = BrandRose)
-                        Column {
-                            Text("Indian Festivals Today", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandRose)
-                            Text(festivals.joinToString(", "), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Teams Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = SimpleDateFormat("EEEE, d MMMM", Locale.US).format(currentDate.time),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Teams Daily Schedule • ${todayTasks.size} tasks",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
                 }
-            }
-
-            if (todayBirthdays.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandPink.copy(alpha = 0.1f)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Cake, contentDescription = null, tint = BrandPink)
-                        Column {
-                            Text("Birthdays Today", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandPink)
-                            Text(todayBirthdays.joinToString(", ") { it.name }, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-
-            Text(
-                text = "TODAY'S SCHEDULE",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-            )
-
-            if (todayTasks.isEmpty()) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(BrandViolet.copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(32.dp))
-                        Text("No tasks scheduled for today!", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Teams Style",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandViolet
+                    )
+                }
+            }
+
+            // --- All Day section (Festivals, Birthdays, and All-Day tasks) ---
+            if (festivals.isNotEmpty() || todayBirthdays.isNotEmpty() || allDayTasks.isNotEmpty()) {
+                Text(
+                    text = "ALL-DAY EVENTS",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    festivals.forEach { fest ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BrandRose.copy(alpha = 0.15f))
+                                .border(1.dp, BrandRose.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.Celebration, contentDescription = null, tint = BrandRose, modifier = Modifier.size(16.dp))
+                            Text(text = "Festival: $fest", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                        }
+                    }
+
+                    todayBirthdays.forEach { bday ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BrandPink.copy(alpha = 0.15f))
+                                .border(1.dp, BrandPink.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.Cake, contentDescription = null, tint = BrandPink, modifier = Modifier.size(16.dp))
+                            Text(text = "Birthday: ${bday.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                        }
+                    }
+
+                    allDayTasks.forEach { task ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BrandViolet.copy(alpha = 0.1f))
+                                .border(1.dp, BrandViolet.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(
+                                    imageVector = if (task.completed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    tint = if (task.completed) BrandGreen else BrandViolet,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = task.title,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (task.completed) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(BrandViolet.copy(alpha = 0.2f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("Task", fontSize = 9.sp, color = BrandViolet, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    todayTasks.forEach { task ->
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                            shape = RoundedCornerShape(12.dp)
+            }
+
+            // --- 24-Hour Schedule Timeline ---
+            Text(
+                text = "TIMELINE (24 HRS)",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                for (h in 0..23) {
+                    val displayHour = when {
+                        h == 0 -> "12 AM"
+                        h < 12 -> "$h AM"
+                        h == 12 -> "12 PM"
+                        else -> "${h - 12} PM"
+                    }
+
+                    // Find tasks for this hour slot
+                    val hourTasks = timedTasks.filter { task ->
+                        val time = task.reminderTime
+                        if (time != null) {
+                            val parts = time.split(":")
+                            if (parts.size >= 2) {
+                                val hour = parts[0].toIntOrNull()
+                                hour == h
+                            } else false
+                        } else false
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min), // dynamic height fits schedule content
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        // Hour Label Lane
+                        Box(
+                            modifier = Modifier
+                                .width(55.dp)
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.TopStart
                         ) {
-                            Row(
+                            Text(
+                                text = displayHour,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+
+                        // Vertical Timeline Line and Content Lane
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            // Timeline Axis
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .width(16.dp)
+                                    .fillMaxHeight(),
+                                contentAlignment = Alignment.TopCenter
                             ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = if (task.completed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                        contentDescription = null,
-                                        tint = if (task.completed) BrandGreen else BrandViolet,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Column {
-                                        Text(
-                                            text = task.title,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (task.completed) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        if (task.reminderTime != null) {
-                                            Text(
-                                                text = "Reminder: ${task.reminderTime}",
-                                                fontSize = 11.sp,
-                                                color = BrandViolet
-                                            )
-                                        }
-                                    }
-                                }
+                                // Vertical line spanning full height of this row
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(
-                                            when (task.priority.lowercase()) {
-                                                "high" -> BrandRose.copy(alpha = 0.15f)
-                                                "medium" -> BrandAmber.copy(alpha = 0.15f)
-                                                else -> BrandCyan.copy(alpha = 0.15f)
+                                        .width(1.dp)
+                                        .fillMaxHeight()
+                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                                )
+                                // Circle dot representing the hour anchor
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 16.dp)
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (hourTasks.isNotEmpty()) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
+                                )
+                            }
+
+                            // Scheduled tasks for this hour
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                if (hourTasks.isEmpty()) {
+                                    // Teams style empty schedule placeholder
+                                    Spacer(modifier = Modifier.height(28.dp))
+                                } else {
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        hourTasks.forEach { task ->
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (task.completed) {
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                                    } else {
+                                                        BrandViolet.copy(alpha = 0.12f)
+                                                    }
+                                                ),
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .border(
+                                                        1.dp,
+                                                        if (task.completed) Color.Transparent else BrandViolet.copy(alpha = 0.3f),
+                                                        RoundedCornerShape(10.dp)
+                                                    )
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (task.completed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                                            contentDescription = null,
+                                                            tint = if (task.completed) BrandGreen else BrandViolet,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Column {
+                                                            Text(
+                                                                text = task.title,
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = if (task.completed) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface,
+                                                                maxLines = 2,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                            Text(
+                                                                text = "Time: ${task.reminderTime}",
+                                                                fontSize = 11.sp,
+                                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
-                                        )
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = task.priority.uppercase(),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = when (task.priority.lowercase()) {
-                                            "high" -> BrandRose
-                                            "medium" -> BrandAmber
-                                            else -> BrandCyan
                                         }
-                                    )
+                                    }
                                 }
                             }
                         }

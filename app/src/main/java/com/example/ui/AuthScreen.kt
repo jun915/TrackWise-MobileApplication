@@ -46,15 +46,15 @@ fun AuthScreen(
     
     val authError by viewModel.authError.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
-
+    
+    val currentTheme = viewModel.themeMode.collectAsState().value
+    val themeAccent by viewModel.appThemeSelection.collectAsState()
+    val isSystemInDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = currentTheme == "dark" || (currentTheme == "system" && isSystemInDark)
     val focusManager = LocalFocusManager.current
 
-    // Main background gradient matching dark/light themes
-    val bgGradient = if (viewModel.themeMode.collectAsState().value == "dark") {
-        Brush.verticalGradient(listOf(DarkBgStart, DarkBgMid, DarkBgEnd))
-    } else {
-        Brush.verticalGradient(listOf(LightBgStart, LightBgMid, LightBgEnd))
-    }
+    val gradientColors = com.example.ui.theme.getThemeGradientColors(themeAccent, isDark)
+    val bgGradient = Brush.verticalGradient(gradientColors)
 
     Box(
         modifier = modifier

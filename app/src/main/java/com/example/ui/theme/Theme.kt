@@ -57,6 +57,26 @@ private val LightColorScheme =
     outline = Color(0xFF94A3B8)
   )
 
+fun getThemeGradientColors(themeAccent: String, darkTheme: Boolean): List<Color> {
+    return if (darkTheme) {
+        when (themeAccent) {
+            "Ocean Blue" -> listOf(Color(0xFF050B14), Color(0xFF091424), Color(0xFF0F1E35))
+            "Forest Green" -> listOf(Color(0xFF040A08), Color(0xFF081410), Color(0xFF0E221B))
+            "Sunset Orange" -> listOf(Color(0xFF0C0805), Color(0xFF160F0A), Color(0xFF241810))
+            "Crimson Red" -> listOf(Color(0xFF0C0507), Color(0xFF160A0D), Color(0xFF241014))
+            else -> listOf(Color(0xFF090810), Color(0xFF120E25), Color(0xFF18122F)) // Default Violet
+        }
+    } else {
+        when (themeAccent) {
+            "Ocean Blue" -> listOf(Color(0xFFF0F5FA), Color(0xFFE1EDF7), Color(0xFFD2E4F4))
+            "Forest Green" -> listOf(Color(0xFFF0F5F2), Color(0xFFE2EDE5), Color(0xFFD4E5D9))
+            "Sunset Orange" -> listOf(Color(0xFFFAF5F0), Color(0xFFF5EBE0), Color(0xFFECDCD0))
+            "Crimson Red" -> listOf(Color(0xFFFAF0F2), Color(0xFFF5E0E4), Color(0xFFECD0D5))
+            else -> listOf(Color(0xFFEEF2F6), Color(0xFFF5F3FF), Color(0xFFFAF5FF)) // Default Violet
+        }
+    }
+}
+
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
@@ -65,32 +85,70 @@ fun MyApplicationTheme(
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
+  var darkBg = DarkBgStart
+  var darkSurface = DarkSurface
+  var darkSurfaceCard = DarkSurfaceCard
+
+  var lightBg = LightBgStart
+  var lightSurfaceCard = LightSurfaceCard
+  var lightBgMid = LightBgMid
+
   // Sync brand colors first based on user selected theme accent
   when (themeAccent) {
       "Ocean Blue" -> {
           BrandViolet = Color(0xFF0EA5E9)
           BrandCyan = Color(0xFF6366F1)
           BrandPink = Color(0xFF06B6D4)
+          darkBg = Color(0xFF050B14)
+          darkSurface = Color(0xFF091424)
+          darkSurfaceCard = Color(0xFF0F1E35)
+          lightBg = Color(0xFFF0F5FA)
+          lightSurfaceCard = Color(0xFFFFFFFF)
+          lightBgMid = Color(0xFFE1EDF7)
       }
       "Forest Green" -> {
           BrandViolet = Color(0xFF10B981)
           BrandCyan = Color(0xFFF59E0B)
           BrandPink = Color(0xFF06B6D4)
+          darkBg = Color(0xFF040A08)
+          darkSurface = Color(0xFF081410)
+          darkSurfaceCard = Color(0xFF0E221B)
+          lightBg = Color(0xFFF0F5F2)
+          lightSurfaceCard = Color(0xFFFFFFFF)
+          lightBgMid = Color(0xFFE2EDE5)
       }
       "Sunset Orange" -> {
           BrandViolet = Color(0xFFF97316)
           BrandCyan = Color(0xFFF59E0B)
           BrandPink = Color(0xFFEF4444)
+          darkBg = Color(0xFF0C0805)
+          darkSurface = Color(0xFF160F0A)
+          darkSurfaceCard = Color(0xFF241810)
+          lightBg = Color(0xFFFAF5F0)
+          lightSurfaceCard = Color(0xFFFFFFFF)
+          lightBgMid = Color(0xFFF5EBE0)
       }
       "Crimson Red" -> {
           BrandViolet = Color(0xFFEF4444)
           BrandCyan = Color(0xFFEC4899)
           BrandPink = Color(0xFFF97316)
+          darkBg = Color(0xFF0C0507)
+          darkSurface = Color(0xFF160A0D)
+          darkSurfaceCard = Color(0xFF241014)
+          lightBg = Color(0xFFFAF0F2)
+          lightSurfaceCard = Color(0xFFFFFFFF)
+          lightBgMid = Color(0xFFF5E0E4)
       }
       else -> { // "Default Violet"
           BrandViolet = Color(0xFF7C3AED)
           BrandCyan = Color(0xFF06B6D4)
           BrandPink = Color(0xFFEC4899)
+          darkBg = DarkBgStart
+          darkSurface = DarkSurface
+          darkSurfaceCard = DarkSurfaceCard
+          lightBg = LightBgStart
+          lightSurfaceCard = LightSurfaceCard
+          lightBgMid = LightBgMid
       }
   }
 
@@ -108,11 +166,11 @@ fun MyApplicationTheme(
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFF500724),
     onTertiaryContainer = Color(0xFFFCE7F3),
-    background = DarkBgStart,
+    background = darkBg,
     onBackground = Color(0xFFF1F5F9),
-    surface = DarkSurface,
+    surface = darkSurface,
     onSurface = Color(0xFFF1F5F9),
-    surfaceVariant = DarkSurfaceCard,
+    surfaceVariant = darkSurfaceCard,
     onSurfaceVariant = Color(0xFFCBD5E1),
     outline = Color(0xFF475569)
   )
@@ -130,11 +188,11 @@ fun MyApplicationTheme(
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFFFCE7F3),
     onTertiaryContainer = Color(0xFF500724),
-    background = LightBgStart,
+    background = lightBg,
     onBackground = Color(0xFF0F172A),
-    surface = LightSurfaceCard,
+    surface = lightSurfaceCard,
     onSurface = Color(0xFF0F172A),
-    surfaceVariant = LightBgMid,
+    surfaceVariant = lightBgMid,
     onSurfaceVariant = Color(0xFF475569),
     outline = Color(0xFF94A3B8)
   )

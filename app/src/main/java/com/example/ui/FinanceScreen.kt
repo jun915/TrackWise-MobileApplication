@@ -67,6 +67,29 @@ fun FinanceScreen(
         totalIncome - (totalExpense + totalSavings)
     }
 
+    // Overall Balance and Daily Target States
+    val overallIncome = remember(financeLogs) { financeLogs.filter { it.type == "income" }.sumOf { it.amount } }
+    val overallExpense = remember(financeLogs) { financeLogs.filter { it.type == "expense" }.sumOf { it.amount } }
+    val overallSavings = remember(financeLogs) { financeLogs.filter { it.type == "savings" }.sumOf { it.amount } }
+    val overallBalance = overallIncome - (overallExpense + overallSavings)
+
+    val userProfile by viewModel.userProfile.collectAsState()
+    val dailyTarget = userProfile?.financeDailyTarget ?: 1000.0
+
+    val todayDateStr = TrackWiseUtils.getTodayString()
+    val todayExpenses = remember(financeLogs, todayDateStr) {
+        financeLogs.filter { it.date == todayDateStr && it.type == "expense" }.sumOf { it.amount }
+    }
+
+    // Deficit & Daily target States
+    var showDeficitWarningDialog by remember { mutableStateOf(false) }
+    var deficitAmountNeeded by remember { mutableStateOf(0.0) }
+    var pendingExpenseAmount by remember { mutableStateOf(0.0) }
+    var pendingExpenseCategory by remember { mutableStateOf("") }
+    var pendingExpenseTitle by remember { mutableStateOf("") }
+    var pendingExpenseNotes by remember { mutableStateOf("") }
+    var pendingTransactionDate by remember { mutableStateOf("") }
+
     // Input States
     var selectedTab by remember { mutableStateOf("expense") } // "income", "expense", "savings"
     var transactionDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
@@ -154,6 +177,122 @@ fun FinanceScreen(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
+            }
+        }
+
+        // --- Daily Budget Target Panel ---
+        item {
+            var showEditTargetDialog by remember { mutableStateOf(false) }
+            
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showEditTargetDialog = true }
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(BrandViolet.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.TrendingUp,
+                                contentDescription = null,
+                                tint = BrandViolet,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Daily Expense Target",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                            Text(
+                                text = "₹${String.format("%.2f", dailyTarget)}",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = BrandViolet
+                            )
+                        }
+                    }
+
+                    val isExceeded = todayExpenses > dailyTarget
+                    
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = if (isExceeded) "TARGET EXCEEDED ⚠️" else "SPENDING STATUS",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isExceeded) BrandRose else BrandGreen
+                        )
+                        Text(
+                            text = "Spent ₹${String.format("%.1f", todayExpenses)} today",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isExceeded) BrandRose else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            if (showEditTargetDialog) {
+                var newTargetStr by remember { mutableStateOf(dailyTarget.toString()) }
+                AlertDialog(
+                    onDismissRequest = { showEditTargetDialog = false },
+                    title = { Text("Set Daily Expense Target") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Set your daily expense limit. You will be alerted via notification if today's spending exceeds this amount.")
+                            OutlinedTextField(
+                                value = newTargetStr,
+                                onValueChange = { newTargetStr = it },
+                                label = { Text("Daily Limit (₹)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val targetVal = newTargetStr.toDoubleOrNull() ?: 0.0
+                                val currentUser = viewModel.sessionUser.value
+                                if (currentUser != null) {
+                                    val updated = (userProfile ?: com.example.data.UserProfileEntity(userId = currentUser.id)).copy(financeDailyTarget = targetVal)
+                                    viewModel.saveDetailedProfile(updated)
+                                }
+                                showEditTargetDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandViolet)
+                        ) {
+                            Text("Save Target", color = Color.White)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showEditTargetDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
                 )
             }
         }
@@ -373,17 +512,34 @@ fun FinanceScreen(
                                 onClick = {
                                     val amt = expenseAmount.toDoubleOrNull()
                                     if (amt != null && amt > 0) {
-                                        viewModel.addFinanceLog(
-                                            type = "expense",
-                                            category = selectedExpenseCategory,
-                                            title = selectedExpenseTitle,
-                                            amount = amt,
-                                            notes = expenseNotes.trim().ifEmpty { null },
-                                            date = transactionDate
-                                        )
-                                        expenseAmount = ""
-                                        expenseNotes = ""
-                                        focusManager.clearFocus()
+                                        if (overallBalance - amt < 0) {
+                                            deficitAmountNeeded = amt - overallBalance
+                                            pendingExpenseAmount = amt
+                                            pendingExpenseCategory = selectedExpenseCategory
+                                            pendingExpenseTitle = selectedExpenseTitle
+                                            pendingExpenseNotes = expenseNotes.trim().ifEmpty { "" }
+                                            pendingTransactionDate = transactionDate
+                                            showDeficitWarningDialog = true
+                                        } else {
+                                            if (transactionDate == todayDateStr && todayExpenses + amt > dailyTarget) {
+                                                viewModel.addNotification(
+                                                    title = "⚠️ Daily Spending Limit Breached!",
+                                                    message = "You spent ₹${String.format("%.1f", todayExpenses + amt)} today, exceeding your daily target limit of ₹${dailyTarget}."
+                                                )
+                                            }
+
+                                            viewModel.addFinanceLog(
+                                                type = "expense",
+                                                category = selectedExpenseCategory,
+                                                title = selectedExpenseTitle,
+                                                amount = amt,
+                                                notes = expenseNotes.trim().ifEmpty { null },
+                                                date = transactionDate
+                                            )
+                                            expenseAmount = ""
+                                            expenseNotes = ""
+                                            focusManager.clearFocus()
+                                        }
                                     }
                                 },
                                 enabled = expenseAmount.isNotBlank(),
@@ -711,6 +867,82 @@ fun FinanceScreen(
                 }
             }
         }
+    }
+
+    if (showDeficitWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeficitWarningDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = BrandRose)
+                    Text("Deficit Balance Alert ⚠️")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Your cumulative expenses and savings will total ₹${String.format("%.2f", overallExpense + overallSavings + pendingExpenseAmount)}, which exceeds your cumulative income of ₹${String.format("%.2f", overallIncome)}.",
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "You need an additional ₹${String.format("%.2f", deficitAmountNeeded)} of balance. You must either add more income or borrow credit.",
+                        color = BrandRose,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        // Quick Borrow Credit
+                        viewModel.addFinanceLog(
+                            type = "income",
+                            category = "Others",
+                            title = "Pocket Money",
+                            amount = deficitAmountNeeded,
+                            notes = "Borrowed Credit to cover deficit",
+                            date = pendingTransactionDate
+                        )
+                        viewModel.addFinanceLog(
+                            type = "expense",
+                            category = pendingExpenseCategory,
+                            title = pendingExpenseTitle,
+                            amount = pendingExpenseAmount,
+                            notes = pendingExpenseNotes.ifEmpty { null },
+                            date = pendingTransactionDate
+                        )
+                        
+                        viewModel.addNotification(
+                            title = "💰 Borrowed Credit Applied",
+                            message = "Automatically recorded ₹${String.format("%.2f", deficitAmountNeeded)} as Borrowed Credit to cover your expense."
+                        )
+
+                        // Clear inputs
+                        expenseAmount = ""
+                        expenseNotes = ""
+                        focusManager.clearFocus()
+                        showDeficitWarningDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandViolet)
+                ) {
+                    Text("Borrow Credit (₹${String.format("%.1f", deficitAmountNeeded)})", color = Color.White)
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TextButton(onClick = {
+                        selectedTab = "income"
+                        incomeAmount = deficitAmountNeeded.toString()
+                        showDeficitWarningDialog = false
+                    }) {
+                        Text("Add Income", color = BrandViolet)
+                    }
+                    TextButton(onClick = { showDeficitWarningDialog = false }) {
+                        Text("Cancel", color = Color.Gray)
+                    }
+                }
+            }
+        )
     }
 }
 

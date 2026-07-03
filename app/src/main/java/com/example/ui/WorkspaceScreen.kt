@@ -1095,21 +1095,26 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Grocery Check List 🛒",
+                text = "Grocery List 🛒",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f)
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 if (groceryItems.any { it.completed }) {
                     TextButton(
                         onClick = { viewModel.clearCompletedGroceries() },
-                        colors = ButtonDefaults.textButtonColors(contentColor = BrandRose)
+                        colors = ButtonDefaults.textButtonColors(contentColor = BrandRose),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
                     ) {
-                        Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Clear Bought", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("Clear", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -1120,16 +1125,16 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                         contentColor = if (showForm) MaterialTheme.colorScheme.onSurfaceVariant else Color.White
                     ),
                     shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.height(36.dp)
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.defaultMinSize(minWidth = 1.dp).height(34.dp)
                 ) {
                     Icon(
                         imageVector = if (showForm) Icons.Default.Close else Icons.Default.Add,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (showForm) "Close" else "Add Item", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (showForm) "Close" else "Add Item", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

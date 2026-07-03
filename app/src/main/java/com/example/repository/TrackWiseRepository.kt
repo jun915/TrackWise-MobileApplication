@@ -86,6 +86,8 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
     // --- Habits ---
     fun getHabitsFlow(userId: String): Flow<List<HabitEntity>> = dao.getHabitsForUserFlow(userId)
 
+    fun getAllHabitsFlow(): Flow<List<HabitEntity>> = dao.getAllHabitsFlow()
+
     suspend fun insertHabit(habit: HabitEntity) {
         dao.insertHabit(habit)
     }

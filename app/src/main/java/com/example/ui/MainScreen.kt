@@ -62,15 +62,13 @@ fun MainScreen(
     }
 
     val currentTheme = viewModel.themeMode.collectAsState().value
+    val themeAccent by viewModel.appThemeSelection.collectAsState()
     val isSystemInDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = currentTheme == "dark" || (currentTheme == "system" && isSystemInDark)
     val focusManager = LocalFocusManager.current
 
-    // Background selection based on dark/light/system
-    val bgGradient = if (currentTheme == "dark" || (currentTheme == "system" && isSystemInDark)) {
-        Brush.verticalGradient(listOf(DarkBgStart, DarkBgMid, DarkBgEnd))
-    } else {
-        Brush.verticalGradient(listOf(LightBgStart, LightBgMid, LightBgEnd))
-    }
+    val gradientColors = com.example.ui.theme.getThemeGradientColors(themeAccent, isDark)
+    val bgGradient = Brush.verticalGradient(gradientColors)
 
     Box(
         modifier = modifier

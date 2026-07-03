@@ -219,7 +219,8 @@ data class UserProfileEntity(
     val vitalsWeight: String = "",
     val vitalsBloodPressure: String = "",
     val vitalsHeartRate: String = "",
-    val vitalsBloodGroup: String = ""
+    val vitalsBloodGroup: String = "",
+    val financeDailyTarget: Double = 0.0
 )
 
 @Entity(tableName = "grocery_items")

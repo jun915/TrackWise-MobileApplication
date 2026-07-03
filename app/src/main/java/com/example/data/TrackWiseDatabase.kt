@@ -27,7 +27,7 @@ import androidx.room.RoomDatabase
         PeriodCycleEntity::class,
         FinanceLogEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class TrackWiseDatabase : RoomDatabase() {

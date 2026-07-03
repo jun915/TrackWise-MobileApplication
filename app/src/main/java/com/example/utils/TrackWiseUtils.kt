@@ -85,13 +85,13 @@ object TrackWiseUtils {
     }
 
     // --- Islamic Calendar (Hijri Date and 99 Names) ---
-    // Epoch: 2025-12-22 is Day 100 ("Allah"), so 2025-12-23 is Day 1
+    // Epoch: 2025-12-21 is Day 100 ("Allah"), so 2025-12-22 is Day 1
     fun getAllahNameForDate(dateStr: String): AllahName {
-        val epochStr = "2025-12-22"
+        val epochStr = "2025-12-21"
         val epoch = parseDate(epochStr).time
         val current = parseDate(dateStr).time
         val diffMs = current - epoch
-        val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
+        val diffDays = java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
         
         // Cycle is 100 days
         var cycleIndex = diffDays % 100

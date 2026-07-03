@@ -50,6 +50,36 @@ class TrackWiseViewModel(
             timestamp = timeStr
         )
         _notifications.value = listOf(newNotification) + _notifications.value
+        showSystemNotification(title, message)
+    }
+
+    private fun showSystemNotification(title: String, message: String) {
+        try {
+            val context = getApplication<Application>().applicationContext
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val channelId = "trackwise_notifications"
+                val channelName = "TrackWise Notifications"
+                val importance = android.app.NotificationManager.IMPORTANCE_HIGH
+                val channel = android.app.NotificationChannel(channelId, channelName, importance).apply {
+                    description = "System notifications for TrackWise app events"
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+            
+            val builder = androidx.core.app.NotificationCompat.Builder(context, "trackwise_notifications")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setVibrate(longArrayOf(0, 250, 100, 250))
+                .setAutoCancel(true)
+                
+            notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun clearNotifications() {
@@ -116,6 +146,9 @@ class TrackWiseViewModel(
         .flatMapLatest { user ->
             if (user != null) repository.getHabitsFlow(user.id) else flowOf(emptyList())
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allHabitsInSystem: StateFlow<List<HabitEntity>> = repository.getAllHabitsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allBirthdays: StateFlow<List<BirthdayEntity>> = _sessionUser
@@ -1034,21 +1067,26 @@ class TrackWiseViewModel(
         if (sound == "None") return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val tg = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85)
+                // Route to STREAM_MUSIC with max volume so it always plays even if notifications are muted
+                val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
                 when (sound) {
                     "Chime" -> {
-                        tg.startTone(ToneGenerator.TONE_DTMF_9, 80)
-                        delay(100)
-                        tg.startTone(ToneGenerator.TONE_DTMF_0, 120)
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+                        delay(150)
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
                     }
                     "Ding" -> {
-                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 180)
                     }
                     "Bell" -> {
-                        tg.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 200)
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
+                        delay(120)
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
+                        delay(120)
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 300)
                     }
                 }
-                delay(400)
+                delay(600)
                 tg.release()
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1062,31 +1100,59 @@ class TrackWiseViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 while (isAlarmPlaying) {
-                    val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 95)
+                    val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
                     when (sound) {
                         "Morning Birds" -> {
-                            tg.startTone(ToneGenerator.TONE_DTMF_A, 80)
-                            delay(120)
-                            tg.startTone(ToneGenerator.TONE_DTMF_D, 60)
-                            delay(100)
-                            tg.startTone(ToneGenerator.TONE_DTMF_C, 80)
-                            delay(600)
+                            // Beautiful cascading high-pitch birdsong
+                            val birdsong = listOf(
+                                ToneGenerator.TONE_DTMF_1, ToneGenerator.TONE_DTMF_4, ToneGenerator.TONE_DTMF_7,
+                                ToneGenerator.TONE_DTMF_2, ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_DTMF_8,
+                                ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_6, ToneGenerator.TONE_DTMF_9
+                            )
+                            for (note in birdsong) {
+                                if (!isAlarmPlaying) break
+                                tg.startTone(note, 60)
+                                delay(90)
+                            }
+                            delay(800)
                         }
                         "Digital Beep" -> {
-                            tg.startTone(ToneGenerator.TONE_CDMA_PIP, 120)
-                            delay(250)
-                            tg.startTone(ToneGenerator.TONE_CDMA_PIP, 120)
-                            delay(500)
+                            // Rhythmic Casio watch melody
+                            val casioNotes = listOf(
+                                ToneGenerator.TONE_CDMA_PIP, ToneGenerator.TONE_CDMA_PIP,
+                                ToneGenerator.TONE_CDMA_PIP, ToneGenerator.TONE_CDMA_PIP,
+                                ToneGenerator.TONE_CDMA_PIP
+                            )
+                            for (note in casioNotes) {
+                                if (!isAlarmPlaying) break
+                                tg.startTone(note, 100)
+                                delay(180)
+                            }
+                            delay(600)
                         }
                         "Loud Siren" -> {
-                            tg.startTone(ToneGenerator.TONE_SUP_DIAL, 350)
-                            delay(400)
-                            tg.startTone(ToneGenerator.TONE_SUP_ERROR, 350)
-                            delay(400)
+                            // Alternating emergency siren waves
+                            for (i in 1..4) {
+                                if (!isAlarmPlaying) break
+                                tg.startTone(ToneGenerator.TONE_SUP_DIAL, 250)
+                                delay(280)
+                                tg.startTone(ToneGenerator.TONE_SUP_ERROR, 250)
+                                delay(280)
+                            }
+                            delay(300)
                         }
                         "Classic Bell" -> {
-                            tg.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 300)
-                            delay(800)
+                            // Royal Westminster Quarters clock chime melody (8 notes)
+                            val westminster = listOf(
+                                ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_1, ToneGenerator.TONE_DTMF_2, ToneGenerator.TONE_DTMF_5,
+                                ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_DTMF_2, ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_1
+                            )
+                            for (note in westminster) {
+                                if (!isAlarmPlaying) break
+                                tg.startTone(note, 250)
+                                delay(350)
+                            }
+                            delay(1200)
                         }
                         else -> {
                             tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 250)
@@ -1115,24 +1181,30 @@ class TrackWiseViewModel(
         // Play quick alarm preview
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+                val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 85)
                 when (sound) {
                     "Morning Birds" -> {
-                        tg.startTone(ToneGenerator.TONE_DTMF_A, 80)
-                        delay(120)
-                        tg.startTone(ToneGenerator.TONE_DTMF_D, 60)
+                        tg.startTone(ToneGenerator.TONE_DTMF_4, 80)
+                        delay(100)
+                        tg.startTone(ToneGenerator.TONE_DTMF_7, 80)
                     }
                     "Digital Beep" -> {
-                        tg.startTone(ToneGenerator.TONE_CDMA_PIP, 120)
+                        tg.startTone(ToneGenerator.TONE_CDMA_PIP, 100)
+                        delay(120)
+                        tg.startTone(ToneGenerator.TONE_CDMA_PIP, 100)
                     }
                     "Loud Siren" -> {
-                        tg.startTone(ToneGenerator.TONE_SUP_DIAL, 250)
+                        tg.startTone(ToneGenerator.TONE_SUP_DIAL, 200)
+                        delay(220)
+                        tg.startTone(ToneGenerator.TONE_SUP_ERROR, 200)
                     }
                     "Classic Bell" -> {
-                        tg.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 250)
+                        tg.startTone(ToneGenerator.TONE_DTMF_3, 200)
+                        delay(220)
+                        tg.startTone(ToneGenerator.TONE_DTMF_1, 200)
                     }
                 }
-                delay(300)
+                delay(200)
                 tg.release()
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -121,6 +122,121 @@ fun DashboardScreen(
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
+            }
+        }
+
+        // --- Badge Level Mastery Widget ---
+        item {
+            val earnedCount = remember(allHabits) {
+                allHabits.flatMap {
+                    TrackWiseUtils.deserializeIntList(it.badgesEarnedJson)
+                }.distinct().size
+            }
+            
+            val (rankName, medal, nextMilestone) = when {
+                earnedCount <= 1 -> Triple("Bronze Explorer", "🥉", "Earn 2 badges for Silver")
+                earnedCount <= 4 -> Triple("Silver Achiever", "🥈", "Earn 5 badges for Gold")
+                earnedCount <= 8 -> Triple("Gold Champion", "🥇", "Earn 9 badges for Platinum")
+                earnedCount <= 11 -> Triple("Platinum Legend", "👑", "Earn 12 badges for Immortal")
+                else -> Triple("Immortal Master", "🔮", "You've unlocked all milestones!")
+            }
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = BrandPink.copy(alpha = 0.08f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        BrandPink.copy(alpha = 0.25f),
+                        RoundedCornerShape(20.dp)
+                    )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Animating Medal icon
+                    val infiniteTransition = rememberInfiniteTransition(label = "mastery_medal")
+                    val bounceScale by infiniteTransition.animateFloat(
+                        initialValue = 0.92f,
+                        targetValue = 1.08f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1000, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "bounce"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(CircleShape)
+                            .background(BrandPink.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = medal,
+                            fontSize = 32.sp,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = bounceScale
+                                scaleY = bounceScale
+                            }
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(
+                                    text = "BADGE MASTERY LEVEL",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = BrandPink,
+                                    letterSpacing = 1.sp
+                                )
+                                Text(
+                                    text = rankName,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "$earnedCount/12 Badges",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandPink
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        LinearProgressIndicator(
+                            progress = { earnedCount.toFloat() / 12f },
+                            color = BrandPink,
+                            trackColor = BrandPink.copy(alpha = 0.15f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "🎯 Goal: $nextMilestone",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
             }
         }
 
@@ -942,6 +1058,140 @@ fun DailyHabitsWidget(
     }
 }
 
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+fun BadgeDetailDialog(
+    badge: BadgeSpec,
+    isEarned: Boolean,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Awesome!", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val infiniteTransition = rememberInfiniteTransition(label = "medal_bounce")
+                val scale by infiniteTransition.animateFloat(
+                    initialValue = 0.85f,
+                    targetValue = 1.15f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1200, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "scale"
+                )
+                Text(
+                    text = badge.medal,
+                    fontSize = 44.sp,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                )
+                Column {
+                    Text(text = badge.name, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = badge.tier, fontSize = 11.sp, color = BrandPink, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            if (isEarned) BrandPink.copy(alpha = 0.12f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        )
+                        .border(
+                            1.dp,
+                            if (isEarned) BrandPink.copy(alpha = 0.3f) else Color.Transparent,
+                            RoundedCornerShape(16.dp)
+                        )
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isEarned) Icons.Default.EmojiEvents else Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = if (isEarned) BrandPink else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = if (isEarned) "UNLOCKED!" else "LOCKED",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isEarned) BrandPink else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = badge.description,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Achieved by maintaining a streak of ${badge.days} days in any habit.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                
+                if (isEarned) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "✨ You earned this prestigious badge! Keep up the incredible daily focus and dominate your streaks! ✨",
+                            fontSize = 12.sp,
+                            color = BrandPink,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "💡 Consistency is the key! Perform your habits daily to unlock this beautiful milestone.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        },
+        shape = RoundedCornerShape(24.dp)
+    )
+}
+
 @Composable
 fun HabitBadgeCollection(
     habits: List<HabitEntity>,
@@ -967,6 +1217,17 @@ fun HabitBadgeCollection(
         BadgeSpec(365, "Immortal", "🥇", "The Master", "One full year")
     )
 
+    var selectedBadge by remember { mutableStateOf<BadgeSpec?>(null) }
+    var selectedBadgeEarned by remember { mutableStateOf(false) }
+
+    if (selectedBadge != null) {
+        BadgeDetailDialog(
+            badge = selectedBadge!!,
+            isEarned = selectedBadgeEarned,
+            onDismiss = { selectedBadge = null }
+        )
+    }
+
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -975,13 +1236,24 @@ fun HabitBadgeCollection(
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "HABIT BADGES (${earnedMilestones.size}/12 earned)",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = BrandPink,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "HABIT BADGES (${earnedMilestones.size}/12 earned)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandPink
+                )
+                Text(
+                    text = "Tap to inspect",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+            }
 
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -989,28 +1261,83 @@ fun HabitBadgeCollection(
             ) {
                 items(badges) { badge ->
                     val isEarned = earnedMilestones.contains(badge.days)
+                    
+                    // Core Infinite animations for glowing/pulsing earned badges
+                    val infiniteTransition = rememberInfiniteTransition(label = "badge_glow")
+                    val pulseScale by infiniteTransition.animateFloat(
+                        initialValue = 0.97f,
+                        targetValue = 1.03f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1500, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "pulse"
+                    )
+                    val sparkleAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.4f,
+                        targetValue = 1.0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "sparkle"
+                    )
+
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isEarned) BrandPink.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            containerColor = if (isEarned) BrandPink.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                         ),
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .width(130.dp)
+                            .graphicsLayer {
+                                if (isEarned) {
+                                    scaleX = pulseScale
+                                    scaleY = pulseScale
+                                }
+                            }
+                            .clickable {
+                                selectedBadgeEarned = isEarned
+                                selectedBadge = badge
+                            }
                             .border(
-                                1.dp,
-                                if (isEarned) BrandPink.copy(alpha = 0.4f) else Color.Transparent,
-                                RoundedCornerShape(16.dp)
+                                width = 1.dp,
+                                color = if (isEarned) BrandPink.copy(alpha = 0.5f) else Color.Transparent,
+                                shape = RoundedCornerShape(16.dp)
                             )
                     ) {
                         Column(
                             modifier = Modifier.padding(12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text(
-                                text = badge.medal,
-                                fontSize = 28.sp,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
+                            Box(
+                                contentAlignment = Alignment.TopEnd,
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                            ) {
+                                if (isEarned) {
+                                    Text(
+                                        text = "✨",
+                                        fontSize = 10.sp,
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .graphicsLayer { alpha = sparkleAlpha }
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = "Locked",
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                                        modifier = Modifier.size(10.dp).align(Alignment.TopEnd)
+                                    )
+                                }
+                                
+                                Text(
+                                    text = badge.medal,
+                                    fontSize = 28.sp,
+                                    modifier = Modifier.align(Alignment.Center)
+                                )
+                            }
+                            
                             Text(
                                 text = badge.name,
                                 fontSize = 12.sp,
