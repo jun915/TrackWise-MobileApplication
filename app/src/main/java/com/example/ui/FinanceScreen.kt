@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -68,6 +69,7 @@ fun FinanceScreen(
 
     // Input States
     var selectedTab by remember { mutableStateOf("expense") } // "income", "expense", "savings"
+    var transactionDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
 
     // Income Inputs
     var incomeAmount by remember { mutableStateOf("") }
@@ -208,151 +210,7 @@ fun FinanceScreen(
             }
         }
 
-        // --- Equation Dashboard Card ---
-        item {
-            val indicatorColor = when {
-                isBalanced -> BrandGreen
-                discrepancy > 0 -> BrandAmber
-                else -> BrandRose
-            }
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                ),
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, indicatorColor.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // Title and status
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Daily Balance Equation",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(indicatorColor.copy(alpha = 0.15f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = if (isBalanced) "Balanced ✅" else if (discrepancy > 0) "Unallocated ⚠️" else "Deficit 🚨",
-                                color = indicatorColor,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-
-                    // The Equation visualizer
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Income", fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                            Text("₹${String.format("%.2f", totalIncome)}", fontSize = 16.sp, fontWeight = FontWeight.Black, color = BrandViolet)
-                        }
-
-                        Text("=", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Expenses", fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                            Text("₹${String.format("%.2f", totalExpense)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = BrandRose)
-                        }
-
-                        Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Savings", fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                            Text("₹${String.format("%.2f", totalSavings)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
-                        }
-                    }
-
-                    // Linear Indicator representation
-                    val totalSum = (totalExpense + totalSavings).toFloat()
-                    val target = totalIncome.toFloat()
-                    val progress = if (target > 0f) totalSum / target else 0f
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        LinearProgressIndicator(
-                            progress = { if (progress.isNaN() || progress.isInfinite()) 0f else progress.coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(CircleShape),
-                            color = if (isBalanced) BrandGreen else if (discrepancy > 0) BrandAmber else BrandRose,
-                            trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Formula: Income = Expense + Savings",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                            )
-
-                            Text(
-                                text = when {
-                                    isBalanced -> "Your finances are perfectly balanced."
-                                    discrepancy > 0 -> "₹${String.format("%.2f", discrepancy)} left to allocate"
-                                    else -> "Deficit of ₹${String.format("%.2f", -discrepancy)}"
-                                },
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = indicatorColor
-                            )
-                        }
-                    }
-
-                    // Auto Balance Helper Button
-                    if (discrepancy > 0.01) {
-                        Button(
-                            onClick = {
-                                viewModel.addFinanceLog(
-                                    type = "savings",
-                                    category = "Simple Savings in Account",
-                                    title = "Auto Balance Allocation",
-                                    amount = discrepancy,
-                                    notes = "Automated balance allocation to fulfill Equation requirements.",
-                                    date = selectedDateStr
-                                )
-                                focusManager.clearFocus()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandGreen),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(vertical = 8.dp)
-                        ) {
-                            Icon(Icons.Default.Scale, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Allocate Remaining to Account Savings", fontSize = 12.sp, color = Color.White)
-                        }
-                    }
-                }
-            }
-        }
 
         // --- Add Entry Panel ---
         item {
@@ -432,13 +290,14 @@ fun FinanceScreen(
                                     readOnly = true,
                                     label = { Text("Expense Category") },
                                     trailingIcon = {
-                                        IconButton(onClick = { showExpenseCategoryDropdown = !showExpenseCategoryDropdown }) {
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                                        }
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandRose)
                                     },
                                     shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .matchParentSize()
                                         .clickable { showExpenseCategoryDropdown = !showExpenseCategoryDropdown }
                                 )
                                 DropdownMenu(
@@ -467,13 +326,14 @@ fun FinanceScreen(
                                     readOnly = true,
                                     label = { Text("Item Title / Subcategory") },
                                     trailingIcon = {
-                                        IconButton(onClick = { showExpenseTitleDropdown = !showExpenseTitleDropdown }) {
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                                        }
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandRose)
                                     },
                                     shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .matchParentSize()
                                         .clickable { showExpenseTitleDropdown = !showExpenseTitleDropdown }
                                 )
                                 DropdownMenu(
@@ -502,6 +362,13 @@ fun FinanceScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
 
+                            // Date Picker
+                            TransactionDatePicker(
+                                dateStr = transactionDate,
+                                tintColor = BrandRose,
+                                onDateSelected = { transactionDate = it }
+                            )
+
                             Button(
                                 onClick = {
                                     val amt = expenseAmount.toDoubleOrNull()
@@ -512,7 +379,7 @@ fun FinanceScreen(
                                             title = selectedExpenseTitle,
                                             amount = amt,
                                             notes = expenseNotes.trim().ifEmpty { null },
-                                            date = selectedDateStr
+                                            date = transactionDate
                                         )
                                         expenseAmount = ""
                                         expenseNotes = ""
@@ -549,13 +416,14 @@ fun FinanceScreen(
                                     readOnly = true,
                                     label = { Text("Savings Instrument / Asset") },
                                     trailingIcon = {
-                                        IconButton(onClick = { showSavingsCategoryDropdown = !showSavingsCategoryDropdown }) {
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                                        }
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandGreen)
                                     },
                                     shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .matchParentSize()
                                         .clickable { showSavingsCategoryDropdown = !showSavingsCategoryDropdown }
                                 )
                                 DropdownMenu(
@@ -584,6 +452,13 @@ fun FinanceScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
 
+                            // Date Picker
+                            TransactionDatePicker(
+                                dateStr = transactionDate,
+                                tintColor = BrandGreen,
+                                onDateSelected = { transactionDate = it }
+                            )
+
                             Button(
                                 onClick = {
                                     val amt = savingsAmount.toDoubleOrNull()
@@ -594,7 +469,7 @@ fun FinanceScreen(
                                             title = selectedSavingsCategory,
                                             amount = amt,
                                             notes = savingsNotes.trim().ifEmpty { null },
-                                            date = selectedDateStr
+                                            date = transactionDate
                                         )
                                         savingsAmount = ""
                                         savingsNotes = ""
@@ -631,13 +506,14 @@ fun FinanceScreen(
                                     readOnly = true,
                                     label = { Text("Income Source") },
                                     trailingIcon = {
-                                        IconButton(onClick = { showIncomeSourceDropdown = !showIncomeSourceDropdown }) {
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                                        }
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandViolet)
                                     },
                                     shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .matchParentSize()
                                         .clickable { showIncomeSourceDropdown = !showIncomeSourceDropdown }
                                 )
                                 DropdownMenu(
@@ -666,6 +542,13 @@ fun FinanceScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
 
+                            // Date Picker
+                            TransactionDatePicker(
+                                dateStr = transactionDate,
+                                tintColor = BrandViolet,
+                                onDateSelected = { transactionDate = it }
+                            )
+
                             Button(
                                 onClick = {
                                     val amt = incomeAmount.toDoubleOrNull()
@@ -676,7 +559,7 @@ fun FinanceScreen(
                                             title = incomeSource,
                                             amount = amt,
                                             notes = incomeNotes.trim().ifEmpty { null },
-                                            date = selectedDateStr
+                                            date = transactionDate
                                         )
                                         incomeAmount = ""
                                         incomeNotes = ""
@@ -828,5 +711,53 @@ fun FinanceScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun TransactionDatePicker(
+    dateStr: String,
+    tintColor: Color,
+    onDateSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val parsedDate = remember(dateStr) { TrackWiseUtils.parseDate(dateStr) }
+    val calendar = remember(parsedDate) {
+        Calendar.getInstance().apply { time = parsedDate }
+    }
+    
+    val datePickerDialog = remember(calendar) {
+        android.app.DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, selectedDay)
+                }
+                onDateSelected(TrackWiseUtils.formatDate(selectedCal.time, "yyyy-MM-dd"))
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = dateStr,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Transaction Date") },
+            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = tintColor) },
+            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Date", tint = tintColor, modifier = Modifier.size(16.dp)) },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { datePickerDialog.show() }
+        )
     }
 }

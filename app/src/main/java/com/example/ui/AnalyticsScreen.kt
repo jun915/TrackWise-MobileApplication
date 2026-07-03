@@ -54,6 +54,10 @@ fun AnalyticsScreen(
     var selectedCategory by remember { mutableStateOf("Finance Tracker") }
     var dropdownExpanded by remember { mutableStateOf(false) }
 
+    // Target Year and Month for Financial Analytics
+    var analyticsYear by remember { mutableStateOf(2026) }
+    var analyticsMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH) + 1) } // 1-12
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -191,6 +195,149 @@ fun AnalyticsScreen(
         // --- Conditional Section Rendering ---
         when (selectedCategory) {
             "Finance Tracker" -> {
+                item {
+                    var showMonthMenu by remember { mutableStateOf(false) }
+                    var showYearMenu by remember { mutableStateOf(false) }
+                    val monthNames = listOf(
+                        "January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"
+                    )
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "TARGET PERIOD",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                                Text(
+                                    text = "Filter Financial Insights",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Month Dropdown
+                                Box {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(BrandViolet.copy(alpha = 0.12f))
+                                            .clickable { showMonthMenu = !showMonthMenu }
+                                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = monthNames.getOrElse(analyticsMonth - 1) { "Select Month" },
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = BrandViolet
+                                            )
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                    
+                                    DropdownMenu(
+                                        expanded = showMonthMenu,
+                                        onDismissRequest = { showMonthMenu = false }
+                                    ) {
+                                        monthNames.forEachIndexed { idx, name ->
+                                            DropdownMenuItem(
+                                                text = { Text(name, fontSize = 12.sp) },
+                                                onClick = {
+                                                    analyticsMonth = idx + 1
+                                                    showMonthMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Year Dropdown
+                                Box {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(BrandGreen.copy(alpha = 0.12f))
+                                            .clickable { showYearMenu = !showYearMenu }
+                                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "$analyticsYear",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = BrandGreen
+                                            )
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                    
+                                    DropdownMenu(
+                                        expanded = showYearMenu,
+                                        onDismissRequest = { showYearMenu = false }
+                                    ) {
+                                        listOf(2025, 2026, 2027, 2028).forEach { yr ->
+                                            DropdownMenuItem(
+                                                text = { Text("$yr", fontSize = 12.sp) },
+                                                onClick = {
+                                                    analyticsYear = yr
+                                                    showYearMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item {
+                    ExpenseSavingsPieChartCard(
+                        financeLogs = financeLogs,
+                        selectedYear = analyticsYear,
+                        selectedMonth = analyticsMonth
+                    )
+                }
+                item {
+                    IncomeDistributionPieChartCard(
+                        financeLogs = financeLogs,
+                        selectedYear = analyticsYear,
+                        selectedMonth = analyticsMonth
+                    )
+                }
+                item {
+                    TopSpentDaysCard(
+                        financeLogs = financeLogs,
+                        selectedYear = analyticsYear,
+                        selectedMonth = analyticsMonth
+                    )
+                }
                 item {
                     FinanceOverviewAnalyticsCard(financeLogs = financeLogs)
                 }
@@ -1624,7 +1771,7 @@ fun BadgeCount(label: String, count: Int, color: Color) {
 }
 
 // ==========================================
-// 10. Finance Overview Analytics Card
+// 10. Finance Overview Analytics Card (Tailored for Monthly Salaried Person)
 // ==========================================
 @Composable
 fun FinanceOverviewAnalyticsCard(financeLogs: List<FinanceLogEntity>) {
@@ -1638,17 +1785,19 @@ fun FinanceOverviewAnalyticsCard(financeLogs: List<FinanceLogEntity>) {
         financeLogs.filter { it.type == "savings" }.sumOf { it.amount }
     }
 
-    // Savings Rate Calculation
-    val savingsRate = remember(totalIncome, totalSavings) {
-        if (totalIncome > 0) (totalSavings / totalIncome) * 100 else 0.0
+    // Active Surplus
+    val activeSurplus = remember(totalIncome, totalExpense, totalSavings) {
+        totalIncome - totalExpense - totalSavings
     }
 
-    // Check budget balance status
-    val isBalanced = remember(totalIncome, totalExpense, totalSavings) {
-        kotlin.math.abs(totalIncome - (totalExpense + totalSavings)) < 0.01
+    // Salary Burn Rate (What percentage of Salary is spent on expenses)
+    val burnRate = remember(totalIncome, totalExpense) {
+        if (totalIncome > 0) (totalExpense / totalIncome) * 100.0 else 0.0
     }
-    val discrepancy = remember(totalIncome, totalExpense, totalSavings) {
-        totalIncome - (totalExpense + totalSavings)
+
+    // Investment Rate (What percentage of Salary is directed to long term savings)
+    val investmentRate = remember(totalIncome, totalSavings) {
+        if (totalIncome > 0) (totalSavings / totalIncome) * 100.0 else 0.0
     }
 
     Card(
@@ -1659,64 +1808,112 @@ fun FinanceOverviewAnalyticsCard(financeLogs: List<FinanceLogEntity>) {
         shape = RoundedCornerShape(20.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
+            // Header with Salaried focus
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Icon(Icons.Default.PieChart, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(20.dp))
-                Text("FINANCIAL STATEMENT OVERVIEW", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                Icon(Icons.Default.AccountBalance, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(20.dp))
+                Text("MONTHLY SALARY ALLOCATION PROFILE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
             }
 
-            // Stat Cards Layout
+            // Salary Stat Summary
+            Card(
+                colors = CardDefaults.cardColors(containerColor = BrandViolet.copy(alpha = 0.04f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .border(0.5.dp, BrandViolet.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "ESTIMATED MONTHLY SURPLUS", 
+                            fontSize = 10.sp, 
+                            fontWeight = FontWeight.Bold, 
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "₹${String.format("%.2f", activeSurplus)}", 
+                            fontSize = 22.sp, 
+                            fontWeight = FontWeight.Black, 
+                            color = if (activeSurplus >= 0) BrandGreen else BrandRose
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (activeSurplus >= 0) BrandGreen.copy(alpha = 0.12f) else BrandRose.copy(alpha = 0.12f))
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (activeSurplus >= 0) "Surplus Healthy" else "In Deficit",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (activeSurplus >= 0) BrandGreen else BrandRose
+                        )
+                    }
+                }
+            }
+
+            // Stat Cards Grid
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Income Mini-Card
+                // Net Salary Mini-Card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandViolet.copy(alpha = 0.06f)),
+                    colors = CardDefaults.cardColors(containerColor = BrandViolet.copy(alpha = 0.05f)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        Text("Total Income", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                        Text("Stable Salary", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("₹${String.format("%.2f", totalIncome)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = BrandViolet)
+                        Text("₹${String.format("%.0f", totalIncome)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = BrandViolet)
                     }
                 }
 
-                // Expense Mini-Card
+                // Total Expense Mini-Card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandRose.copy(alpha = 0.06f)),
+                    colors = CardDefaults.cardColors(containerColor = BrandRose.copy(alpha = 0.05f)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        Text("Total Expense", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                        Text("Expenses Paid", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandRose)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("₹${String.format("%.2f", totalExpense)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = BrandRose)
+                        Text("₹${String.format("%.0f", totalExpense)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = BrandRose)
                     }
                 }
 
                 // Savings Mini-Card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandGreen.copy(alpha = 0.06f)),
+                    colors = CardDefaults.cardColors(containerColor = BrandGreen.copy(alpha = 0.05f)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        Text("Total Savings", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                        Text("Salary Saved", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("₹${String.format("%.2f", totalSavings)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = BrandGreen)
+                        Text("₹${String.format("%.0f", totalSavings)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = BrandGreen)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Savings Rate Section
-            Text("Savings Rate Performance", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+            // Burn Rate Tracker
+            Text("Monthly Salary Burn Speed", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
             Spacer(modifier = Modifier.height(6.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1732,26 +1929,26 @@ fun FinanceOverviewAnalyticsCard(financeLogs: List<FinanceLogEntity>) {
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth((savingsRate / 100.0).toFloat().coerceIn(0f, 1f))
+                            .fillMaxWidth((burnRate / 100.0).toFloat().coerceIn(0f, 1f))
                             .fillMaxHeight()
                             .clip(CircleShape)
-                            .background(Brush.horizontalGradient(listOf(BrandGreen, BrandCyan)))
+                            .background(Brush.horizontalGradient(listOf(BrandCyan, BrandRose)))
                     )
                 }
                 Text(
-                    text = "${String.format("%.1f", savingsRate)}%",
+                    text = "${String.format("%.1f", burnRate)}%",
                     fontWeight = FontWeight.Black,
                     fontSize = 14.sp,
-                    color = BrandGreen
+                    color = if (burnRate > 75.0) BrandRose else if (burnRate > 50.0) BrandAmber else BrandCyan
                 )
             }
             Text(
                 text = when {
-                    savingsRate >= 50.0 -> "Elite Builder! You are saving half of your cash flow. 📈"
-                    savingsRate >= 30.0 -> "Superb! Highly optimized savings rate. ⭐"
-                    savingsRate >= 20.0 -> "Healthy! Meeting the standard financial target. 👍"
-                    savingsRate > 0.0 -> "Active. Try allocating more to investments to build compound growth."
-                    else -> "No savings logged yet. Set goals to keep your path secured!"
+                    totalIncome == 0.0 -> "Waiting for monthly salaried payroll entry to gauge speed."
+                    burnRate > 80.0 -> "⚠️ Alert! Burn rate is extremely high. Most of your paycheck is spent."
+                    burnRate > 60.0 -> "Pacing normally, but try to limit lifestyle creep for the rest of the cycle."
+                    burnRate > 30.0 -> "Highly disciplined burn rate. Keeping safe surplus runway. 👍"
+                    else -> "Excellent control. Vast majority of your salary remains intact. 💎"
                 },
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -1759,36 +1956,33 @@ fun FinanceOverviewAnalyticsCard(financeLogs: List<FinanceLogEntity>) {
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Budget Equation Check
             Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Investment pacing
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Top
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = if (isBalanced) Icons.Default.Scale else Icons.Default.Warning,
+                    imageVector = Icons.Default.TrendingUp,
                     contentDescription = null,
-                    tint = if (isBalanced) BrandGreen else if (discrepancy > 0) BrandAmber else BrandRose,
+                    tint = BrandGreen,
                     modifier = Modifier.size(20.dp)
                 )
                 Column {
                     Text(
-                        text = "Equation Compliance Status",
+                        text = "Salary Wealth-Building Index: ${String.format("%.1f", investmentRate)}%",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (isBalanced) {
-                            "Balanced: Your Income matches your Expense + Savings perfectly. Well done!"
-                        } else if (discrepancy > 0) {
-                            "Unallocated Balance: You have ₹${String.format("%.2f", discrepancy)} unallocated. Allocate this to savings to fulfill the equation requirement."
+                        text = if (investmentRate >= 20.0) {
+                            "Superb! You are exceeding the standard 20% savings rule. Compound growth is secured."
                         } else {
-                            "Budget Deficit: Your Expenses and Savings exceed your Income by ₹${String.format("%.2f", -discrepancy)}!"
+                            "Try to allocate at least 20% of your salary first (₹${String.format("%.0f", totalIncome * 0.2)}) on pay-day before spending."
                         },
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -1800,29 +1994,59 @@ fun FinanceOverviewAnalyticsCard(financeLogs: List<FinanceLogEntity>) {
 }
 
 // ==========================================
-// 11. Finance Expense Distribution Card
+// 11. Finance Expense Distribution Card (50-30-20 Rule Analysis)
 // ==========================================
 @Composable
 fun FinanceExpenseDistributionCard(financeLogs: List<FinanceLogEntity>) {
-    val expenseLogs = remember(financeLogs) { financeLogs.filter { it.type == "expense" } }
-    val totalExpense = remember(expenseLogs) { expenseLogs.sumOf { it.amount } }
-
-    val expenseCategories = listOf(
-        "Housing and Utilities (Fixed Essentials)",
-        "Groceries and Daily Essentials (Variable Living)",
-        "Education and Childcare (High-Priority Fixed)",
-        "Transport and Commute (Daily Variable)",
-        "Healthcare and Insurance (Financial Security)",
-        "Lifestyle, Entertainment, and Discretionary (Flex Spends)",
-        "Others"
-    )
-
-    val expenseBreakdown = remember(expenseLogs) {
-        expenseCategories.map { category ->
-            val sum = expenseLogs.filter { it.category == category }.sumOf { it.amount }
-            category to sum
-        }.filter { it.second > 0 }.sortedByDescending { it.second }
+    val totalIncome = remember(financeLogs) {
+        val inc = financeLogs.filter { it.type == "income" }.sumOf { it.amount }
+        if (inc <= 0) {
+            // Fallback base to sum of all activities to prevent divide-by-zero
+            val sum = financeLogs.sumOf { it.amount }
+            if (sum <= 0) 1.0 else sum
+        } else {
+            inc
+        }
     }
+
+    // 50/30/20 Rule Classifications:
+    // 50% Needs: Housing, Groceries, Education, Transport, Healthcare
+    val needsSum = remember(financeLogs) {
+        financeLogs.filter { log ->
+            log.type == "expense" && (
+                log.category.startsWith("Housing") ||
+                log.category.startsWith("Groceries") ||
+                log.category.startsWith("Education") ||
+                log.category.startsWith("Transport") ||
+                log.category.startsWith("Healthcare")
+            )
+        }.sumOf { it.amount }
+    }
+
+    // 30% Wants: Lifestyle, Entertainment, Discretionary, and Others (defaults)
+    val wantsSum = remember(financeLogs) {
+        financeLogs.filter { log ->
+            log.type == "expense" && (
+                log.category.startsWith("Lifestyle") ||
+                log.category == "Others" ||
+                (!log.category.startsWith("Housing") &&
+                 !log.category.startsWith("Groceries") &&
+                 !log.category.startsWith("Education") &&
+                 !log.category.startsWith("Transport") &&
+                 !log.category.startsWith("Healthcare"))
+            )
+        }.sumOf { it.amount }
+    }
+
+    // 20% Savings
+    val savingsSum = remember(financeLogs) {
+        financeLogs.filter { it.type == "savings" }.sumOf { it.amount }
+    }
+
+    // Percentages compared to salaried base
+    val needsPercent = (needsSum / totalIncome) * 100.0
+    val wantsPercent = (wantsSum / totalIncome) * 100.0
+    val savingsPercent = (savingsSum / totalIncome) * 100.0
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1835,72 +2059,175 @@ fun FinanceExpenseDistributionCard(financeLogs: List<FinanceLogEntity>) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 14.dp)
+                modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Icon(Icons.Default.Category, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
-                Text("EXPENSE CATEGORY DISTRIBUTION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                Icon(Icons.Default.PieChart, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                Text("THE 50/30/20 SALARY BUDGET COMPLIANCE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
             }
 
-            if (expenseBreakdown.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No expenses logged. Add expenses to analyze distribution.", fontSize = 12.sp, color = Color.Gray)
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    expenseBreakdown.forEach { (category, amount) ->
-                        val percentage = if (totalExpense > 0) (amount / totalExpense) * 100 else 0.0
-                        val barColor = when {
-                            category.startsWith("Housing") -> BrandRose
-                            category.startsWith("Groceries") -> BrandAmber
-                            category.startsWith("Education") -> BrandViolet
-                            category.startsWith("Transport") -> BrandCyan
-                            category.startsWith("Healthcare") -> BrandGreen
-                            category.startsWith("Lifestyle") -> BrandPink
-                            else -> Color.Gray
-                        }
+            Text(
+                text = "The classic salary allocation strategy: 50% for fixed Needs, 30% for flexible Wants, and 20% for future Savings.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
 
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = category,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = "₹${String.format("%.2f", amount)} (${String.format("%.1f", percentage)}%)",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = barColor
-                                )
-                            }
-                            // Custom progress representation
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(10.dp)
-                                    .clip(RoundedCornerShape(5.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(5.dp))
-                                        .background(barColor)
-                                )
-                            }
-                        }
+            // Needs (Target 50%)
+            Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("ESSENTIAL NEEDS (Target: 50%)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                        Text("Housing, Food, Utilities, Health, Transport", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                     }
+                    Text(
+                        "₹${String.format("%.0f", needsSum)} (${String.format("%.1f", needsPercent)}%)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = BrandRose
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Actual Allocation Progress
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth((needsPercent / 100.0).toFloat().coerceIn(0f, 1f))
+                                .fillMaxHeight()
+                                .clip(CircleShape)
+                                .background(BrandRose)
+                        )
+                    }
+                    // Target indicator benchmark
+                    Text("Target: 50%", fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                }
+            }
+
+            // Wants (Target 30%)
+            Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("DISCRETIONARY WANTS (Target: 30%)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandAmber)
+                        Text("Lifestyle, Dining out, Shopping, Subscriptions", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    }
+                    Text(
+                        "₹${String.format("%.0f", wantsSum)} (${String.format("%.1f", wantsPercent)}%)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = BrandAmber
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth((wantsPercent / 100.0).toFloat().coerceIn(0f, 1f))
+                                .fillMaxHeight()
+                                .clip(CircleShape)
+                                .background(BrandAmber)
+                        )
+                    }
+                    Text("Target: 30%", fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                }
+            }
+
+            // Savings (Target 20%)
+            Column(modifier = Modifier.padding(bottom = 16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("SAVINGS & SECURITY (Target: 20%)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                        Text("EPF, PPF, NPS, Mutual Funds, Stocks, Buffer", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    }
+                    Text(
+                        "₹${String.format("%.0f", savingsSum)} (${String.format("%.1f", savingsPercent)}%)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = BrandGreen
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth((savingsPercent / 100.0).toFloat().coerceIn(0f, 1f))
+                                .fillMaxHeight()
+                                .clip(CircleShape)
+                                .background(BrandGreen)
+                        )
+                    }
+                    Text("Target: 20%", fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                }
+            }
+
+            // Salaried feedback recommendation
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = BrandViolet,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = when {
+                            wantsPercent > 30.0 -> "⚠️ Salary budget warning: Discretionary Wants are taking ${String.format("%.1f", wantsPercent)}% of your salary. We recommend pausing high-ticket leisure spends."
+                            savingsPercent < 20.0 -> "📉 Under-saved: Your Paycheck Savings Rate of ${String.format("%.1f", savingsPercent)}% is below the healthy 20% boundary. Try setting aside savings directly on salary day."
+                            needsPercent > 55.0 -> "💼 Cost-heavy baseline: Essential fixed expenses are heavy at ${String.format("%.1f", needsPercent)}%. Check if you can optimize subscription costs or rent."
+                            else -> "🎉 Perfect Salaried Discipline! Your financial allocation perfectly embodies the 50/30/20 guideline. Excellent work."
+                        },
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
@@ -1908,7 +2235,7 @@ fun FinanceExpenseDistributionCard(financeLogs: List<FinanceLogEntity>) {
 }
 
 // ==========================================
-// 12. Finance Savings Distribution Card
+// 12. Finance Savings Distribution Card (Investment Wealth Profile)
 // ==========================================
 @Composable
 fun FinanceSavingsDistributionCard(financeLogs: List<FinanceLogEntity>) {
@@ -1927,11 +2254,18 @@ fun FinanceSavingsDistributionCard(financeLogs: List<FinanceLogEntity>) {
         "Others"
     )
 
-    val savingsBreakdown = remember(savingsLogs) {
-        savingsCategories.map { category ->
-            val sum = savingsLogs.filter { it.category == category }.sumOf { it.amount }
-            category to sum
-        }.filter { it.second > 0 }.sortedByDescending { it.second }
+    // Calculate group classification
+    // 1. Retirement & Tax-saving (EPF, NPS, PPF)
+    val taxRetirementSum = remember(savingsLogs) {
+        savingsLogs.filter { it.category in listOf("EPF", "NPS", "PPF") }.sumOf { it.amount }
+    }
+    // 2. High Growth Equities (Mutual Funds, Stocks)
+    val growthEquitiesSum = remember(savingsLogs) {
+        savingsLogs.filter { it.category in listOf("Mutual Funds", "Stocks") }.sumOf { it.amount }
+    }
+    // 3. Liquid Cash Buffer (FD, RD, Simple Savings, Others)
+    val liquidBufferSum = remember(savingsLogs) {
+        savingsLogs.filter { it.category in listOf("FD", "RD", "Simple Savings in Account", "Others") }.sumOf { it.amount }
     }
 
     Card(
@@ -1948,91 +2282,139 @@ fun FinanceSavingsDistributionCard(financeLogs: List<FinanceLogEntity>) {
                 modifier = Modifier.padding(bottom = 14.dp)
             ) {
                 Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
-                Text("SAVINGS INSTRUMENTS ALLOCATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                Text("SALARIED WEALTH & RETIREMENT ACCUMULATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
             }
 
-            if (savingsBreakdown.isEmpty()) {
+            if (savingsLogs.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(100.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No savings allocated. Distribute savings to inspect asset profile.", fontSize = 12.sp, color = Color.Gray)
+                    Text("No savings allocated. Distribute savings on payday to inspect portfolio structure.", fontSize = 12.sp, color = Color.Gray)
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    savingsBreakdown.forEach { (category, amount) ->
-                        val percentage = if (totalSavings > 0) (amount / totalSavings) * 100 else 0.0
-                        val barColor = when (category) {
-                            "PPF", "EPF" -> BrandIndigo
-                            "Mutual Funds", "Stocks" -> BrandGreen
-                            "FD", "RD" -> BrandAmber
-                            "NPS" -> BrandOrange
-                            "Simple Savings in Account" -> BrandCyan
-                            else -> Color.Gray
-                        }
+                Text(
+                    text = "A salaried wealth strategy divides accumulation into safe tax hedges, compounding equities, and liquid reserves.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(bottom = 14.dp)
+                )
 
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = category,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = "₹${String.format("%.2f", amount)} (${String.format("%.1f", percentage)}%)",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = barColor
-                                )
-                            }
-                            // Custom progress representation
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(10.dp)
-                                    .clip(RoundedCornerShape(5.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(5.dp))
-                                        .background(barColor)
-                                )
-                            }
-                        }
-                    }
-                }
+                // Render group 1: Tax Hedge / Pension
+                WealthSectorBar(
+                    title = "Retirement & Tax Shields (EPF/NPS/PPF)",
+                    amount = taxRetirementSum,
+                    total = totalSavings,
+                    color = BrandIndigo,
+                    description = "Shields salary from tax liabilities while building standard pension bedrock."
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Render group 2: High Growth
+                WealthSectorBar(
+                    title = "Compound Growth Equities (Mutual Funds/Stocks)",
+                    amount = growthEquitiesSum,
+                    total = totalSavings,
+                    color = BrandGreen,
+                    description = "Outpaces salary inflation over 5+ year cycles for actual long-term wealth."
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Render group 3: Liquid Reserve
+                WealthSectorBar(
+                    title = "Emergency Liquid Buffer (FD/RD/Account)",
+                    amount = liquidBufferSum,
+                    total = totalSavings,
+                    color = BrandCyan,
+                    description = "Readily accessible in case of medical emergency or job transitions."
+                )
             }
         }
     }
 }
 
+@Composable
+fun WealthSectorBar(
+    title: String,
+    amount: Double,
+    total: Double,
+    color: Color,
+    description: String
+) {
+    val percentage = if (total > 0) (amount / total) * 100.0 else 0.0
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "₹${String.format("%.0f", amount)} (${String.format("%.1f", percentage)}%)",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                color = color
+            )
+        }
+        Text(
+            text = description,
+            fontSize = 9.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(10.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(color)
+            )
+        }
+    }
+}
+
 // ==========================================
-// 13. Finance Daily Trend Bars Card
+// 13. Finance Cumulative Spend Line Chart (Tailored Monthly Pacing)
 // ==========================================
 @Composable
 fun FinanceDailyTrendsCard(financeLogs: List<FinanceLogEntity>) {
-    // Collect the last 5 days that have any logged transaction
-    val dailyTrendData = remember(financeLogs) {
-        financeLogs.groupBy { it.date }
-            .toList()
-            .sortedBy { it.first } // chronologically
-            .takeLast(5) // most recent 5 days
-            .map { (date, logs) ->
-                val inc = logs.filter { it.type == "income" }.sumOf { it.amount }
-                val exp = logs.filter { it.type == "expense" }.sumOf { it.amount }
-                val sav = logs.filter { it.type == "savings" }.sumOf { it.amount }
-                Triple(date, inc, exp to sav)
-            }
+    // Collect the expense entries, sort chronologically, and map cumulative expenses
+    val chronologicalExpenses = remember(financeLogs) {
+        financeLogs.filter { it.type == "expense" }
+            .sortedBy { it.date }
+    }
+
+    val cumulativeSpendPoints = remember(chronologicalExpenses) {
+        var runningTotal = 0.0
+        chronologicalExpenses.map { log ->
+            runningTotal += log.amount
+            // Extract Day portion if it is YYYY-MM-DD
+            val dayLabel = if (log.date.length >= 10) log.date.substring(8, 10) else log.date
+            dayLabel to runningTotal
+        }
+    }
+
+    // Stable Salary Reference limit
+    val totalIncome = remember(financeLogs) {
+        val inc = financeLogs.filter { it.type == "income" }.sumOf { it.amount }
+        if (inc <= 0) 50000.0 else inc // fallback assumed standard salaried layout
     }
 
     Card(
@@ -2046,103 +2428,157 @@ fun FinanceDailyTrendsCard(financeLogs: List<FinanceLogEntity>) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             ) {
-                Icon(Icons.Default.BarChart, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
-                Text("DAILY CASH FLOW PATTERN (LAST 5 ACTIVE DAYS)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                Icon(Icons.Default.ShowChart, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Text("MONTHLY PACING & SPEND SPEED", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
             }
 
-            if (dailyTrendData.isEmpty()) {
+            Text(
+                text = "Cumulative spend curve showing your salary burn pace compared to your salary limit of ₹${String.format("%.0f", totalIncome)}.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.padding(bottom = 14.dp)
+            )
+
+            if (cumulativeSpendPoints.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(100.dp),
+                        .height(140.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No transactions logged. Complete entries to build trend.", fontSize = 12.sp, color = Color.Gray)
+                    Text("No monthly expenses registered yet. Pacing will build as you log purchases.", fontSize = 12.sp, color = Color.Gray)
                 }
             } else {
-                val maxVal = remember(dailyTrendData) {
-                    val highestPoint = dailyTrendData.flatMap { listOf(it.second, it.third.first, it.third.second) }.maxOrNull() ?: 1.0
-                    if (highestPoint <= 0) 1.0 else highestPoint
-                }
+                val maxSpend = cumulativeSpendPoints.lastOrNull()?.second ?: 0.0
+                val ceiling = kotlin.math.max(totalIncome, maxSpend) * 1.1
 
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(140.dp)
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
                 ) {
-                    dailyTrendData.forEach { (date, inc, expSav) ->
-                        val (exp, sav) = expSav
-                        // Format date to MM-DD
-                        val dateFormatted = if (date.length >= 10) date.substring(5) else date
+                    val lineColor = BrandOrange
+                    val areaColor = BrandOrange.copy(alpha = 0.08f)
+                    val limitLineColor = BrandRose.copy(alpha = 0.4f)
 
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Bottom,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            // The Triple Vertical Bar representing Inc, Exp, Sav
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.9f)
-                                    .height(110.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.Bottom
-                            ) {
-                                // Income Bar (Violet)
-                                val incRatio = (inc / maxVal).toFloat()
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(incRatio.coerceIn(0.04f, 1f))
-                                        .padding(horizontal = 2.dp)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(BrandViolet)
-                                )
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val width = size.width
+                        val height = size.height
 
-                                // Expense Bar (Rose)
-                                val expRatio = (exp / maxVal).toFloat()
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(expRatio.coerceIn(0.04f, 1f))
-                                        .padding(horizontal = 2.dp)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(BrandRose)
-                                )
+                        // 1. Draw dashed horizontal Salary ceiling line
+                        val salaryY = (height - (totalIncome / ceiling) * height).toFloat()
+                        if (salaryY in 0f..height) {
+                            drawLine(
+                                color = limitLineColor,
+                                start = Offset(0f, salaryY),
+                                end = Offset(width, salaryY),
+                                strokeWidth = 2.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
 
-                                // Savings Bar (Green)
-                                val savRatio = (sav / maxVal).toFloat()
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(savRatio.coerceIn(0.04f, 1f))
-                                        .padding(horizontal = 2.dp)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(BrandGreen)
-                                )
+                        // 2. Draw line points
+                        val pointsCount = cumulativeSpendPoints.size
+                        if (pointsCount > 1) {
+                            val path = Path()
+                            val fillPath = Path()
+
+                            val stepX = width / (pointsCount - 1)
+
+                            cumulativeSpendPoints.forEachIndexed { i, (_, total) ->
+                                val x = i * stepX
+                                val y = (height - (total / ceiling) * height).toFloat()
+
+                                if (i == 0) {
+                                    path.moveTo(x, y)
+                                    fillPath.moveTo(x, height)
+                                    fillPath.lineTo(x, y)
+                                } else {
+                                    path.lineTo(x, y)
+                                    fillPath.lineTo(x, y)
+                                }
+
+                                if (i == pointsCount - 1) {
+                                    fillPath.lineTo(x, height)
+                                    fillPath.close()
+                                }
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(text = dateFormatted, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+
+                            // Draw area fill
+                            drawPath(fillPath, areaColor)
+
+                            // Draw glow path line
+                            drawPath(
+                                path = path,
+                                color = lineColor,
+                                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                            )
+
+                            // Draw last point dot
+                            val lastX = width
+                            val lastY = (height - (maxSpend / ceiling) * height).toFloat()
+                            drawCircle(
+                                color = lineColor,
+                                radius = 6.dp.toPx(),
+                                center = Offset(lastX, lastY)
+                            )
+                            drawCircle(
+                                color = Color.White,
+                                radius = 3.dp.toPx(),
+                                center = Offset(lastX, lastY)
+                            )
+                        } else if (pointsCount == 1) {
+                            // Single point dot
+                            val singleY = (height - (maxSpend / ceiling) * height).toFloat()
+                            drawCircle(
+                                color = lineColor,
+                                radius = 6.dp.toPx(),
+                                center = Offset(width / 2f, singleY)
+                            )
                         }
                     }
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Chart Labels Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val firstDay = cumulativeSpendPoints.firstOrNull()?.first ?: "01"
+                    val lastDay = cumulativeSpendPoints.lastOrNull()?.first ?: "30"
+
+                    Text("Day $firstDay (Pay Cycle Start)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    Text("Current Expense Stack: ₹${String.format("%.0f", maxSpend)}", fontSize = 10.sp, fontWeight = FontWeight.Black, color = BrandOrange)
+                    Text("Day $lastDay", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Chart Legend
+                // Legend
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    LegendItem(label = "Income", color = BrandViolet)
-                    LegendItem(label = "Expense", color = BrandRose)
-                    LegendItem(label = "Savings", color = BrandGreen)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(modifier = Modifier.size(10.dp, 2.dp).background(BrandOrange))
+                        Text("Cumulative Spends Pace", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(modifier = Modifier.size(10.dp, 2.dp).background(BrandRose.copy(alpha = 0.4f)))
+                        Text("Salary Limit Baseline", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    }
                 }
             }
         }
@@ -2164,3 +2600,668 @@ fun LegendItem(label: String, color: Color) {
         Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
     }
 }
+
+// ==========================================
+// 14. Custom Pie/Donut Chart & Detailed Financial Insights Cards
+// ==========================================
+
+@Composable
+fun CustomDonutChart(
+    slices: List<Pair<String, Double>>,
+    colors: List<Color>,
+    modifier: Modifier = Modifier
+) {
+    val total = remember(slices) { slices.sumOf { it.second } }
+    
+    if (total <= 0.0) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(140.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.PieChart,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "No transactions logged for this period",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+        return
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Left side: Pie Chart Canvas
+        Box(
+            modifier = Modifier
+                .size(130.dp)
+                .weight(1.1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val sizeMin = min(size.width, size.height)
+                val strokeWidth = sizeMin * 0.25f // Donut ring width
+                val arcSize = sizeMin - strokeWidth
+                
+                var startAngle = -90f
+                slices.forEachIndexed { index, (_, value) ->
+                    if (value > 0.0) {
+                        val sweepAngle = ((value / total) * 360f).toFloat()
+                        drawArc(
+                            color = colors.getOrElse(index) { Color.Gray },
+                            startAngle = startAngle,
+                            sweepAngle = sweepAngle,
+                            useCenter = false,
+                            topLeft = Offset((size.width - arcSize) / 2f, (size.height - arcSize) / 2f),
+                            size = Size(arcSize, arcSize),
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                        )
+                        startAngle += sweepAngle
+                    }
+                }
+            }
+            
+            // Center text inside donut
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "TOTAL",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+                Text(
+                    text = "₹${String.format("%.0f", total)}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        // Right side: Custom scrollable legend
+        Column(
+            modifier = Modifier.weight(1.9f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            slices.forEachIndexed { index, (label, value) ->
+                if (value > 0.0) {
+                    val pct = (value / total) * 100.0
+                    val color = colors.getOrElse(index) { Color.Gray }
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                        )
+                        Column {
+                            Text(
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = "₹${String.format("%.0f", value)} (${String.format("%.1f", pct)}%)",
+                                fontSize = 10.sp,
+                                color = color,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ExpenseSavingsPieChartCard(
+    financeLogs: List<FinanceLogEntity>,
+    selectedYear: Int,
+    selectedMonth: Int
+) {
+    var viewYearly by remember { mutableStateOf(false) } // true = Year, false = Month
+    var activeTab by remember { mutableStateOf(0) } // 0 = Overview, 1 = Expense Subcats, 2 = Savings Subcats
+    
+    val logs = remember(financeLogs, selectedYear, selectedMonth, viewYearly) {
+        val monthParts = if (viewYearly) null else selectedMonth
+        financeLogs.filter { log ->
+            val parts = log.date.split("-")
+            val logYear = parts.getOrNull(0)?.toIntOrNull() ?: 2026
+            val logMonth = parts.getOrNull(1)?.toIntOrNull() ?: 7
+            logYear == selectedYear && (monthParts == null || logMonth == monthParts)
+        }
+    }
+
+    val totalExpense = remember(logs) {
+        logs.filter { it.type == "expense" }.sumOf { it.amount }
+    }
+    val totalSavings = remember(logs) {
+        logs.filter { it.type == "savings" }.sumOf { it.amount }
+    }
+
+    // Prepare slices based on the active tab
+    val chartSlices = remember(logs, activeTab, totalExpense, totalSavings) {
+        when (activeTab) {
+            0 -> listOf(
+                "Expenses" to totalExpense,
+                "Savings" to totalSavings
+            )
+            1 -> {
+                logs.filter { it.type == "expense" }
+                    .groupBy { it.title }
+                    .map { (title, list) -> title to list.sumOf { it.amount } }
+                    .filter { it.second > 0.0 }
+                    .sortedByDescending { it.second }
+            }
+            2 -> {
+                logs.filter { it.type == "savings" }
+                    .groupBy { it.category }
+                    .map { (category, list) -> category to list.sumOf { it.amount } }
+                    .filter { it.second > 0.0 }
+                    .sortedByDescending { it.second }
+            }
+            else -> emptyList()
+        }
+    }
+    
+    val palette = listOf(
+        BrandRose, BrandGreen, BrandViolet, BrandCyan, BrandAmber, BrandPink, BrandOrange,
+        Color(0xFF3F51B5), Color(0xFF009688), Color(0xFFFF5722), Color(0xFF9C27B0), Color(0xFFE91E63),
+        Color(0xFF4CAF50), Color(0xFF00BCD4), Color(0xFFFFC107), Color(0xFF8BC34A), Color(0xFFCDDC39)
+    )
+    
+    val sliceColors = remember(chartSlices, activeTab) {
+        if (activeTab == 0) {
+            listOf(BrandRose, BrandGreen)
+        } else {
+            chartSlices.mapIndexed { index, _ -> palette[index % palette.size] }
+        }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            // Header with toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PieChart,
+                        contentDescription = null,
+                        tint = BrandViolet,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "EXPENSE VS SAVINGS",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandViolet
+                    )
+                }
+
+                // Month vs Year toggle switch
+                Row(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (!viewYearly) BrandViolet.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { viewYearly = false }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Month",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!viewYearly) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (viewYearly) BrandViolet.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { viewYearly = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Year",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (viewYearly) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Tab selection for Overview vs Detailed Subcategories
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("Overview", "Expense Subcats", "Savings Subcats").forEachIndexed { idx, label ->
+                    val selected = activeTab == idx
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selected) BrandViolet.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { activeTab = idx }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selected) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            CustomDonutChart(
+                slices = chartSlices,
+                colors = sliceColors,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+fun IncomeDistributionPieChartCard(
+    financeLogs: List<FinanceLogEntity>,
+    selectedYear: Int,
+    selectedMonth: Int
+) {
+    var viewYearly by remember { mutableStateOf(false) } // true = Year, false = Month
+    var activeTab by remember { mutableStateOf(0) } // 0 = Sources, 1 = Detailed Items
+    
+    val logs = remember(financeLogs, selectedYear, selectedMonth, viewYearly) {
+        val monthParts = if (viewYearly) null else selectedMonth
+        financeLogs.filter { log ->
+            val parts = log.date.split("-")
+            val logYear = parts.getOrNull(0)?.toIntOrNull() ?: 2026
+            val logMonth = parts.getOrNull(1)?.toIntOrNull() ?: 7
+            log.type == "income" && logYear == selectedYear && (monthParts == null || logMonth == monthParts)
+        }
+    }
+
+    val chartSlices = remember(logs, activeTab) {
+        if (activeTab == 0) {
+            logs.groupBy { it.title }
+                .map { (title, list) -> title to list.sumOf { it.amount } }
+                .filter { it.second > 0.0 }
+                .sortedByDescending { it.second }
+        } else {
+            logs.groupBy { log ->
+                log.notes?.trim()?.ifEmpty { null } ?: log.title
+            }.map { (label, list) -> label to list.sumOf { it.amount } }
+             .filter { it.second > 0.0 }
+             .sortedByDescending { it.second }
+        }
+    }
+    
+    val palette = listOf(
+        BrandGreen, BrandViolet, BrandCyan, BrandAmber, BrandPink, BrandOrange,
+        Color(0xFF3F51B5), Color(0xFF009688), Color(0xFFFF5722), Color(0xFF9C27B0), Color(0xFFE91E63),
+        Color(0xFF4CAF50), Color(0xFF00BCD4), Color(0xFFFFC107)
+    )
+    
+    val sliceColors = remember(chartSlices) {
+        chartSlices.mapIndexed { index, _ -> palette[index % palette.size] }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            // Header with toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DonutLarge,
+                        contentDescription = null,
+                        tint = BrandGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "INCOME SOURCES DISTRIBUTION",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandGreen
+                    )
+                }
+
+                // Month vs Year toggle switch
+                Row(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (!viewYearly) BrandGreen.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { viewYearly = false }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Month",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!viewYearly) BrandGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (viewYearly) BrandGreen.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { viewYearly = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Year",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (viewYearly) BrandGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Tab selection for Sources vs Detailed Items
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("Income Sources", "Detailed Items").forEachIndexed { idx, label ->
+                    val selected = activeTab == idx
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selected) BrandGreen.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { activeTab = idx }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selected) BrandGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            CustomDonutChart(
+                slices = chartSlices,
+                colors = sliceColors,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+fun TopSpentDaysCard(
+    financeLogs: List<FinanceLogEntity>,
+    selectedYear: Int,
+    selectedMonth: Int
+) {
+    var viewYearly by remember { mutableStateOf(false) } // true = Year, false = Month
+    
+    // Group and aggregate expenses
+    val displayedLogs = remember(financeLogs, selectedYear, selectedMonth, viewYearly) {
+        val yearParts = selectedYear
+        val monthParts = if (viewYearly) null else selectedMonth
+        
+        financeLogs.filter { log ->
+            val parts = log.date.split("-")
+            val logYear = parts.getOrNull(0)?.toIntOrNull() ?: 2026
+            val logMonth = parts.getOrNull(1)?.toIntOrNull() ?: 7
+            log.type == "expense" && logYear == yearParts && (monthParts == null || logMonth == monthParts)
+        }
+    }
+
+    val topDays = remember(displayedLogs) {
+        displayedLogs.groupBy { it.date }
+            .map { (date, logs) ->
+                // Format date string to friendly name like "Jul 03"
+                val friendlyDate = try {
+                    val sdfIn = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                    val sdfOut = SimpleDateFormat("MMM dd, yyyy", Locale.US)
+                    val sdfOutMonth = SimpleDateFormat("MMM dd", Locale.US)
+                    
+                    sdfIn.parse(date)?.let { 
+                        if (viewYearly) sdfOut.format(it) else sdfOutMonth.format(it)
+                    } ?: date
+                } catch (e: Exception) {
+                    date
+                }
+                friendlyDate to logs.sumOf { it.amount }
+            }
+            .sortedByDescending { it.second }
+            .take(5)
+    }
+
+    val maxDaySpend = remember(topDays) {
+        topDays.maxOfOrNull { it.second } ?: 1.0
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            // Header with toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = BrandRose,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "TOP 5 SPENT DAYS",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandRose
+                    )
+                }
+
+                // Month vs Year toggle switch
+                Row(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (!viewYearly) BrandRose.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { viewYearly = false }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Month",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!viewYearly) BrandRose else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (viewYearly) BrandRose.copy(alpha = 0.15f) else Color.Transparent)
+                            .clickable { viewYearly = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Year",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (viewYearly) BrandRose else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            if (topDays.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No expenses recorded in this period",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    topDays.forEachIndexed { index, (dayLabel, spendAmount) ->
+                        val barWidthFraction = (spendAmount / maxDaySpend).toFloat().coerceIn(0f, 1f)
+                        
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .clip(CircleShape)
+                                            .background(BrandRose.copy(alpha = 0.1f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "${index + 1}",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandRose
+                                        )
+                                    }
+                                    Text(
+                                        text = dayLabel,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = "₹${String.format("%.0f", spendAmount)}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = BrandRose
+                                )
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(barWidthFraction)
+                                        .fillMaxHeight()
+                                        .clip(CircleShape)
+                                        .background(BrandRose)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

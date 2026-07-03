@@ -981,7 +981,7 @@ fun LeftDrawerPane(
                         )
                     }
                     Text(
-                        text = "TrackWise Left Pane",
+                        text = "Settings & Analytics",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface
@@ -1005,17 +1005,17 @@ fun LeftDrawerPane(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // --- Finance Tracker Navigation Link ---
+                // --- Friends & Achievements Navigation Link (Moved to top) ---
                 item {
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = if (activeTab == "finance") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                            containerColor = if (activeTab == "social") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                         ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                onNavigate("finance")
+                                onNavigate("social")
                                 onClose()
                             }
                     ) {
@@ -1030,18 +1030,18 @@ fun LeftDrawerPane(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.AttachMoney, contentDescription = null, tint = BrandViolet)
+                                Icon(Icons.Default.Group, contentDescription = null, tint = BrandViolet)
                                 Text(
-                                    text = "FINANCE TRACKER",
+                                    text = "FRIENDS & ACHIEVEMENTS",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (activeTab == "finance") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                    color = if (activeTab == "social") BrandViolet else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
-                                tint = if (activeTab == "finance") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                tint = if (activeTab == "social") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     }
@@ -1300,48 +1300,6 @@ fun LeftDrawerPane(
                                 ) {
                                     Text("Import", fontSize = 11.sp, color = Color.White)
                                 }
-                            }
-                        }
-                    }
-
-                    // --- Friends & Achievements Navigation Link ---
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (activeTab == "social") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onNavigate("social")
-                                    onClose()
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.Group, contentDescription = null, tint = BrandViolet)
-                                    Text(
-                                        text = "FRIENDS & ACHIEVEMENTS",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (activeTab == "social") BrandViolet else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = if (activeTab == "social") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                )
                             }
                         }
                     }

@@ -78,32 +78,102 @@ fun WorkspaceScreen(
             }
         }
 
-        // --- Workspace Sub-Tabs Row ---
+        // --- Workspace Sub-Tabs Dropdown Menu ---
         item {
-            Row(
+            var workspaceDropdownExpanded by remember { mutableStateOf(false) }
+            val currentLabel = subTabs.getOrElse(activeSubTab) { "Select Section" }
+            
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .horizontalScroll(rememberScrollState())
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(vertical = 4.dp)
             ) {
-                subTabs.forEachIndexed { index, label ->
-                    Box(
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, BrandViolet.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { workspaceDropdownExpanded = !workspaceDropdownExpanded }
+                ) {
+                    Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (activeSubTab == index) BrandViolet else Color.Transparent)
-                            .clickable { viewModel.setWorkspaceSubTab(index) }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = label,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (activeSubTab == index) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = when (activeSubTab) {
+                                    0 -> Icons.Default.Assignment
+                                    1 -> Icons.Default.Repeat
+                                    2 -> Icons.Default.Star
+                                    3 -> Icons.Default.Cake
+                                    4 -> Icons.Default.Alarm
+                                    else -> Icons.Default.ShoppingCart
+                                },
+                                contentDescription = null,
+                                tint = BrandViolet,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = currentLabel.uppercase(),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        Icon(
+                            imageVector = if (workspaceDropdownExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = "Dropdown Indicator",
+                            tint = BrandViolet,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                
+                DropdownMenu(
+                    expanded = workspaceDropdownExpanded,
+                    onDismissRequest = { workspaceDropdownExpanded = false },
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .background(MaterialTheme.colorScheme.surface)
+                ) {
+                    subTabs.forEachIndexed { index, label ->
+                        DropdownMenuItem(
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = when (index) {
+                                        0 -> Icons.Default.Assignment
+                                        1 -> Icons.Default.Repeat
+                                        2 -> Icons.Default.Star
+                                        3 -> Icons.Default.Cake
+                                        4 -> Icons.Default.Alarm
+                                        else -> Icons.Default.ShoppingCart
+                                    },
+                                    contentDescription = null,
+                                    tint = if (activeSubTab == index) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            text = {
+                                Text(
+                                    text = label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (activeSubTab == index) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (activeSubTab == index) BrandViolet else MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            onClick = {
+                                viewModel.setWorkspaceSubTab(index)
+                                workspaceDropdownExpanded = false
+                            }
                         )
                     }
                 }
@@ -1107,37 +1177,44 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                         Spacer(modifier = Modifier.height(6.dp))
                         
                         var expanded by remember { mutableStateOf(false) }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                                    RoundedCornerShape(8.dp)
-                                )
-                                .clickable { expanded = !expanded }
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
                             ) {
-                                Text(
-                                    text = category,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Icon(
-                                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    contentDescription = "Dropdown Indicator",
-                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = category,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Icon(
+                                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = "Dropdown Indicator",
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { expanded = !expanded }
+                            )
                             
                             DropdownMenu(
                                 expanded = expanded,
