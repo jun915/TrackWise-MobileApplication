@@ -107,7 +107,33 @@ class TrackWiseViewModel(
                 }
             }
         }
+
+        // Auto-update home screen widget whenever key data states change
+        viewModelScope.launch {
+            combine(allTasks, allHabits, allFinanceLogs, waterLogs, sessionUser) { _, _, _, _, _ -> Unit }
+                .collect {
+                    updateAppWidget()
+                }
+        }
     }
+
+    fun updateAppWidget() {
+        try {
+            val context = getApplication<Application>().applicationContext
+            val intent = android.content.Intent(context, com.example.widget.TrackWiseWidgetProvider::class.java).apply {
+                action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            }
+            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(
+                android.content.ComponentName(context, com.example.widget.TrackWiseWidgetProvider::class.java)
+            )
+            intent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
+            context.sendBroadcast(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
 
     // --- UI App Preferences ---
     private val _themeMode = MutableStateFlow("light") // "light", "dark", or "system"

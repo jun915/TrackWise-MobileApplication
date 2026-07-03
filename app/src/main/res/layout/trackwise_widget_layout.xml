@@ -19,7 +19,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="TrackWise"
-            android:textColor="#FFFFFF"
+            android:textColor="#0F172A"
             android:textSize="12sp"
             android:textStyle="bold" />
 
@@ -30,7 +30,7 @@
             android:orientation="horizontal"
             android:gravity="end">
 
-            <Button
+            <TextView
                 android:id="@+id/btn_tab_finance"
                 android:layout_width="65dp"
                 android:layout_height="28dp"
@@ -39,10 +39,11 @@
                 android:textColor="#FFFFFF"
                 android:textSize="10sp"
                 android:textStyle="bold"
-                android:padding="0dp"
-                style="?android:attr/borderlessButtonStyle" />
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="true" />
 
-            <Button
+            <TextView
                 android:id="@+id/btn_tab_health"
                 android:layout_width="65dp"
                 android:layout_height="28dp"
@@ -52,10 +53,11 @@
                 android:textColor="#CBD5E1"
                 android:textSize="10sp"
                 android:textStyle="bold"
-                android:padding="0dp"
-                style="?android:attr/borderlessButtonStyle" />
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="true" />
 
-            <Button
+            <TextView
                 android:id="@+id/btn_tab_tasks"
                 android:layout_width="65dp"
                 android:layout_height="28dp"
@@ -65,16 +67,17 @@
                 android:textColor="#CBD5E1"
                 android:textSize="10sp"
                 android:textStyle="bold"
-                android:padding="0dp"
-                style="?android:attr/borderlessButtonStyle" />
+                android:gravity="center"
+                android:clickable="true"
+                android:focusable="true" />
         </LinearLayout>
     </LinearLayout>
 
     <!-- Subdued Separator -->
-    <View
+    <ImageView
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#20FFFFFF" />
+        android:background="#E2E8F0" />
 
     <!-- Main Content Area -->
     <LinearLayout
@@ -107,7 +110,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1.2"
                 android:text="Balance Status:"
-                android:textColor="#94A3B8"
+                android:textColor="#64748B"
                 android:textSize="11sp" />
 
             <TextView
@@ -116,7 +119,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1.8"
                 android:text="₹0.00"
-                android:textColor="#FFFFFF"
+                android:textColor="#0F172A"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:gravity="end" />
@@ -135,7 +138,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1.2"
                 android:text="Spent Today:"
-                android:textColor="#94A3B8"
+                android:textColor="#64748B"
                 android:textSize="11sp" />
 
             <TextView
@@ -144,7 +147,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1.8"
                 android:text="₹0.00"
-                android:textColor="#EF4444"
+                android:textColor="#DC2626"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:gravity="end" />
@@ -155,7 +158,7 @@
             android:id="@+id/widget_progress_bar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
-            android:layout_height="4dp"
+            android:layout_height="6dp"
             android:layout_marginTop="8dp"
             android:progress="0"
             android:max="100" />
@@ -167,7 +170,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Last updated: Just now"
-        android:textColor="#475569"
+        android:textColor="#64748B"
         android:textSize="9sp"
         android:gravity="end"
         android:layout_marginTop="4dp" />

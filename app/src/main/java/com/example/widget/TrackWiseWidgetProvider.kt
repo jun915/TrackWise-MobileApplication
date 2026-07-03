@@ -108,10 +108,10 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                         views.setTextColor(R.id.btn_tab_finance, Color.WHITE)
 
                         views.setInt(R.id.btn_tab_health, "setBackgroundResource", R.drawable.widget_tab_inactive)
-                        views.setTextColor(R.id.btn_tab_health, Color.parseColor("#CBD5E1"))
+                        views.setTextColor(R.id.btn_tab_health, Color.parseColor("#475569"))
 
                         views.setInt(R.id.btn_tab_tasks, "setBackgroundResource", R.drawable.widget_tab_inactive)
-                        views.setTextColor(R.id.btn_tab_tasks, Color.parseColor("#CBD5E1"))
+                        views.setTextColor(R.id.btn_tab_tasks, Color.parseColor("#475569"))
 
                         // Get finance stats
                         val logs = dao.getFinanceLogsForUser(userId)
@@ -142,13 +142,13 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                     }
                     "health" -> {
                         views.setInt(R.id.btn_tab_finance, "setBackgroundResource", R.drawable.widget_tab_inactive)
-                        views.setTextColor(R.id.btn_tab_finance, Color.parseColor("#CBD5E1"))
+                        views.setTextColor(R.id.btn_tab_finance, Color.parseColor("#475569"))
 
                         views.setInt(R.id.btn_tab_health, "setBackgroundResource", R.drawable.widget_tab_active)
                         views.setTextColor(R.id.btn_tab_health, Color.WHITE)
 
                         views.setInt(R.id.btn_tab_tasks, "setBackgroundResource", R.drawable.widget_tab_inactive)
-                        views.setTextColor(R.id.btn_tab_tasks, Color.parseColor("#CBD5E1"))
+                        views.setTextColor(R.id.btn_tab_tasks, Color.parseColor("#475569"))
 
                         // Get health stats
                         val waterLogs = dao.getWaterLogsForUser(userId)
@@ -176,10 +176,10 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                     }
                     "tasks" -> {
                         views.setInt(R.id.btn_tab_finance, "setBackgroundResource", R.drawable.widget_tab_inactive)
-                        views.setTextColor(R.id.btn_tab_finance, Color.parseColor("#CBD5E1"))
+                        views.setTextColor(R.id.btn_tab_finance, Color.parseColor("#475569"))
 
                         views.setInt(R.id.btn_tab_health, "setBackgroundResource", R.drawable.widget_tab_inactive)
-                        views.setTextColor(R.id.btn_tab_health, Color.parseColor("#CBD5E1"))
+                        views.setTextColor(R.id.btn_tab_health, Color.parseColor("#475569"))
 
                         views.setInt(R.id.btn_tab_tasks, "setBackgroundResource", R.drawable.widget_tab_active)
                         views.setTextColor(R.id.btn_tab_tasks, Color.WHITE)

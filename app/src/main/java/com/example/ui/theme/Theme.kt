@@ -60,19 +60,19 @@ private val LightColorScheme =
 fun getThemeGradientColors(themeAccent: String, darkTheme: Boolean): List<Color> {
     return if (darkTheme) {
         when (themeAccent) {
-            "Ocean Blue" -> listOf(Color(0xFF050B14), Color(0xFF091424), Color(0xFF0F1E35))
-            "Forest Green" -> listOf(Color(0xFF040A08), Color(0xFF081410), Color(0xFF0E221B))
-            "Sunset Orange" -> listOf(Color(0xFF0C0805), Color(0xFF160F0A), Color(0xFF241810))
-            "Crimson Red" -> listOf(Color(0xFF0C0507), Color(0xFF160A0D), Color(0xFF241014))
-            else -> listOf(Color(0xFF090810), Color(0xFF120E25), Color(0xFF18122F)) // Default Violet
+            "Ocean Blue" -> listOf(Color(0xFF03395C), Color(0xFF021727), Color(0xFF01070F))
+            "Forest Green" -> listOf(Color(0xFF063A25), Color(0xFF021B10), Color(0xFF010704))
+            "Sunset Orange" -> listOf(Color(0xFF4A1A05), Color(0xFF210901), Color(0xFF080200))
+            "Crimson Red" -> listOf(Color(0xFF450614), Color(0xFF1C0106), Color(0xFF070001))
+            else -> listOf(Color(0xFF1D0B33), Color(0xFF0C0418), Color(0xFF03010A)) // Default Violet
         }
     } else {
         when (themeAccent) {
-            "Ocean Blue" -> listOf(Color(0xFFF0F5FA), Color(0xFFE1EDF7), Color(0xFFD2E4F4))
-            "Forest Green" -> listOf(Color(0xFFF0F5F2), Color(0xFFE2EDE5), Color(0xFFD4E5D9))
-            "Sunset Orange" -> listOf(Color(0xFFFAF5F0), Color(0xFFF5EBE0), Color(0xFFECDCD0))
-            "Crimson Red" -> listOf(Color(0xFFFAF0F2), Color(0xFFF5E0E4), Color(0xFFECD0D5))
-            else -> listOf(Color(0xFFEEF2F6), Color(0xFFF5F3FF), Color(0xFFFAF5FF)) // Default Violet
+            "Ocean Blue" -> listOf(Color(0xFFBAE6FD), Color(0xFFF0F9FF), Color(0xFFFFFFFF))
+            "Forest Green" -> listOf(Color(0xFFA7F3D0), Color(0xFFECFDF5), Color(0xFFFFFFFF))
+            "Sunset Orange" -> listOf(Color(0xFFFFEDD5), Color(0xFFFFF7ED), Color(0xFFFFFFFF))
+            "Crimson Red" -> listOf(Color(0xFFFECDD3), Color(0xFFFFF1F2), Color(0xFFFFFFFF))
+            else -> listOf(Color(0xFFE9D5FF), Color(0xFFF5F3FF), Color(0xFFFFFFFF)) // Default Violet
         }
     }
 }

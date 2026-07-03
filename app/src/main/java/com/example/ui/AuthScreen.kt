@@ -50,7 +50,7 @@ fun AuthScreen(
     val currentTheme = viewModel.themeMode.collectAsState().value
     val themeAccent by viewModel.appThemeSelection.collectAsState()
     val isSystemInDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val isDark = currentTheme == "dark" || (currentTheme == "system" && isSystemInDark)
+    val isDark = false
     val focusManager = LocalFocusManager.current
 
     val gradientColors = com.example.ui.theme.getThemeGradientColors(themeAccent, isDark)
