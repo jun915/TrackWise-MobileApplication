@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
@@ -15,6 +16,7 @@
         android:layout_marginBottom="8dp">
 
         <TextView
+            android:id="@+id/widget_app_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -75,6 +77,7 @@
 
     <!-- Subdued Separator -->
     <ImageView
+        android:id="@+id/widget_divider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#E2E8F0" />
@@ -84,84 +87,109 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:layout_marginTop="6dp">
 
-        <TextView
-            android:id="@+id/txt_analytics_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Finance Summary"
-            android:textColor="#7C3AED"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <!-- Metrics Grid -->
+        <!-- Left Column: Metrics -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="4dp"
-            android:gravity="center_vertical">
+            android:layout_weight="1.6"
+            android:orientation="vertical">
 
             <TextView
-                android:id="@+id/txt_metric1_label"
-                android:layout_width="0dp"
+                android:id="@+id/txt_analytics_title"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1.2"
-                android:text="Balance Status:"
-                android:textColor="#64748B"
-                android:textSize="11sp" />
+                android:text="Finance Summary"
+                android:textColor="#7C3AED"
+                android:textSize="13sp"
+                android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/txt_metric1_value"
-                android:layout_width="0dp"
+            <!-- Metrics Grid -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1.8"
-                android:text="₹0.00"
-                android:textColor="#0F172A"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:gravity="end" />
+                android:orientation="horizontal"
+                android:layout_marginTop="4dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/txt_metric1_label"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.3"
+                    android:text="Balance Status:"
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/txt_metric1_value"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.7"
+                    android:text="₹0.00"
+                    android:textColor="#0F172A"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:gravity="end" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="2dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/txt_metric2_label"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.3"
+                    android:text="Spent Today:"
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/txt_metric2_value"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.7"
+                    android:text="₹0.00"
+                    android:textColor="#DC2626"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:gravity="end" />
+            </LinearLayout>
+
+            <!-- Progress Indicator -->
+            <ProgressBar
+                android:id="@+id/widget_progress_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="8dp"
+                android:progress="0"
+                android:max="100" />
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="2dp"
-            android:gravity="center_vertical">
+        <!-- Right Column: Pie Chart / Completed Progress -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp">
 
-            <TextView
-                android:id="@+id/txt_metric2_label"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1.2"
-                android:text="Spent Today:"
-                android:textColor="#64748B"
-                android:textSize="11sp" />
-
-            <TextView
-                android:id="@+id/txt_metric2_value"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1.8"
-                android:text="₹0.00"
-                android:textColor="#DC2626"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:gravity="end" />
-        </LinearLayout>
-
-        <!-- Progress Indicator -->
-        <ProgressBar
-            android:id="@+id/widget_progress_bar"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="6dp"
-            android:layout_marginTop="8dp"
-            android:progress="0"
-            android:max="100" />
+            <ImageView
+                android:id="@+id/img_pie_chart"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:layout_gravity="center"
+                android:scaleType="fitCenter"
+                android:contentDescription="Today's Progress Chart" />
+        </FrameLayout>
     </LinearLayout>
 
     <!-- Footer Timestamp -->

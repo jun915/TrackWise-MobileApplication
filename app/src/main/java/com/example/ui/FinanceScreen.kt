@@ -103,7 +103,7 @@ fun FinanceScreen(
 
     // Expense Inputs
     var expenseAmount by remember { mutableStateOf("") }
-    var selectedExpenseCategory by remember { mutableStateOf("Housing and Utilities (Fixed Essentials)") }
+    var selectedExpenseCategory by remember { mutableStateOf("Housing and Utilities") }
     var selectedExpenseTitle by remember { mutableStateOf("Rent or EMI") }
     var expenseNotes by remember { mutableStateOf("") }
     var showExpenseCategoryDropdown by remember { mutableStateOf(false) }
@@ -111,22 +111,22 @@ fun FinanceScreen(
 
     // Expense categories mapping
     val expenseCategories = listOf(
-        "Housing and Utilities (Fixed Essentials)",
-        "Groceries and Daily Essentials (Variable Living)",
-        "Education and Childcare (High-Priority Fixed)",
-        "Transport and Commute (Daily Variable)",
-        "Healthcare and Insurance (Financial Security)",
-        "Lifestyle, Entertainment, and Discretionary (Flex Spends)",
+        "Housing and Utilities",
+        "Groceries and Daily Essentials",
+        "Education and Childcare",
+        "Transport and Commute",
+        "Healthcare and Insurance",
+        "Lifestyle, Entertainment, and Discretionary",
         "Others"
     )
 
     val expenseCategoryTitles = mapOf(
-        "Housing and Utilities (Fixed Essentials)" to listOf("Rent or EMI", "Society Maintenance", "Electricity Bill", "Water & LPG", "Internet & Mobile", "Others"),
-        "Groceries and Daily Essentials (Variable Living)" to listOf("Kirana & Staples", "Fresh Produce", "Household Supplies", "Domestic Help", "Others"),
-        "Education and Childcare (High-Priority Fixed)" to listOf("School / College Fees", "Coaching & Hobbies", "Books & Stationery", "Others"),
-        "Transport and Commute (Daily Variable)" to listOf("Vehicle Fuel", "Public Commute", "Vehicle Maintenance", "Others"),
-        "Healthcare and Insurance (Financial Security)" to listOf("Routine Medicines", "Doctor Consultations", "Insurance Premiums", "Others"),
-        "Lifestyle, Entertainment, and Discretionary (Flex Spends)" to listOf("Dining & Delivery", "Shopping & Apparel", "Salons & Wellness", "Family Events", "Others"),
+        "Housing and Utilities" to listOf("Rent or EMI", "Society Maintenance", "Electricity Bill", "Water & LPG", "Internet & Mobile", "Others"),
+        "Groceries and Daily Essentials" to listOf("Kirana & Staples", "Fresh Produce", "Household Supplies", "Domestic Help", "Others"),
+        "Education and Childcare" to listOf("School / College Fees", "Coaching & Hobbies", "Books & Stationery", "Others"),
+        "Transport and Commute" to listOf("Vehicle Fuel", "Public Commute", "Vehicle Maintenance", "Others"),
+        "Healthcare and Insurance" to listOf("Routine Medicines", "Doctor Consultations", "Insurance Premiums", "Others"),
+        "Lifestyle, Entertainment, and Discretionary" to listOf("Dining & Delivery", "Shopping & Apparel", "Salons & Wellness", "Family Events", "Others"),
         "Others" to listOf("General Expense", "Miscellaneous")
     )
 

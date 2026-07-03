@@ -851,6 +851,10 @@ fun ToastAlert(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    androidx.compose.runtime.LaunchedEffect(message) {
+        kotlinx.coroutines.delay(5000)
+        onDismiss()
+    }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
@@ -1238,7 +1242,7 @@ fun LeftDrawerPane(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                listOf("Morning Birds", "Digital Beep", "Loud Siren", "Classic Bell").forEach { snd ->
+                                listOf("Morning Birds", "Digital Beep", "Phone Ringtone", "Classic Bell").forEach { snd ->
                                     val isSelected = alarmSound == snd
                                     Box(
                                         modifier = Modifier
@@ -1298,6 +1302,17 @@ fun LeftDrawerPane(
                                 ) {
                                     Text("Import", fontSize = 11.sp, color = Color.White)
                                 }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Button(
+                                onClick = { viewModel.clearAllData() },
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(vertical = 4.dp)
+                            ) {
+                                Text("Clear All Data (Start Fresh)", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

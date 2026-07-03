@@ -39,6 +39,9 @@ interface TrackWiseDao {
     @Query("SELECT * FROM habits WHERE userId = :userId")
     fun getHabitsForUserFlow(userId: String): Flow<List<HabitEntity>>
 
+    @Query("SELECT * FROM habits WHERE userId = :userId")
+    suspend fun getHabitsForUser(userId: String): List<HabitEntity>
+
     @Query("SELECT * FROM habits")
     fun getAllHabitsFlow(): Flow<List<HabitEntity>>
 

@@ -470,6 +470,21 @@ fun AddAlarmDialog(
     var minute by remember { mutableStateOf(existingAlarm?.minute ?: 0) }
     var label by remember { mutableStateOf(existingAlarm?.label ?: "") }
     
+    var amPm by remember { mutableStateOf(if (hour >= 12) "PM" else "AM") }
+    var displayHour by remember { 
+        val h = hour % 12
+        mutableStateOf(if (h == 0) "12" else h.toString()) 
+    }
+    var displayMinute by remember { mutableStateOf(String.format("%02d", minute)) }
+
+    val convertTo24Hour = { h12: Int, amPmStr: String ->
+        var h = h12 % 12
+        if (amPmStr == "PM") {
+            h += 12
+        }
+        h
+    }
+
     val selectedDays = remember {
         val daysList = if (existingAlarm != null) {
             TrackWiseUtils.deserializeStringList(existingAlarm.repeatDaysJson)
@@ -499,48 +514,96 @@ fun AddAlarmDialog(
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
-                // Hour Slider with text readout
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Hour", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                        Text(String.format("%02d", hour), fontSize = 14.sp, fontWeight = FontWeight.Black, color = BrandViolet)
-                    }
-                    Slider(
-                        value = hour.toFloat(),
-                        onValueChange = { hour = it.toInt() },
-                        valueRange = 0f..23f,
-                        steps = 22,
-                        colors = SliderDefaults.colors(
-                            thumbColor = BrandViolet,
-                            activeTrackColor = BrandViolet,
-                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                // Beautiful Hour & Minute Input Boxes with AM/PM selector
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Hour Box
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Hour", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 4.dp))
+                        OutlinedTextField(
+                            value = displayHour,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isDigit() }
+                                if (filtered.length <= 2) {
+                                    displayHour = filtered
+                                    val h = filtered.toIntOrNull() ?: 12
+                                    if (h in 1..12) {
+                                        hour = convertTo24Hour(h, amPm)
+                                    }
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                            modifier = Modifier.size(width = 72.dp, height = 56.dp).testTag("alarm_hour_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BrandViolet,
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                            )
                         )
-                    )
-                }
+                    }
 
-                // Minute Slider with text readout
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Minute", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                        Text(String.format("%02d", minute), fontSize = 14.sp, fontWeight = FontWeight.Black, color = BrandViolet)
-                    }
-                    Slider(
-                        value = minute.toFloat(),
-                        onValueChange = { minute = it.toInt() },
-                        valueRange = 0f..59f,
-                        steps = 58,
-                        colors = SliderDefaults.colors(
-                            thumbColor = BrandViolet,
-                            activeTrackColor = BrandViolet,
-                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                    Text(":", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 12.dp, top = 16.dp, end = 12.dp, bottom = 0.dp))
+
+                    // Minute Box
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Minute", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 4.dp))
+                        OutlinedTextField(
+                            value = displayMinute,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isDigit() }
+                                if (filtered.length <= 2) {
+                                    displayMinute = filtered
+                                    val m = filtered.toIntOrNull() ?: 0
+                                    if (m in 0..59) {
+                                        minute = m
+                                    }
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                            modifier = Modifier.size(width = 72.dp, height = 56.dp).testTag("alarm_minute_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BrandViolet,
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                            )
                         )
-                    )
+                    }
+
+                    Spacer(modifier = Modifier.width(20.dp))
+
+                    // AM/PM Selection
+                    Column(
+                        modifier = Modifier.padding(top = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("AM", "PM").forEach { opt ->
+                            val isSelected = amPm == opt
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 54.dp, height = 28.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSelected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable {
+                                        amPm = opt
+                                        val h = displayHour.toIntOrNull() ?: 12
+                                        hour = convertTo24Hour(h, opt)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = opt,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Label field

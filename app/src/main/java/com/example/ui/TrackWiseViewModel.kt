@@ -357,6 +357,9 @@ class TrackWiseViewModel(
     // --- Preferences Actions ---
     fun setThemeMode(mode: String) {
         _themeMode.value = mode
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("saved_theme_mode", mode).apply()
+        updateAppWidget()
     }
 
     fun setCalendarOverlay(overlay: String) {
@@ -1210,6 +1213,9 @@ class TrackWiseViewModel(
     // --- Different Theme Accent Action ---
     fun setAppThemeSelection(themeName: String) {
         _appThemeSelection.value = themeName
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("saved_theme_accent", themeName).apply()
+        updateAppWidget()
     }
 
     // --- Account Management ---
@@ -1222,6 +1228,26 @@ class TrackWiseViewModel(
         prefs.edit().remove("saved_user_id").apply()
         
         _successMessage.value = "Account deleted successfully."
+    }
+
+    fun clearAllData() {
+        _sessionUser.value = null
+        _settingsPanelOpen.value = false
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().clear().apply()
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val db = TrackWiseDatabase.getDatabase(getApplication())
+                db.clearAllTables()
+                viewModelScope.launch(Dispatchers.Main) {
+                    _successMessage.value = "All database and local data cleared! Fresh start."
+                }
+                updateAppWidget()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     // --- Alarm Update Action ---
@@ -1708,6 +1734,12 @@ class TrackWiseViewModel(
         val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
         val savedUserId = prefs.getString("saved_user_id", null)
         val dayOfMonth = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
+        
+        // Restore theme preferences
+        val savedThemeMode = prefs.getString("saved_theme_mode", "light") ?: "light"
+        val savedThemeAccent = prefs.getString("saved_theme_accent", "Default Violet") ?: "Default Violet"
+        _themeMode.value = savedThemeMode
+        _appThemeSelection.value = savedThemeAccent
         
         if (savedUserId != null) {
             if (dayOfMonth == 28) {

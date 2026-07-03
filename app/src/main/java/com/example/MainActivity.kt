@@ -36,7 +36,12 @@ class MainActivity : ComponentActivity() {
             val themeMode by viewModel.themeMode.collectAsState()
             val themeAccent by viewModel.appThemeSelection.collectAsState()
 
-            val isDark = false
+            val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val isDark = when (themeMode) {
+                "dark" -> true
+                "light" -> false
+                else -> systemDark
+            }
 
             MyApplicationTheme(darkTheme = isDark, themeAccent = themeAccent) {
                 val isLoggedIn by viewModel.isLoggedIn.collectAsState(initial = false)
