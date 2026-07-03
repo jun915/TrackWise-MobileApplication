@@ -110,6 +110,7 @@ fun AlarmTimerSection(
 fun AlarmsSubSection(viewModel: TrackWiseViewModel) {
     val alarms by viewModel.allAlarms.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingAlarm by remember { mutableStateOf<AlarmEntity?>(null) }
 
     // Check if any enabled alarm is currently ringing
     var activeRingingAlarm by remember { mutableStateOf<AlarmEntity?>(null) }
@@ -140,6 +141,7 @@ fun AlarmsSubSection(viewModel: TrackWiseViewModel) {
             }
             if (ringing != null && activeRingingAlarm == null) {
                 activeRingingAlarm = ringing
+                viewModel.playAlarmSound()
             }
             delay(5000) // Check every 5 seconds
         }
@@ -211,14 +213,18 @@ fun AlarmsSubSection(viewModel: TrackWiseViewModel) {
                 AlarmItemCard(
                     alarm = alarm,
                     onToggle = { viewModel.toggleAlarm(alarm) },
-                    onDelete = { viewModel.deleteAlarm(alarm.id) }
+                    onDelete = { viewModel.deleteAlarm(alarm.id) },
+                    onClick = { editingAlarm = alarm }
                 )
             }
         }
 
         // Active Ringing Overlay/Dialog
         activeRingingAlarm?.let { alarm ->
-            Dialog(onDismissRequest = { activeRingingAlarm = null }) {
+            Dialog(onDismissRequest = { 
+                viewModel.stopAlarmSound()
+                activeRingingAlarm = null 
+            }) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(24.dp),
@@ -267,6 +273,7 @@ fun AlarmsSubSection(viewModel: TrackWiseViewModel) {
                             OutlinedButton(
                                 onClick = {
                                     viewModel.snoozeAlarm(alarm)
+                                    viewModel.stopAlarmSound()
                                     activeRingingAlarm = null
                                 },
                                 modifier = Modifier.weight(1f),
@@ -278,6 +285,7 @@ fun AlarmsSubSection(viewModel: TrackWiseViewModel) {
                             Button(
                                 onClick = {
                                     viewModel.dismissAlarm(alarm)
+                                    viewModel.stopAlarmSound()
                                     activeRingingAlarm = null
                                 },
                                 modifier = Modifier.weight(1f),
@@ -302,6 +310,18 @@ fun AlarmsSubSection(viewModel: TrackWiseViewModel) {
                 }
             )
         }
+
+        // Edit Alarm Dialog
+        if (editingAlarm != null) {
+            AddAlarmDialog(
+                existingAlarm = editingAlarm,
+                onDismiss = { editingAlarm = null },
+                onSave = { hour, minute, label, repeatDays ->
+                    viewModel.updateAlarm(editingAlarm!!.id, hour, minute, label, repeatDays)
+                    editingAlarm = null
+                }
+            )
+        }
     }
 }
 
@@ -309,7 +329,8 @@ fun AlarmsSubSection(viewModel: TrackWiseViewModel) {
 fun AlarmItemCard(
     alarm: AlarmEntity,
     onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onClick: () -> Unit
 ) {
     val displayTime = String.format("%02d:%02d", alarm.hour, alarm.minute)
     val amPmStr = if (alarm.hour >= 12) "PM" else "AM"
@@ -331,6 +352,7 @@ fun AlarmItemCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .border(
                 width = 1.dp,
                 color = if (alarm.isEnabled) BrandViolet.copy(alpha = 0.3f) else Color.Transparent,
@@ -440,14 +462,22 @@ fun AlarmItemCard(
 
 @Composable
 fun AddAlarmDialog(
+    existingAlarm: AlarmEntity? = null,
     onDismiss: () -> Unit,
     onSave: (hour: Int, minute: Int, label: String, repeatDays: List<String>) -> Unit
 ) {
-    var hour by remember { mutableStateOf(8) }
-    var minute by remember { mutableStateOf(0) }
-    var label by remember { mutableStateOf("") }
+    var hour by remember { mutableStateOf(existingAlarm?.hour ?: 8) }
+    var minute by remember { mutableStateOf(existingAlarm?.minute ?: 0) }
+    var label by remember { mutableStateOf(existingAlarm?.label ?: "") }
     
-    val selectedDays = remember { mutableStateListOf("Mon", "Tue", "Wed", "Thu", "Fri") }
+    val selectedDays = remember {
+        val daysList = if (existingAlarm != null) {
+            TrackWiseUtils.deserializeStringList(existingAlarm.repeatDaysJson)
+        } else {
+            listOf("Mon", "Tue", "Wed", "Thu", "Fri")
+        }
+        mutableStateListOf<String>().apply { addAll(daysList) }
+    }
     val allDays = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
     Dialog(onDismissRequest = onDismiss) {
@@ -463,7 +493,7 @@ fun AddAlarmDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Add Custom Alarm",
+                    text = if (existingAlarm != null) "Edit Alarm" else "Add Custom Alarm",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground

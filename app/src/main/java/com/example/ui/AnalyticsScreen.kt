@@ -46,7 +46,13 @@ fun AnalyticsScreen(
     val exerciseLogs by viewModel.exerciseLogs.collectAsState()
     val sleepLogs by viewModel.sleepLogs.collectAsState()
     val healthIssues by viewModel.healthIssueLogs.collectAsState()
+    val financeLogs by viewModel.allFinanceLogs.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
+
+    // Interactive category selector
+    val categories = listOf("Finance Tracker", "Habits & Tasks", "Health & Fitness")
+    var selectedCategory by remember { mutableStateOf("Finance Tracker") }
+    var dropdownExpanded by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -76,56 +82,175 @@ fun AnalyticsScreen(
                     )
                 }
                 Text(
-                    text = "Interactive rich tracking visualization and health metrics.",
+                    text = "Interactive rich tracking visualization and insights.",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
             }
         }
 
-        // --- 1. Habit Streak Chart (Top 5) ---
+        // --- Category Selection Dropdown Tab ---
         item {
-            HabitStreakCard(habits = habits)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { dropdownExpanded = !dropdownExpanded }
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                            RoundedCornerShape(16.dp)
+                        )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val categoryIcon = when (selectedCategory) {
+                                "Finance Tracker" -> Icons.Default.AttachMoney
+                                "Habits & Tasks" -> Icons.Default.CheckCircle
+                                else -> Icons.Default.Favorite
+                            }
+                            val categoryColor = when (selectedCategory) {
+                                "Finance Tracker" -> BrandGreen
+                                "Habits & Tasks" -> BrandViolet
+                                else -> BrandRose
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(categoryColor.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = categoryIcon,
+                                    contentDescription = null,
+                                    tint = categoryColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "SELECT CATEGORY",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                )
+                                Text(
+                                    text = selectedCategory,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Dropdown menu",
+                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false },
+                    modifier = Modifier.fillMaxWidth(0.9f)
+                ) {
+                    categories.forEach { category ->
+                        DropdownMenuItem(
+                            text = { 
+                                Text(
+                                    text = category,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                ) 
+                            },
+                            onClick = {
+                                selectedCategory = category
+                                dropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
         }
 
-        // --- 2. Completed Tasks + Habits Day of Week / Month / Year Chart ---
-        item {
-            CompletionsTrackerCard(tasks = tasks, habits = habits)
-        }
+        // --- Conditional Section Rendering ---
+        when (selectedCategory) {
+            "Finance Tracker" -> {
+                item {
+                    FinanceOverviewAnalyticsCard(financeLogs = financeLogs)
+                }
+                item {
+                    FinanceExpenseDistributionCard(financeLogs = financeLogs)
+                }
+                item {
+                    FinanceSavingsDistributionCard(financeLogs = financeLogs)
+                }
+                item {
+                    FinanceDailyTrendsCard(financeLogs = financeLogs)
+                }
+            }
+            "Habits & Tasks" -> {
+                // --- 1. Habit Streak Chart (Top 5) ---
+                item {
+                    HabitStreakCard(habits = habits)
+                }
 
-        // --- 3. Overdued Tasks Chart (Top 5) ---
-        item {
-            OverdueTasksCard(tasks = tasks)
-        }
+                // --- 2. Completed Tasks + Habits Day of Week / Month / Year Chart ---
+                item {
+                    CompletionsTrackerCard(tasks = tasks, habits = habits)
+                }
 
-        // --- 4. Average Weight Chart (Previous 5 Months) ---
-        item {
-            AverageWeightCard(weightLogs = weightLogs, defaultWeight = currentUser?.weightKg ?: 70.0)
-        }
+                // --- 3. Overdued Tasks Chart (Top 5) ---
+                item {
+                    OverdueTasksCard(tasks = tasks)
+                }
+            }
+            "Health & Fitness" -> {
+                // --- 4. Average Weight Chart (Previous 5 Months) ---
+                item {
+                    AverageWeightCard(weightLogs = weightLogs, defaultWeight = currentUser?.weightKg ?: 70.0)
+                }
 
-        // --- 5. Least Hydrated Days Chart (Toggle Month/Year) ---
-        item {
-            LeastHydrationCard(waterLogs = waterLogs)
-        }
+                // --- 5. Least Hydrated Days Chart (Toggle Month/Year) ---
+                item {
+                    LeastHydrationCard(waterLogs = waterLogs)
+                }
 
-        // --- 6. Exercise Intensity Chart (Most / Least Toggle) ---
-        item {
-            ExerciseIntensityCard(exerciseLogs = exerciseLogs)
-        }
+                // --- 6. Exercise Intensity Chart (Most / Least Toggle) ---
+                item {
+                    ExerciseIntensityCard(exerciseLogs = exerciseLogs)
+                }
 
-        // --- 7. Vitals Charts (Blood Sugar and Blood Pressure Separated) ---
-        item {
-            VitalsHistoryCard(vitals = vitals)
-        }
+                // --- 7. Vitals Charts (Blood Sugar and Blood Pressure Separated) ---
+                item {
+                    VitalsHistoryCard(vitals = vitals)
+                }
 
-        // --- 8. Sleep Quality Chart (Most / Least Toggle, Month/Year Toggle) ---
-        item {
-            SleepHistoryCard(sleepLogs = sleepLogs)
-        }
+                // --- 8. Sleep Quality Chart (Most / Least Toggle, Month/Year Toggle) ---
+                item {
+                    SleepHistoryCard(sleepLogs = sleepLogs)
+                }
 
-        // --- 9. Symptom Tracker Chart (Date vs Symptom stacked timeline with Mild/Mod/Severe Toggle) ---
-        item {
-            SymptomTimelineCard(healthIssues = healthIssues)
+                // --- 9. Symptom Tracker Chart (Date vs Symptom stacked timeline with Mild/Mod/Severe Toggle) ---
+                item {
+                    SymptomTimelineCard(healthIssues = healthIssues)
+                }
+            }
         }
     }
 }
@@ -1363,12 +1488,12 @@ fun SymptomTimelineCard(healthIssues: List<HealthIssueLogEntity>) {
         shape = RoundedCornerShape(20.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -1376,21 +1501,25 @@ fun SymptomTimelineCard(healthIssues: List<HealthIssueLogEntity>) {
                     Text("SYMPTOM TRACKER TIMELINE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
                 }
 
-                // Severity Filter Buttons
+                // Severity Filter Buttons (Full-Width Responsive Row)
                 Row(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(2.dp)
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    listOf("all" to "All", "mild" to "Mild", "moderate" to "Mod", "severe" to "Sev").forEach { (id, label) ->
+                    listOf("all" to "All", "mild" to "Mild", "moderate" to "Moderate", "severe" to "Severe").forEach { (id, label) ->
                         val isSelected = severityFilter == id
                         Box(
                             modifier = Modifier
+                                .weight(1f)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(if (isSelected) BrandRose else Color.Transparent)
                                 .clickable { severityFilter = id }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
@@ -1491,5 +1620,547 @@ fun BadgeCount(label: String, count: Int, color: Color) {
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Text("$label: $count", fontSize = 9.sp, fontWeight = FontWeight.Black, color = color)
+    }
+}
+
+// ==========================================
+// 10. Finance Overview Analytics Card
+// ==========================================
+@Composable
+fun FinanceOverviewAnalyticsCard(financeLogs: List<FinanceLogEntity>) {
+    val totalIncome = remember(financeLogs) {
+        financeLogs.filter { it.type == "income" }.sumOf { it.amount }
+    }
+    val totalExpense = remember(financeLogs) {
+        financeLogs.filter { it.type == "expense" }.sumOf { it.amount }
+    }
+    val totalSavings = remember(financeLogs) {
+        financeLogs.filter { it.type == "savings" }.sumOf { it.amount }
+    }
+
+    // Savings Rate Calculation
+    val savingsRate = remember(totalIncome, totalSavings) {
+        if (totalIncome > 0) (totalSavings / totalIncome) * 100 else 0.0
+    }
+
+    // Check budget balance status
+    val isBalanced = remember(totalIncome, totalExpense, totalSavings) {
+        kotlin.math.abs(totalIncome - (totalExpense + totalSavings)) < 0.01
+    }
+    val discrepancy = remember(totalIncome, totalExpense, totalSavings) {
+        totalIncome - (totalExpense + totalSavings)
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Icon(Icons.Default.PieChart, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(20.dp))
+                Text("FINANCIAL STATEMENT OVERVIEW", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+            }
+
+            // Stat Cards Layout
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Income Mini-Card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = BrandViolet.copy(alpha = 0.06f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("Total Income", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("₹${String.format("%.2f", totalIncome)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = BrandViolet)
+                    }
+                }
+
+                // Expense Mini-Card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = BrandRose.copy(alpha = 0.06f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("Total Expense", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("₹${String.format("%.2f", totalExpense)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = BrandRose)
+                    }
+                }
+
+                // Savings Mini-Card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = BrandGreen.copy(alpha = 0.06f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("Total Savings", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("₹${String.format("%.2f", totalSavings)}", fontSize = 14.sp, fontWeight = FontWeight.Black, color = BrandGreen)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Savings Rate Section
+            Text("Savings Rate Performance", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(12.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((savingsRate / 100.0).toFloat().coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .clip(CircleShape)
+                            .background(Brush.horizontalGradient(listOf(BrandGreen, BrandCyan)))
+                    )
+                }
+                Text(
+                    text = "${String.format("%.1f", savingsRate)}%",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 14.sp,
+                    color = BrandGreen
+                )
+            }
+            Text(
+                text = when {
+                    savingsRate >= 50.0 -> "Elite Builder! You are saving half of your cash flow. 📈"
+                    savingsRate >= 30.0 -> "Superb! Highly optimized savings rate. ⭐"
+                    savingsRate >= 20.0 -> "Healthy! Meeting the standard financial target. 👍"
+                    savingsRate > 0.0 -> "Active. Try allocating more to investments to build compound growth."
+                    else -> "No savings logged yet. Set goals to keep your path secured!"
+                },
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Budget Equation Check
+            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Icon(
+                    imageVector = if (isBalanced) Icons.Default.Scale else Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = if (isBalanced) BrandGreen else if (discrepancy > 0) BrandAmber else BrandRose,
+                    modifier = Modifier.size(20.dp)
+                )
+                Column {
+                    Text(
+                        text = "Equation Compliance Status",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isBalanced) {
+                            "Balanced: Your Income matches your Expense + Savings perfectly. Well done!"
+                        } else if (discrepancy > 0) {
+                            "Unallocated Balance: You have ₹${String.format("%.2f", discrepancy)} unallocated. Allocate this to savings to fulfill the equation requirement."
+                        } else {
+                            "Budget Deficit: Your Expenses and Savings exceed your Income by ₹${String.format("%.2f", -discrepancy)}!"
+                        },
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 11. Finance Expense Distribution Card
+// ==========================================
+@Composable
+fun FinanceExpenseDistributionCard(financeLogs: List<FinanceLogEntity>) {
+    val expenseLogs = remember(financeLogs) { financeLogs.filter { it.type == "expense" } }
+    val totalExpense = remember(expenseLogs) { expenseLogs.sumOf { it.amount } }
+
+    val expenseCategories = listOf(
+        "Housing and Utilities (Fixed Essentials)",
+        "Groceries and Daily Essentials (Variable Living)",
+        "Education and Childcare (High-Priority Fixed)",
+        "Transport and Commute (Daily Variable)",
+        "Healthcare and Insurance (Financial Security)",
+        "Lifestyle, Entertainment, and Discretionary (Flex Spends)",
+        "Others"
+    )
+
+    val expenseBreakdown = remember(expenseLogs) {
+        expenseCategories.map { category ->
+            val sum = expenseLogs.filter { it.category == category }.sumOf { it.amount }
+            category to sum
+        }.filter { it.second > 0 }.sortedByDescending { it.second }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
+            ) {
+                Icon(Icons.Default.Category, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                Text("EXPENSE CATEGORY DISTRIBUTION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+            }
+
+            if (expenseBreakdown.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No expenses logged. Add expenses to analyze distribution.", fontSize = 12.sp, color = Color.Gray)
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    expenseBreakdown.forEach { (category, amount) ->
+                        val percentage = if (totalExpense > 0) (amount / totalExpense) * 100 else 0.0
+                        val barColor = when {
+                            category.startsWith("Housing") -> BrandRose
+                            category.startsWith("Groceries") -> BrandAmber
+                            category.startsWith("Education") -> BrandViolet
+                            category.startsWith("Transport") -> BrandCyan
+                            category.startsWith("Healthcare") -> BrandGreen
+                            category.startsWith("Lifestyle") -> BrandPink
+                            else -> Color.Gray
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = category,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "₹${String.format("%.2f", amount)} (${String.format("%.1f", percentage)}%)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = barColor
+                                )
+                            }
+                            // Custom progress representation
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(barColor)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 12. Finance Savings Distribution Card
+// ==========================================
+@Composable
+fun FinanceSavingsDistributionCard(financeLogs: List<FinanceLogEntity>) {
+    val savingsLogs = remember(financeLogs) { financeLogs.filter { it.type == "savings" } }
+    val totalSavings = remember(savingsLogs) { savingsLogs.sumOf { it.amount } }
+
+    val savingsCategories = listOf(
+        "PPF",
+        "FD",
+        "RD",
+        "NPS",
+        "Mutual Funds",
+        "EPF",
+        "Stocks",
+        "Simple Savings in Account",
+        "Others"
+    )
+
+    val savingsBreakdown = remember(savingsLogs) {
+        savingsCategories.map { category ->
+            val sum = savingsLogs.filter { it.category == category }.sumOf { it.amount }
+            category to sum
+        }.filter { it.second > 0 }.sortedByDescending { it.second }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
+            ) {
+                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("SAVINGS INSTRUMENTS ALLOCATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            if (savingsBreakdown.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No savings allocated. Distribute savings to inspect asset profile.", fontSize = 12.sp, color = Color.Gray)
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    savingsBreakdown.forEach { (category, amount) ->
+                        val percentage = if (totalSavings > 0) (amount / totalSavings) * 100 else 0.0
+                        val barColor = when (category) {
+                            "PPF", "EPF" -> BrandIndigo
+                            "Mutual Funds", "Stocks" -> BrandGreen
+                            "FD", "RD" -> BrandAmber
+                            "NPS" -> BrandOrange
+                            "Simple Savings in Account" -> BrandCyan
+                            else -> Color.Gray
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = category,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "₹${String.format("%.2f", amount)} (${String.format("%.1f", percentage)}%)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = barColor
+                                )
+                            }
+                            // Custom progress representation
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0f, 1f))
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(barColor)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 13. Finance Daily Trend Bars Card
+// ==========================================
+@Composable
+fun FinanceDailyTrendsCard(financeLogs: List<FinanceLogEntity>) {
+    // Collect the last 5 days that have any logged transaction
+    val dailyTrendData = remember(financeLogs) {
+        financeLogs.groupBy { it.date }
+            .toList()
+            .sortedBy { it.first } // chronologically
+            .takeLast(5) // most recent 5 days
+            .map { (date, logs) ->
+                val inc = logs.filter { it.type == "income" }.sumOf { it.amount }
+                val exp = logs.filter { it.type == "expense" }.sumOf { it.amount }
+                val sav = logs.filter { it.type == "savings" }.sumOf { it.amount }
+                Triple(date, inc, exp to sav)
+            }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Icon(Icons.Default.BarChart, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Text("DAILY CASH FLOW PATTERN (LAST 5 ACTIVE DAYS)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            }
+
+            if (dailyTrendData.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No transactions logged. Complete entries to build trend.", fontSize = 12.sp, color = Color.Gray)
+                }
+            } else {
+                val maxVal = remember(dailyTrendData) {
+                    val highestPoint = dailyTrendData.flatMap { listOf(it.second, it.third.first, it.third.second) }.maxOrNull() ?: 1.0
+                    if (highestPoint <= 0) 1.0 else highestPoint
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    dailyTrendData.forEach { (date, inc, expSav) ->
+                        val (exp, sav) = expSav
+                        // Format date to MM-DD
+                        val dateFormatted = if (date.length >= 10) date.substring(5) else date
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // The Triple Vertical Bar representing Inc, Exp, Sav
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(110.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                // Income Bar (Violet)
+                                val incRatio = (inc / maxVal).toFloat()
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(incRatio.coerceIn(0.04f, 1f))
+                                        .padding(horizontal = 2.dp)
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(BrandViolet)
+                                )
+
+                                // Expense Bar (Rose)
+                                val expRatio = (exp / maxVal).toFloat()
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(expRatio.coerceIn(0.04f, 1f))
+                                        .padding(horizontal = 2.dp)
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(BrandRose)
+                                )
+
+                                // Savings Bar (Green)
+                                val savRatio = (sav / maxVal).toFloat()
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(savRatio.coerceIn(0.04f, 1f))
+                                        .padding(horizontal = 2.dp)
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(BrandGreen)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(text = dateFormatted, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Chart Legend
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LegendItem(label = "Income", color = BrandViolet)
+                    LegendItem(label = "Expense", color = BrandRose)
+                    LegendItem(label = "Savings", color = BrandGreen)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LegendItem(label: String, color: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Text(text = label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
     }
 }

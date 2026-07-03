@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,8 +43,8 @@ fun WorkspaceScreen(
     viewModel: TrackWiseViewModel,
     modifier: Modifier = Modifier
 ) {
-    var activeSubTab by remember { mutableStateOf(0) } // 0 = Tasks, 1 = Habits, 2 = Wishlist, 3 = Birthdays, 4 = Alarms & Clocks
-    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Birthdays", "Alarms & Clocks")
+    val activeSubTab by viewModel.workspaceSubTab.collectAsState()
+    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Birthdays", "Alarms & Clocks", "Grocery List")
     val focusManager = LocalFocusManager.current
 
     LazyColumn(
@@ -94,7 +95,7 @@ fun WorkspaceScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(if (activeSubTab == index) BrandViolet else Color.Transparent)
-                            .clickable { activeSubTab = index }
+                            .clickable { viewModel.setWorkspaceSubTab(index) }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -125,6 +126,9 @@ fun WorkspaceScreen(
             }
             4 -> { // Alarms & Clocks Sub-Tab
                 item { AlarmTimerSection(viewModel = viewModel) }
+            }
+            5 -> { // Grocery List Sub-Tab
+                item { GrocerySection(viewModel = viewModel) }
             }
         }
     }
@@ -995,6 +999,374 @@ fun CompactTextField(
                 .fillMaxWidth()
                 .height(48.dp)
         )
+    }
+}
+
+@Composable
+fun GrocerySection(viewModel: TrackWiseViewModel) {
+    val groceryItems by viewModel.allGroceryItems.collectAsState()
+
+    var showForm by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Produce") }
+    var filterState by remember { mutableStateOf("All") } // "All", "Pending", "Completed"
+
+    val categories = listOf("Produce", "Dairy", "Bakery", "Pantry", "Meat & Seafood", "Beverages", "Other")
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // --- Header Actions Bar ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Grocery Check List 🛒",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (groceryItems.any { it.completed }) {
+                    TextButton(
+                        onClick = { viewModel.clearCompletedGroceries() },
+                        colors = ButtonDefaults.textButtonColors(contentColor = BrandRose)
+                    ) {
+                        Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Clear Bought", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Button(
+                    onClick = { showForm = !showForm },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (showForm) MaterialTheme.colorScheme.surfaceVariant else BrandViolet,
+                        contentColor = if (showForm) MaterialTheme.colorScheme.onSurfaceVariant else Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (showForm) Icons.Default.Close else Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (showForm) "Close" else "Add Item", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // --- Add Item Form ---
+        if (showForm) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Add New Grocery Item",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+
+                    CompactTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = "Item Name *",
+                        placeholder = "e.g., Organic Bananas 🍌"
+                    )
+
+                    CompactTextField(
+                        value = quantity,
+                        onValueChange = { quantity = it },
+                        label = "Quantity / Notes",
+                        placeholder = "e.g., 1 dozen, 2 litres, 500g"
+                    )
+
+                    // Category Selection
+                    Column {
+                        Text(
+                            text = "Category",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        
+                        var expanded by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { expanded = !expanded }
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = category,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Icon(
+                                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = "Dropdown Indicator",
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier
+                                    .fillMaxWidth(0.85f)
+                                    .background(MaterialTheme.colorScheme.surface)
+                            ) {
+                                categories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat, fontSize = 13.sp) },
+                                        onClick = {
+                                            category = cat
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (name.isNotBlank()) {
+                                viewModel.addGroceryItem(
+                                    name = name.trim(),
+                                    quantity = if (quantity.isBlank()) "1" else quantity.trim(),
+                                    category = category
+                                )
+                                // Reset form fields
+                                name = ""
+                                quantity = ""
+                                showForm = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandGreen),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Text("Add to Checklist", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+
+        // --- Filter Chips ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf("All", "Pending", "Bought").forEach { tab ->
+                val isSelected = filterState == tab
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (isSelected) BrandViolet.copy(alpha = 0.15f) else Color.Transparent)
+                        .border(
+                            1.dp,
+                            if (isSelected) BrandViolet else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                            RoundedCornerShape(20.dp)
+                        )
+                        .clickable { filterState = tab }
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = tab,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) BrandViolet else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        }
+
+        // --- Items List ---
+        val filteredList = when (filterState) {
+            "Pending" -> groceryItems.filter { !it.completed }
+            "Bought" -> groceryItems.filter { it.completed }
+            else -> groceryItems
+        }
+
+        if (filteredList.isEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ShoppingCart,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "No items found",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = if (filterState == "All") "Your grocery checklist is empty. Tap 'Add Item' to start planning your shopping!" else "No items in this category.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                filteredList.forEach { item ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (item.completed) {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (item.completed) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Checkbox Circle Button
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .clickable { viewModel.toggleGroceryItem(item) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (item.completed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                        contentDescription = "Toggle completion",
+                                        tint = if (item.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.name,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textDecoration = if (item.completed) TextDecoration.LineThrough else null,
+                                        color = if (item.completed) {
+                                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                        } else {
+                                            MaterialTheme.colorScheme.onBackground
+                                        }
+                                    )
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    ) {
+                                        // Quantity tag
+                                        Text(
+                                            text = "Qty: ${item.quantity}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                        )
+
+                                        // Category bubble
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = item.category,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Delete button
+                            IconButton(
+                                onClick = { viewModel.deleteGroceryItem(item.id) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete item",
+                                    tint = BrandRose,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

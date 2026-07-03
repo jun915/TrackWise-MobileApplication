@@ -222,3 +222,50 @@ data class UserProfileEntity(
     val vitalsBloodGroup: String = ""
 )
 
+@Entity(tableName = "grocery_items")
+data class GroceryItemEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val name: String,
+    val quantity: String = "1",
+    val completed: Boolean = false,
+    val category: String = "Other"
+)
+
+@Entity(tableName = "tablet_reminders")
+data class TabletReminderEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val tabletName: String,
+    val dosage: String,         // e.g. "1 pill", "5ml"
+    val timeOfDay: String,      // e.g. "08:00 AM", "09:00 PM"
+    val scheduleType: String,   // e.g. "Daily", "Weekly", "As Needed"
+    val completedDatesJson: String = "[]", // List of dates "YYYY-MM-DD" when it was taken
+    val notes: String? = null
+)
+
+@Entity(tableName = "period_cycles")
+data class PeriodCycleEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val startDate: String, // YYYY-MM-DD (start of period bleeding)
+    val durationDays: Int = 5, // Bleeding duration
+    val cycleLengthDays: Int = 28, // Length of entire cycle
+    val symptoms: String = "", // Comma-separated list of symptoms
+    val notes: String? = null
+)
+
+@Entity(tableName = "finance_logs")
+data class FinanceLogEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val date: String, // YYYY-MM-DD
+    val type: String, // "income", "expense", "savings"
+    val category: String, // e.g. "Housing and Utilities (Fixed Essentials)", "PPF"
+    val title: String, // e.g. "Rent or EMI", "Electricity Bill"
+    val amount: Double,
+    val notes: String? = null
+)
+
+
+

@@ -36,7 +36,7 @@ fun AuthScreen(
     viewModel: TrackWiseViewModel,
     modifier: Modifier = Modifier
 ) {
-    var isSignUp by remember { mutableStateOf(false) }
+    var authMode by remember { mutableStateOf("login") } // "login", "signup", "forgot"
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -45,6 +45,7 @@ fun AuthScreen(
     var showPassword by remember { mutableStateOf(false) }
     
     val authError by viewModel.authError.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
 
     val focusManager = LocalFocusManager.current
 
@@ -101,7 +102,11 @@ fun AuthScreen(
 
             // Form Title
             Text(
-                text = if (isSignUp) "Create Account" else "Welcome Back",
+                text = when (authMode) {
+                    "signup" -> "Create Account"
+                    "forgot" -> "Reset Password"
+                    else -> "Welcome Back"
+                },
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -126,7 +131,25 @@ fun AuthScreen(
                 }
             }
 
-            if (isSignUp) {
+            if (successMessage != null) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = BrandGreen.copy(alpha = 0.15f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                        .border(1.dp, BrandGreen, RoundedCornerShape(8.dp))
+                ) {
+                    Text(
+                        text = successMessage!!,
+                        color = BrandGreen,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
+            if (authMode == "signup") {
                 // Name Field
                 OutlinedTextField(
                     value = fullName,
@@ -167,7 +190,7 @@ fun AuthScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
+                label = { Text(if (authMode == "forgot") "New Password" else "Password") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = BrandViolet) },
                 trailingIcon = {
                     IconButton(onClick = { showPassword = !showPassword }) {
@@ -187,15 +210,38 @@ fun AuthScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("password_input")
-                    .padding(bottom = if (isSignUp) 12.dp else 24.dp)
+                    .padding(bottom = if (authMode == "login") 4.dp else 12.dp)
             )
 
-            if (isSignUp) {
+            if (authMode == "login") {
+                // Forgot Password Link on the right side
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Text(
+                        text = "Forgot Password?",
+                        color = BrandViolet,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clickable {
+                                authMode = "forgot"
+                                viewModel.clearAuthError()
+                            }
+                            .testTag("forgot_password_link")
+                    )
+                }
+            }
+
+            if (authMode == "signup" || authMode == "forgot") {
                 // Confirm Password Field
                 OutlinedTextField(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
-                    label = { Text("Confirm Password") },
+                    label = { Text(if (authMode == "forgot") "Confirm New Password" else "Confirm Password") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = BrandViolet) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
@@ -218,25 +264,37 @@ fun AuthScreen(
                     .clip(RoundedCornerShape(12.dp))
                     .background(Brush.horizontalGradient(listOf(BrandViolet, BrandPink)))
                     .clickable {
-                        if (isSignUp) {
-                            if (fullName.isBlank()) {
-                                viewModel.signUp(email, password, fullName) // will trigger error
-                                return@clickable
+                        viewModel.dismissSuccessMessage()
+                        when (authMode) {
+                            "signup" -> {
+                                if (fullName.isBlank()) {
+                                    viewModel.signUp(email, password, fullName) // will trigger error
+                                    return@clickable
+                                }
+                                if (password != confirmPassword) {
+                                    return@clickable
+                                }
+                                viewModel.signUp(email, password, fullName)
                             }
-                            if (password != confirmPassword) {
-                                // trigger a validation error locally via a fake exception call or viewModel
-                                return@clickable
+                            "forgot" -> {
+                                if (email.isBlank() || password.isBlank()) return@clickable
+                                if (password != confirmPassword) return@clickable
+                                viewModel.resetPassword(email, password)
                             }
-                            viewModel.signUp(email, password, fullName)
-                        } else {
-                            viewModel.login(email, password)
+                            else -> {
+                                viewModel.login(email, password)
+                            }
                         }
                     }
                     .testTag("auth_submit_button"),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (isSignUp) "Sign Up" else "Log In",
+                    text = when (authMode) {
+                        "signup" -> "Sign Up"
+                        "forgot" -> "Reset Password"
+                        else -> "Log In"
+                    },
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -246,13 +304,18 @@ fun AuthScreen(
             // Toggle Text
             TextButton(
                 onClick = {
-                    isSignUp = !isSignUp
                     viewModel.clearAuthError()
+                    viewModel.dismissSuccessMessage()
+                    authMode = if (authMode == "login") "signup" else "login"
                 },
                 modifier = Modifier.padding(top = 16.dp)
             ) {
                 Text(
-                    text = if (isSignUp) "Already have an account? Log In" else "Don't have an account? Sign Up",
+                    text = when (authMode) {
+                        "signup" -> "Already have an account? Log In"
+                        "forgot" -> "Back to Log In"
+                        else -> "Don't have an account? Sign Up"
+                    },
                     color = BrandViolet,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold

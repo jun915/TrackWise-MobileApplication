@@ -6,8 +6,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import java.util.Calendar
+import java.util.Locale
+import java.text.SimpleDateFormat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -42,8 +46,24 @@ fun HealthScreen(
     val healthIssueLogs by viewModel.healthIssueLogs.collectAsState()
     val sleepLogs by viewModel.sleepLogs.collectAsState()
 
+    val userProfile by viewModel.userProfile.collectAsState()
+    val isWoman = userProfile?.gender?.lowercase()?.let { it.contains("female") || it.contains("women") } == true
+
+    val tabs = remember(isWoman) {
+        val list = mutableListOf("Metrics Log", "Exercise", "Symptom Log", "Sleep", "Tablets")
+        if (isWoman) {
+            list.add("Period Tracker")
+        }
+        list
+    }
+
     var activeSubTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Metrics Log", "Exercise", "Symptom Log", "Sleep")
+    LaunchedEffect(tabs) {
+        if (activeSubTab >= tabs.size) {
+            activeSubTab = 0
+        }
+    }
+
     val focusManager = LocalFocusManager.current
 
     // Dynamic BMI
@@ -121,7 +141,7 @@ fun HealthScreen(
                     ) {
                         Text(
                             text = label,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (activeSubTab == index) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                         )
@@ -130,20 +150,30 @@ fun HealthScreen(
             }
         }
 
+        val activeTabLabel = tabs.getOrNull(activeSubTab) ?: "Metrics Log"
+
         // --- Sub-Tab Contents ---
-        when (activeSubTab) {
-            0 -> { // Body Metrics Logs
+        when (activeTabLabel) {
+            "Metrics Log" -> {
                 item { WeightLogSection(viewModel = viewModel, entries = weightEntries) }
                 item { VitalsLogSection(viewModel = viewModel, readings = vitalReadings) }
             }
-            1 -> { // Exercises
+            "Exercise" -> {
                 item { ExerciseLogSection(viewModel = viewModel, logs = exerciseLogs) }
             }
-            2 -> { // Symptom Logs
+            "Symptom Log" -> {
                 item { SymptomLogSection(viewModel = viewModel, logs = healthIssueLogs) }
             }
-            3 -> { // Sleep Tracker
+            "Sleep" -> {
                 item { SleepLogSection(viewModel = viewModel, sleepLogs = sleepLogs) }
+            }
+            "Tablets" -> {
+                item { TabletTrackerSection(viewModel = viewModel) }
+            }
+            "Period Tracker" -> {
+                if (isWoman) {
+                    item { PeriodTrackerSection(viewModel = viewModel) }
+                }
             }
         }
     }
@@ -911,3 +941,665 @@ data class HealthTip(
     val level: String, // "good", "caution", "alert", "info"
     val suggestion: String? = null
 )
+
+// --- Tablet Tracker Section ---
+@Composable
+fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
+    val tabletReminders by viewModel.tabletReminders.collectAsState()
+
+    var showForm by remember { mutableStateOf(false) }
+    var tabletName by remember { mutableStateOf("") }
+    var dosage by remember { mutableStateOf("") }
+    var timeOfDay by remember { mutableStateOf("08:00 AM") }
+    var scheduleType by remember { mutableStateOf("Daily") }
+    var notes by remember { mutableStateOf("") }
+
+    val today = TrackWiseUtils.getTodayString()
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Tablet Taker Tracker 💊", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Add and track your medication times & analytics.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+                Button(
+                    onClick = { showForm = !showForm },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (showForm) MaterialTheme.colorScheme.surfaceVariant else BrandViolet,
+                        contentColor = if (showForm) MaterialTheme.colorScheme.onSurfaceVariant else Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(imageVector = if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (showForm) "Close" else "New Tablet", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Form
+            if (showForm) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    Text("Add Medication", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+
+                    CompactTextField(
+                        value = tabletName,
+                        onValueChange = { tabletName = it },
+                        label = "Medication Name *",
+                        placeholder = "e.g., Vitamin D3, Paracetamol"
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CompactTextField(
+                            value = dosage,
+                            onValueChange = { dosage = it },
+                            label = "Dosage *",
+                            placeholder = "e.g., 1 pill, 5ml",
+                            modifier = Modifier.weight(1f)
+                        )
+                        CompactTextField(
+                            value = timeOfDay,
+                            onValueChange = { timeOfDay = it },
+                            label = "Time *",
+                            placeholder = "e.g., 08:00 AM, Night",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Schedule type selector
+                    Column {
+                        Text("Frequency", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                            listOf("Daily", "Weekly", "As Needed").forEach { freq ->
+                                val isSelected = scheduleType == freq
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isSelected) BrandViolet else MaterialTheme.colorScheme.surface)
+                                        .clickable { scheduleType = freq }
+                                        .padding(vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(freq, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                        }
+                    }
+
+                    CompactTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = "Notes (Optional)",
+                        placeholder = "e.g., Take with food"
+                    )
+
+                    Button(
+                        onClick = {
+                            if (tabletName.isNotBlank() && dosage.isNotBlank()) {
+                                viewModel.addTabletReminder(
+                                    tabletName = tabletName.trim(),
+                                    dosage = dosage.trim(),
+                                    timeOfDay = timeOfDay.trim(),
+                                    scheduleType = scheduleType,
+                                    notes = if (notes.isBlank()) null else notes.trim()
+                                )
+                                tabletName = ""
+                                dosage = ""
+                                notes = ""
+                                showForm = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandGreen),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save Medication", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // List & Weekly Analytics
+            if (tabletReminders.isEmpty()) {
+                Text(
+                    text = "No medications logged. Add one above to start tracking!",
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    tabletReminders.forEach { reminder ->
+                        // Deserialization helper for taken dates
+                        val takenDatesList = try {
+                            val array = org.json.JSONArray(reminder.completedDatesJson)
+                            val list = mutableListOf<String>()
+                            for (i in 0 until array.length()) {
+                                list.add(array.getString(i))
+                            }
+                            list
+                        } catch (e: Exception) {
+                            emptyList()
+                        }
+
+                        val isTakenToday = takenDatesList.contains(today)
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Row 1: Tablet Name, Dosage, Time, Delete
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(reminder.tabletName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                        Box(
+                                            modifier = Modifier
+                                                .background(BrandViolet.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(reminder.scheduleType, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                                        }
+                                    }
+                                    Text(
+                                        text = "${reminder.dosage} · Scheduled: ${reminder.timeOfDay}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                    if (!reminder.notes.isNullOrBlank()) {
+                                        Text(
+                                            text = "Note: ${reminder.notes}",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                IconButton(
+                                    onClick = { viewModel.deleteTabletReminder(reminder.id) },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete medication", tint = BrandRose, modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            // Taken Today Logging Action Button
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isTakenToday) BrandGreen.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
+                                    .border(
+                                        1.dp,
+                                        if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { viewModel.toggleTabletTaken(reminder, today) }
+                                    .padding(vertical = 10.dp, horizontal = 12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = if (isTakenToday) Icons.Default.CheckCircle else Icons.Default.Circle,
+                                        contentDescription = null,
+                                        tint = if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isTakenToday) "Taken Today (Click to Undo)" else "Log as Taken Today",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            // Row 3: 7-Day Analytics Visual Tracker
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("7-Day Analytics History", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                    
+                                    // Calculate completion rate
+                                    val last7Days = (0..6).map { offset ->
+                                        val cal = Calendar.getInstance()
+                                        cal.add(Calendar.DAY_OF_YEAR, -offset)
+                                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
+                                        takenDatesList.contains(dateStr)
+                                    }
+                                    val takenCount = last7Days.count { it }
+                                    val ratePercent = (takenCount / 7.0 * 100).toInt()
+                                    
+                                    Text("Compliance Rate: $ratePercent%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (ratePercent >= 75) BrandGreen else BrandAmber)
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    // List 7 days from oldest (6 days ago) to newest (today)
+                                    (0..6).reversed().forEach { offset ->
+                                        val cal = Calendar.getInstance()
+                                        cal.add(Calendar.DAY_OF_YEAR, -offset)
+                                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
+                                        val dayName = SimpleDateFormat("E", Locale.getDefault()).format(cal.time).take(1) // M, T, W...
+                                        val wasTaken = takenDatesList.contains(dateStr)
+
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(dayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(18.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (wasTaken) BrandGreen else MaterialTheme.colorScheme.surface)
+                                                    .border(
+                                                        1.dp,
+                                                        if (wasTaken) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                        CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (wasTaken) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- Period Tracker Section ---
+@Composable
+fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
+    val periodCycles by viewModel.periodCycles.collectAsState()
+
+    var showForm by remember { mutableStateOf(false) }
+    var startDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var durationDays by remember { mutableStateOf("5") }
+    var cycleLengthDays by remember { mutableStateOf("28") }
+    var notes by remember { mutableStateOf("") }
+
+    val selectedSymptoms = remember { mutableStateListOf<String>() }
+
+    val today = TrackWiseUtils.getTodayString()
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Period Cycle Tracker 🌸", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Secure client-side cycle prediction & health analytics.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+                Button(
+                    onClick = { showForm = !showForm },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (showForm) MaterialTheme.colorScheme.surfaceVariant else BrandPink,
+                        contentColor = if (showForm) MaterialTheme.colorScheme.onSurfaceVariant else Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(imageVector = if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (showForm) "Close" else "Log Period", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Predicting Next Period / Fertility window
+            if (periodCycles.isNotEmpty()) {
+                val latestCycle = periodCycles.first() // Sorted DESC in DB
+                
+                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val startCal = Calendar.getInstance()
+                try {
+                    val parsedDate = sdf.parse(latestCycle.startDate)
+                    if (parsedDate != null) {
+                        startCal.time = parsedDate
+                    }
+                } catch (e: Exception) {}
+
+                // Next Period Calculation
+                val nextPeriodCal = startCal.clone() as Calendar
+                nextPeriodCal.add(Calendar.DAY_OF_YEAR, latestCycle.cycleLengthDays)
+                val nextPeriodStr = sdf.format(nextPeriodCal.time)
+
+                // Days count till next period
+                val todayCal = Calendar.getInstance()
+                val diffMs = nextPeriodCal.timeInMillis - todayCal.timeInMillis
+                val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
+
+                // Ovulation predicted day (14 days before next period)
+                val ovulationCal = nextPeriodCal.clone() as Calendar
+                ovulationCal.add(Calendar.DAY_OF_YEAR, -14)
+                val ovulationStr = sdf.format(ovulationCal.time)
+
+                // Fertile window (5 days before ovulation + ovulation day)
+                val fertileStartCal = ovulationCal.clone() as Calendar
+                fertileStartCal.add(Calendar.DAY_OF_YEAR, -5)
+                val isTodayFertile = !todayCal.before(fertileStartCal) && !todayCal.after(ovulationCal)
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // prediction card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = BrandPink.copy(alpha = 0.08f)),
+                        modifier = Modifier.weight(1.1f).border(1.dp, BrandPink.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("NEXT PERIOD", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            val statusText = when {
+                                diffDays > 0 -> "In $diffDays days"
+                                diffDays == 0 -> "Expected Today"
+                                else -> "Overdue by ${-diffDays} days"
+                            }
+                            Text(statusText, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = BrandPink)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(nextPeriodStr, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        }
+                    }
+
+                    // Fertile window card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = if (isTodayFertile) BrandViolet.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier.weight(1f).border(1.dp, if (isTodayFertile) BrandViolet.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("FERTILITY STATUS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (isTodayFertile) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isTodayFertile) "High (Fertile)" else "Low Fertility",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isTodayFertile) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text("Ovulation: $ovulationStr", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        }
+                    }
+                }
+            }
+
+            // Form
+            if (showForm) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    Text("Add Period Record", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+
+                    CompactTextField(
+                        value = startDate,
+                        onValueChange = { startDate = it },
+                        label = "Start Date * (YYYY-MM-DD)",
+                        placeholder = "e.g., 2026-07-01"
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CompactTextField(
+                            value = durationDays,
+                            onValueChange = { durationDays = it },
+                            label = "Bleeding Duration (Days) *",
+                            placeholder = "e.g., 5",
+                            modifier = Modifier.weight(1f)
+                        )
+                        CompactTextField(
+                            value = cycleLengthDays,
+                            onValueChange = { cycleLengthDays = it },
+                            label = "Cycle Length (Days) *",
+                            placeholder = "e.g., 28",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Symptoms checkchips (safe static rows instead of FlowRow)
+                    Column {
+                        Text("Logged Symptoms", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("Cramps", "Headache", "Bloating").forEach { sym ->
+                                    val isSelected = selectedSymptoms.contains(sym)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) BrandPink else MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                if (isSelected) selectedSymptoms.remove(sym) else selectedSymptoms.add(sym)
+                                            }
+                                            .padding(vertical = 6.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(sym, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("Fatigue", "Mood Swings", "Nausea").forEach { sym ->
+                                    val isSelected = selectedSymptoms.contains(sym)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) BrandPink else MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                if (isSelected) selectedSymptoms.remove(sym) else selectedSymptoms.add(sym)
+                                            }
+                                            .padding(vertical = 6.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(sym, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    CompactTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = "Notes / Cycle Intensity",
+                        placeholder = "e.g., Medium flow, mild cramping"
+                    )
+
+                    Button(
+                        onClick = {
+                            val dur = durationDays.toIntOrNull() ?: 5
+                            val cycl = cycleLengthDays.toIntOrNull() ?: 28
+                            if (startDate.isNotBlank()) {
+                                viewModel.addPeriodCycle(
+                                    startDate = startDate.trim(),
+                                    durationDays = dur,
+                                    cycleLengthDays = cycl,
+                                    symptoms = selectedSymptoms.joinToString(","),
+                                    notes = if (notes.isBlank()) null else notes.trim()
+                                )
+                                startDate = today
+                                durationDays = "5"
+                                cycleLengthDays = "28"
+                                selectedSymptoms.clear()
+                                notes = ""
+                                showForm = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Log Cycle", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // Analytics Section: Symptom counts
+            if (periodCycles.isNotEmpty()) {
+                val symptomCounts = mutableMapOf<String, Int>()
+                periodCycles.forEach { cycle ->
+                    if (cycle.symptoms.isNotBlank()) {
+                        cycle.symptoms.split(",").forEach { s ->
+                            val cleanSym = s.trim()
+                            if (cleanSym.isNotEmpty()) {
+                                symptomCounts[cleanSym] = (symptomCounts[cleanSym] ?: 0) + 1
+                            }
+                        }
+                    }
+                }
+
+                if (symptomCounts.isNotEmpty()) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                            .padding(10.dp)
+                    ) {
+                        Text("Symptom Analytics Breakdown", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        
+                        symptomCounts.entries.sortedByDescending { it.value }.take(3).forEach { entry ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BrandPink))
+                                    Text(entry.key, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                                }
+                                Text("Logged ${entry.value} times", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Cycle history list
+            if (periodCycles.isEmpty()) {
+                Text(
+                    text = "No period cycles logged. Log your first period start above!",
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Logged Cycle History", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    periodCycles.forEach { cycle ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Period Start: ${cycle.startDate}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    text = "Bleeding: ${cycle.durationDays} days · Cycle: ${cycle.cycleLengthDays} days",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                                if (cycle.symptoms.isNotBlank()) {
+                                    Row(
+                                        modifier = Modifier.padding(top = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        cycle.symptoms.split(",").forEach { sym ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(BrandPink.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(sym, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                                            }
+                                        }
+                                    }
+                                }
+                                if (!cycle.notes.isNullOrBlank()) {
+                                    Text(
+                                        text = cycle.notes,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { viewModel.deletePeriodCycle(cycle.id) }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete cycle", tint = BrandRose, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

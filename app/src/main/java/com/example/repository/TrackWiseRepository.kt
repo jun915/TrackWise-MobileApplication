@@ -313,6 +313,16 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
         )
         sampleAlarms.forEach { dao.insertAlarm(it) }
 
+        // Seed sample grocery items
+        val sampleGroceries = listOf(
+            GroceryItemEntity("g-1", userId, "Organic Bananas 🍌", "1 dozen", false, "Produce"),
+            GroceryItemEntity("g-2", userId, "Fresh Whole Milk 🥛", "2 Litres", false, "Dairy"),
+            GroceryItemEntity("g-3", userId, "Brown Bread 🍞", "1 loaf", true, "Bakery"),
+            GroceryItemEntity("g-4", userId, "Oatmeal Oats 🥣", "1 kg", false, "Pantry"),
+            GroceryItemEntity("g-5", userId, "Green Tea Bags 🍵", "1 pack", false, "Pantry")
+        )
+        sampleGroceries.forEach { dao.insertGroceryItem(it) }
+
         // Initialize today's water log
         dao.insertWaterLog(
             WaterLogEntity(
@@ -467,5 +477,53 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
 
     suspend fun insertUserProfile(profile: UserProfileEntity) {
         dao.insertUserProfile(profile)
+    }
+
+    // --- Grocery Items ---
+    fun getGroceryItemsFlow(userId: String): Flow<List<GroceryItemEntity>> = dao.getGroceryItemsForUserFlow(userId)
+
+    suspend fun insertGroceryItem(item: GroceryItemEntity) {
+        dao.insertGroceryItem(item)
+    }
+
+    suspend fun deleteGroceryItem(id: String) {
+        dao.deleteGroceryItemById(id)
+    }
+
+    suspend fun clearCompletedGroceryItems(userId: String) {
+        dao.clearCompletedGroceryItems(userId)
+    }
+
+    // --- Tablet Reminders ---
+    fun getTabletRemindersFlow(userId: String): Flow<List<TabletReminderEntity>> = dao.getTabletRemindersForUserFlow(userId)
+
+    suspend fun insertTabletReminder(reminder: TabletReminderEntity) {
+        dao.insertTabletReminder(reminder)
+    }
+
+    suspend fun deleteTabletReminder(id: String) {
+        dao.deleteTabletReminderById(id)
+    }
+
+    // --- Period Cycles ---
+    fun getPeriodCyclesFlow(userId: String): Flow<List<PeriodCycleEntity>> = dao.getPeriodCyclesForUserFlow(userId)
+
+    suspend fun insertPeriodCycle(cycle: PeriodCycleEntity) {
+        dao.insertPeriodCycle(cycle)
+    }
+
+    suspend fun deletePeriodCycle(id: String) {
+        dao.deletePeriodCycleById(id)
+    }
+
+    // --- Finance Logs ---
+    fun getFinanceLogsFlow(userId: String): Flow<List<FinanceLogEntity>> = dao.getFinanceLogsForUserFlow(userId)
+
+    suspend fun insertFinanceLog(log: FinanceLogEntity) {
+        dao.insertFinanceLog(log)
+    }
+
+    suspend fun deleteFinanceLog(id: String) {
+        dao.deleteFinanceLogById(id)
     }
 }

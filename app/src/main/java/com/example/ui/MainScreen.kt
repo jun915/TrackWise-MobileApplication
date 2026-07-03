@@ -1,9 +1,12 @@
 package com.example.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -46,6 +49,18 @@ fun MainScreen(
     val successMessage by viewModel.successMessage.collectAsState()
     var leftDrawerOpen by remember { mutableStateOf(false) }
 
+    var showImportOptionDialog by remember { mutableStateOf(false) }
+    var pastedJsonText by remember { mutableStateOf("") }
+    var showPasteInputArea by remember { mutableStateOf(false) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importDataFromUri(uri)
+        }
+    }
+
     val currentTheme = viewModel.themeMode.collectAsState().value
     val isSystemInDark = androidx.compose.foundation.isSystemInDarkTheme()
     val focusManager = LocalFocusManager.current
@@ -67,7 +82,11 @@ fun MainScreen(
                 HeaderToolbar(
                     viewModel = viewModel,
                     activeTab = activeTab,
-                    onNavigateToDashboard = { activeTab = "dashboard" }
+                    onNavigateToDashboard = { activeTab = "dashboard" },
+                    onNavigateToSubTab = { tab, subTab ->
+                        activeTab = tab
+                        viewModel.setWorkspaceSubTab(subTab)
+                    }
                 )
             },
             bottomBar = {
@@ -100,7 +119,10 @@ fun MainScreen(
                     "workspace" -> WorkspaceScreen(viewModel = viewModel)
                     "health" -> HealthScreen(viewModel = viewModel)
                     "calendar" -> CalendarScreen(viewModel = viewModel)
+                    "finance" -> FinanceScreen(viewModel = viewModel)
                     "analytics" -> AnalyticsScreen(viewModel = viewModel)
+                    "profile" -> ProfileScreen(viewModel = viewModel)
+                    "social" -> SocialScreen(viewModel = viewModel)
                 }
 
                 // In-App Toast alerts (Section 13.4)
@@ -169,9 +191,124 @@ fun MainScreen(
                 viewModel = viewModel,
                 activeTab = activeTab,
                 onNavigate = { activeTab = it },
-                onClose = { leftDrawerOpen = false }
+                onClose = { leftDrawerOpen = false },
+                onImportClick = { showImportOptionDialog = true }
             )
         }
+    }
+
+    // Backup Restore Option Dialog
+    if (showImportOptionDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showImportOptionDialog = false 
+                showPasteInputArea = false
+                pastedJsonText = ""
+            },
+            title = {
+                Text("Restore Backup Data", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "Choose a method to import your TrackWise backup data (.json):",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                    )
+
+                    if (!showPasteInputArea) {
+                        Button(
+                            onClick = {
+                                showImportOptionDialog = false
+                                filePickerLauncher.launch("application/json")
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Browse JSON File", color = Color.White)
+                        }
+
+                        Button(
+                            onClick = {
+                                showPasteInputArea = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Paste JSON Text", color = Color.White)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                showImportOptionDialog = false
+                                viewModel.importData() // Local cached backup search
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        ) {
+                            Icon(Icons.Default.Cached, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Import Last Auto-Backup", color = MaterialTheme.colorScheme.onBackground)
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = pastedJsonText,
+                            onValueChange = { pastedJsonText = it },
+                            label = { Text("Paste JSON backup string here") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BrandViolet,
+                                focusedLabelColor = BrandViolet
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (showPasteInputArea) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = { showPasteInputArea = false }
+                        ) {
+                            Text("Back", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                        }
+                        Button(
+                            onClick = {
+                                if (pastedJsonText.isNotBlank()) {
+                                    viewModel.importData(pastedJsonText)
+                                }
+                                showImportOptionDialog = false
+                                showPasteInputArea = false
+                                pastedJsonText = ""
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandGreen),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Import data", color = Color.White)
+                        }
+                    }
+                } else {
+                    TextButton(
+                        onClick = { showImportOptionDialog = false }
+                    ) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -179,22 +316,13 @@ fun MainScreen(
 fun HeaderToolbar(
     viewModel: TrackWiseViewModel,
     activeTab: String,
-    onNavigateToDashboard: () -> Unit
+    onNavigateToDashboard: () -> Unit,
+    onNavigateToSubTab: (String, Int) -> Unit
 ) {
     val currentUser by viewModel.sessionUser.collectAsState()
-    val isSyncing by viewModel.isSyncing.collectAsState()
-    val showSettings by viewModel.settingsPanelOpen.collectAsState()
-    val currentTheme by viewModel.themeMode.collectAsState()
-
-    // Sync Rotate Animation
-    val rotation by animateFloatAsState(
-        targetValue = if (isSyncing) 360f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "sync_rotation"
-    )
+    val notifications by viewModel.notifications.collectAsState()
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showAddChoiceDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -232,59 +360,251 @@ fun HeaderToolbar(
             )
         }
 
-        // Right Side Toolbar actions pill container
+        // Right Side: Quick navigation (+) icon beside Notification Bell Icon
         Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Theme Toggle
-            IconButton(onClick = {
-                viewModel.setThemeMode(if (currentTheme == "dark") "light" else "dark")
-            }) {
+            // Quick Add '+' Button
+            IconButton(
+                onClick = { showAddChoiceDialog = true },
+                modifier = Modifier.testTag("quick_add_button")
+            ) {
                 Icon(
-                    imageVector = if (currentTheme == "dark") Icons.Default.LightMode else Icons.Default.DarkMode,
-                    contentDescription = "Toggle Theme",
-                    tint = BrandAmber,
-                    modifier = Modifier.size(18.dp)
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Quick Add",
+                    tint = BrandViolet,
+                    modifier = Modifier.size(28.dp)
                 )
             }
 
-            // Sync Indicator Action (Fake Sync Trigger 1.2s)
-            IconButton(onClick = { viewModel.triggerFakeSync() }) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Sync Now",
-                    tint = BrandCyan,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .rotate(if (isSyncing) rotation else 0f)
-                )
-            }
-
-            // Settings Sheet Toggle
-            IconButton(onClick = { viewModel.setSettingsPanelOpen(!showSettings) }) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = if (showSettings) BrandViolet else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            // Log Out Trigger
-            IconButton(onClick = { viewModel.logout() }) {
-                Icon(
-                    imageVector = Icons.Default.ExitToApp,
-                    contentDescription = "Log Out",
-                    tint = BrandRose,
-                    modifier = Modifier.size(18.dp)
-                )
+            // Notification Bell Icon
+            Box {
+                BadgedBox(
+                    badge = {
+                        if (notifications.isNotEmpty()) {
+                            Badge(
+                                containerColor = BrandPink,
+                                contentColor = Color.White
+                            ) {
+                                Text(notifications.size.toString())
+                            }
+                        }
+                    }
+                ) {
+                    IconButton(
+                        onClick = { showNotificationsDialog = true },
+                        modifier = Modifier.testTag("notification_bell_icon")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Notifications",
+                            tint = BrandViolet,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
             }
         }
+    }
+
+    // Quick Add Navigation Choice Dialog
+    if (showAddChoiceDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddChoiceDialog = false },
+            title = {
+                Text(
+                    text = "Launch / Quick Navigation",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Select a workspace section to open directly:",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    val choices = listOf(
+                        Triple("Task Checklist", "Manage daily to-dos & milestones", Icons.Default.Assignment),
+                        Triple("Habit Runways", "Track daily routines & streaks", Icons.Default.Repeat),
+                        Triple("Wishlist Items", "Plan personal purchases & products", Icons.Default.Star),
+                        Triple("Birthdays Log", "Keep track of friends & special days", Icons.Default.Cake),
+                        Triple("Alarms & Clocks", "Manage waking hours & reminders", Icons.Default.Alarm),
+                        Triple("Grocery Check List", "Surgical shopping checklist & qty", Icons.Default.ShoppingCart)
+                    )
+
+                    choices.forEachIndexed { index, choice ->
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onNavigateToSubTab("workspace", index)
+                                    showAddChoiceDialog = false
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(BrandViolet.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = choice.third,
+                                        contentDescription = null,
+                                        tint = BrandViolet,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = choice.first,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Text(
+                                        text = choice.second,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showAddChoiceDialog = false }
+                ) {
+                    Text("Close", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    // Notifications Dialog
+    if (showNotificationsDialog) {
+        AlertDialog(
+            onDismissRequest = { showNotificationsDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Notifications",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (notifications.isNotEmpty()) {
+                        TextButton(
+                            onClick = { viewModel.clearNotifications() }
+                        ) {
+                            Text("Clear All", color = BrandRose, fontSize = 13.sp)
+                        }
+                    }
+                }
+            },
+            text = {
+                if (notifications.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "All caught up!",
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(notifications) { item ->
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = item.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = BrandViolet
+                                        )
+                                        Text(
+                                            text = item.timestamp,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = item.message,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showNotificationsDialog = false }
+                ) {
+                    Text("Close", color = BrandViolet)
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     }
 }
 
@@ -314,12 +634,6 @@ fun BottomNavigationBar(
             onClick = { onTabSelected("dashboard") }
         )
         BottomTabItem(
-            label = "Workspace",
-            icon = Icons.Default.Work,
-            isActive = activeTab == "workspace",
-            onClick = { onTabSelected("workspace") }
-        )
-        BottomTabItem(
             label = "Health",
             icon = Icons.Default.Favorite,
             isActive = activeTab == "health",
@@ -332,6 +646,13 @@ fun BottomNavigationBar(
             isActive = activeTab == "calendar",
             isActiveColor = BrandCyan,
             onClick = { onTabSelected("calendar") }
+        )
+        BottomTabItem(
+            label = "Finance",
+            icon = Icons.Default.AttachMoney,
+            isActive = activeTab == "finance",
+            isActiveColor = BrandOrange,
+            onClick = { onTabSelected("finance") }
         )
         BottomTabItem(
             label = "Menu",
@@ -559,7 +880,8 @@ fun LeftDrawerPane(
     viewModel: TrackWiseViewModel,
     activeTab: String,
     onNavigate: (String) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onImportClick: () -> Unit
 ) {
     val currentTheme by viewModel.themeMode.collectAsState()
     val taskSound by viewModel.taskSound.collectAsState()
@@ -683,6 +1005,48 @@ fun LeftDrawerPane(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // --- Finance Tracker Navigation Link ---
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeTab == "finance") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigate("finance")
+                                onClose()
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.AttachMoney, contentDescription = null, tint = BrandViolet)
+                                Text(
+                                    text = "FINANCE TRACKER",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (activeTab == "finance") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = if (activeTab == "finance") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+
                 // --- Analytics Center Navigation Link ---
                 item {
                     Card(
@@ -720,6 +1084,48 @@ fun LeftDrawerPane(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
                                 tint = if (activeTab == "analytics") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+
+                // --- Detailed Profile Navigation Link ---
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeTab == "profile") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigate("profile")
+                                onClose()
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.AccountBox, contentDescription = null, tint = BrandViolet)
+                                Text(
+                                    text = "DETAILED PROFILE FORM",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (activeTab == "profile") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = if (activeTab == "profile") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     }
@@ -886,7 +1292,7 @@ fun LeftDrawerPane(
                                 }
 
                                 Button(
-                                    onClick = { viewModel.importData() },
+                                    onClick = { onImportClick() },
                                     colors = ButtonDefaults.buttonColors(containerColor = BrandAmber),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.weight(1f),
@@ -898,428 +1304,44 @@ fun LeftDrawerPane(
                         }
                     }
 
-                    // --- Friends & Achievements (Interactive Section) ---
+                    // --- Friends & Achievements Navigation Link ---
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("FRIENDS & ACHIEVEMENTS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                    .padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                // Add friend input row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    OutlinedTextField(
-                                        value = friendEmailInput,
-                                        onValueChange = { friendEmailInput = it },
-                                        placeholder = { Text("friend@trackwise.com", fontSize = 11.sp) },
-                                        singleLine = true,
-                                        modifier = Modifier.weight(1f),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = BrandViolet,
-                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Button(
-                                        onClick = {
-                                            if (friendEmailInput.isNotBlank()) {
-                                                viewModel.addFriend(friendEmailInput)
-                                                friendEmailInput = ""
-                                            }
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Text("Add", color = Color.White, fontSize = 11.sp)
-                                    }
-                                }
-                                if (authError != null) {
-                                    Text(authError!!, color = BrandRose, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-
-                                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-                                // Real friend connections list
-                                if (friendConnections.isEmpty()) {
-                                    Text(
-                                        text = "Social circle empty. Add friends to share progress!",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                    )
-                                } else {
-                                    friendConnections.forEach { friend ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(friend.displayName, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                                Text("Since ${friend.addedAt}", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                                            }
-                                            IconButton(
-                                                onClick = { viewModel.removeFriend(friend.friendUserId) },
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = null,
-                                                    tint = BrandRose,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // --- My Profile Complete Form Expansion Header ---
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (profileFormExpanded) BrandViolet.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { profileFormExpanded = !profileFormExpanded }
-                    ) {
-                        Row(
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (activeTab == "social") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .clickable {
+                                    onNavigate("social")
+                                    onClose()
+                                }
                         ) {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Person, contentDescription = null, tint = BrandViolet)
-                                Text(
-                                    text = "MY DETAILED PROFILE FORM",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Icon(
-                                imageVector = if (profileFormExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = null
-                            )
-                        }
-                    }
-                }
-
-                if (profileFormExpanded) {
-                    // --- 1. Basic Personal Information ---
-                    item {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text(
-                                text = "1. BASIC PERSONAL INFORMATION",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandViolet
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CompactTextField(
-                                    value = firstName,
-                                    onValueChange = { firstName = it },
-                                    label = "First Name *",
-                                    placeholder = "First",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                CompactTextField(
-                                    value = middleName,
-                                    onValueChange = { middleName = it },
-                                    label = "Middle Name",
-                                    placeholder = "Middle",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                CompactTextField(
-                                    value = lastName,
-                                    onValueChange = { lastName = it },
-                                    label = "Last Name *",
-                                    placeholder = "Last",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CompactTextField(
-                                    value = dob,
-                                    onValueChange = { dob = it },
-                                    label = "Date of Birth *",
-                                    placeholder = "DD/MM/YYYY",
-                                    modifier = Modifier.weight(1.2f)
-                                )
-                                CompactTextField(
-                                    value = bloodGroup,
-                                    onValueChange = { bloodGroup = it },
-                                    label = "Blood Group *",
-                                    placeholder = "O+",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CompactTextField(
-                                    value = nationality,
-                                    onValueChange = { nationality = it },
-                                    label = "Nationality *",
-                                    placeholder = "Indian",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                CompactTextField(
-                                    value = nationalId,
-                                    onValueChange = { nationalId = it },
-                                    label = "ID / Aadhaar / Passport *",
-                                    placeholder = "National ID Num",
-                                    modifier = Modifier.weight(1.2f)
-                                )
-                            }
-
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Gender / Sex", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    listOf("Male", "Female", "Other", "Prefer not to say").forEach { gen ->
-                                        val isSel = gender == gen
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(if (isSel) BrandViolet else MaterialTheme.colorScheme.surfaceVariant)
-                                                .clickable { gender = gen }
-                                                .padding(vertical = 6.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(gen, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface)
-                                        }
-                                    }
+                                    Icon(Icons.Default.Group, contentDescription = null, tint = BrandViolet)
+                                    Text(
+                                        text = "FRIENDS & ACHIEVEMENTS",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (activeTab == "social") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
-                            }
-
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Marital Status", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    listOf("Single", "Married", "Divorced", "Widowed").forEach { status ->
-                                        val isSel = maritalStatus == status
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(if (isSel) BrandViolet else MaterialTheme.colorScheme.surfaceVariant)
-                                                .clickable { maritalStatus = status }
-                                                .padding(vertical = 6.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(status, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // --- 2. Contact & Address Details ---
-                    item {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                            Text(
-                                text = "2. CONTACT & ADDRESS DETAILS",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandViolet
-                            )
-
-                            CompactTextField(
-                                value = resAddress,
-                                onValueChange = { resAddress = it },
-                                label = "Residential Address *",
-                                placeholder = "Street, City, State, ZIP, Country",
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = permAddress == resAddress && resAddress.isNotBlank(),
-                                    onCheckedChange = { if (it) permAddress = resAddress }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = if (activeTab == "social") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                 )
-                                Text("Permanent Address is same as Residential Address", fontSize = 10.sp)
-                            }
-
-                            CompactTextField(
-                                value = permAddress,
-                                onValueChange = { permAddress = it },
-                                label = "Permanent Address *",
-                                placeholder = "Street, City, State, ZIP, Country",
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CompactTextField(
-                                    value = mobileNum,
-                                    onValueChange = { mobileNum = it },
-                                    label = "Mobile Number *",
-                                    placeholder = "+91 XXXXX XXXXX",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                CompactTextField(
-                                    value = altPhone,
-                                    onValueChange = { altPhone = it },
-                                    label = "Alternate Phone",
-                                    placeholder = "+91 XXXXX XXXXX",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            CompactTextField(
-                                value = emailAddress,
-                                onValueChange = { emailAddress = it },
-                                label = "Email Address *",
-                                placeholder = "example@domain.com",
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-
-                    // --- 3. Emergency Contact Details ---
-                    item {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                            Text(
-                                text = "3. EMERGENCY CONTACT DETAILS",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandViolet
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CompactTextField(
-                                    value = emergName,
-                                    onValueChange = { emergName = it },
-                                    label = "Emergency Contact Name *",
-                                    placeholder = "Full Name",
-                                    modifier = Modifier.weight(1.2f)
-                                )
-                                CompactTextField(
-                                    value = emergRelation,
-                                    onValueChange = { emergRelation = it },
-                                    label = "Relationship *",
-                                    placeholder = "Parent / Spouse / Sibling",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CompactTextField(
-                                    value = emergMobile,
-                                    onValueChange = { emergMobile = it },
-                                    label = "Emergency Mobile *",
-                                    placeholder = "+91 XXXXX XXXXX",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                CompactTextField(
-                                    value = emergAltPhone,
-                                    onValueChange = { emergAltPhone = it },
-                                    label = "Alternate Phone",
-                                    placeholder = "+91 XXXXX XXXXX",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            CompactTextField(
-                                value = emergEmail,
-                                onValueChange = { emergEmail = it },
-                                label = "Emergency Email Address *",
-                                placeholder = "emergency@domain.com",
-                                modifier = Modifier.fillMaxWidth()
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Button(
-                                onClick = {
-                                    val user = viewModel.sessionUser.value
-                                    if (user != null) {
-                                        val profile = UserProfileEntity(
-                                            userId = user.id,
-                                            firstName = firstName,
-                                            middleName = middleName,
-                                            lastName = lastName,
-                                            dob = dob,
-                                            gender = gender,
-                                            maritalStatus = maritalStatus,
-                                            nationality = nationality,
-                                            nationalId = nationalId,
-                                            bloodGroup = bloodGroup,
-                                            residentialStreet = resAddress,
-                                            permanentStreet = permAddress,
-                                            mobileNumber = mobileNum,
-                                            alternatePhone = altPhone,
-                                            emailAddress = emailAddress,
-                                            emergencyName = emergName,
-                                            emergencyRelationship = emergRelation,
-                                            emergencyPhone = emergMobile,
-                                            alternateEmergencyPhone = emergAltPhone
-                                        )
-                                        viewModel.saveDetailedProfile(profile)
-                                        profileFormExpanded = false
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Save Detailed Profile Data", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

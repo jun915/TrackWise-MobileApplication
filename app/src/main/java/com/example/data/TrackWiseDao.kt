@@ -158,4 +158,47 @@ interface TrackWiseDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUserProfile(profile: UserProfileEntity)
+
+    // --- Grocery Items ---
+    @Query("SELECT * FROM grocery_items WHERE userId = :userId")
+    fun getGroceryItemsForUserFlow(userId: String): Flow<List<GroceryItemEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGroceryItem(item: GroceryItemEntity)
+
+    @Query("DELETE FROM grocery_items WHERE id = :id")
+    suspend fun deleteGroceryItemById(id: String)
+
+    @Query("DELETE FROM grocery_items WHERE userId = :userId AND completed = 1")
+    suspend fun clearCompletedGroceryItems(userId: String)
+
+    // --- Tablet Reminders ---
+    @Query("SELECT * FROM tablet_reminders WHERE userId = :userId")
+    fun getTabletRemindersForUserFlow(userId: String): Flow<List<TabletReminderEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTabletReminder(reminder: TabletReminderEntity)
+
+    @Query("DELETE FROM tablet_reminders WHERE id = :id")
+    suspend fun deleteTabletReminderById(id: String)
+
+    // --- Period Cycles ---
+    @Query("SELECT * FROM period_cycles WHERE userId = :userId ORDER BY startDate DESC")
+    fun getPeriodCyclesForUserFlow(userId: String): Flow<List<PeriodCycleEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPeriodCycle(cycle: PeriodCycleEntity)
+
+    @Query("DELETE FROM period_cycles WHERE id = :id")
+    suspend fun deletePeriodCycleById(id: String)
+
+    // --- Finance Logs ---
+    @Query("SELECT * FROM finance_logs WHERE userId = :userId ORDER BY date DESC, id DESC")
+    fun getFinanceLogsForUserFlow(userId: String): Flow<List<FinanceLogEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFinanceLog(log: FinanceLogEntity)
+
+    @Query("DELETE FROM finance_logs WHERE id = :id")
+    suspend fun deleteFinanceLogById(id: String)
 }

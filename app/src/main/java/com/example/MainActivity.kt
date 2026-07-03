@@ -17,6 +17,7 @@ import com.example.ui.theme.MyApplicationTheme
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalFocusManager
@@ -33,7 +34,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val themeMode by viewModel.themeMode.collectAsState()
-            MyApplicationTheme(darkTheme = themeMode == "dark") {
+            val themeAccent by viewModel.appThemeSelection.collectAsState()
+
+            val isDark = when (themeMode) {
+                "dark" -> true
+                "light" -> false
+                else -> isSystemInDarkTheme()
+            }
+
+            MyApplicationTheme(darkTheme = isDark, themeAccent = themeAccent) {
                 val isLoggedIn by viewModel.isLoggedIn.collectAsState(initial = false)
                 val focusManager = LocalFocusManager.current
 
