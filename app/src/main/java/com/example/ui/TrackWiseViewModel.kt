@@ -68,8 +68,11 @@ class TrackWiseViewModel(
                 notificationManager.createNotificationChannel(channel)
             }
             
+            val iconId = context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName)
+            val smallIcon = if (iconId != 0) iconId else android.R.drawable.ic_dialog_info
+
             val builder = androidx.core.app.NotificationCompat.Builder(context, "trackwise_notifications")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(smallIcon)
                 .setContentTitle(title)
                 .setContentText(message)
                 .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)

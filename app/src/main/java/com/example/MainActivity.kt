@@ -21,6 +21,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalFocusManager
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +46,28 @@ class MainActivity : ComponentActivity() {
                 "dark" -> true
                 "light" -> false
                 else -> systemDark
+            }
+
+            // Runtime request launcher for Post Notifications permission in Android 13+
+            val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (isGranted) {
+                    viewModel.addNotification("Notifications Configured", "You will now receive alerts for completed items, goals, and alarms.")
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    
+                    if (!hasPermission) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
             }
 
             MyApplicationTheme(darkTheme = isDark, themeAccent = themeAccent) {

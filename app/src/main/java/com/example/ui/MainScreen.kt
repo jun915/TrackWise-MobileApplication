@@ -504,6 +504,11 @@ fun HeaderToolbar(
 
     // Notifications Dialog
     if (showNotificationsDialog) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val areNotificationsEnabled = remember(showNotificationsDialog) {
+            androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+        }
+
         AlertDialog(
             onDismissRequest = { showNotificationsDialog = false },
             title = {
@@ -518,77 +523,148 @@ fun HeaderToolbar(
                         fontSize = 18.sp,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-                    if (notifications.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         TextButton(
-                            onClick = { viewModel.clearNotifications() }
+                            onClick = {
+                                viewModel.addNotification(
+                                    "TrackWise Alert 🚀",
+                                    "Mobile push notifications are working perfectly on your real device!"
+                                )
+                            }
                         ) {
-                            Text("Clear All", color = BrandRose, fontSize = 13.sp)
+                            Text("Test Push", color = BrandCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (notifications.isNotEmpty()) {
+                            TextButton(
+                                onClick = { viewModel.clearNotifications() }
+                            ) {
+                                Text("Clear All", color = BrandRose, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             },
             text = {
-                if (notifications.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.NotificationsOff,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "All caught up!",
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                                fontSize = 14.sp
-                            )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (!areNotificationsEnabled) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = BrandRose.copy(alpha = 0.12f)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    try {
+                                        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                            data = android.net.Uri.fromParts("package", context.packageName, null)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = BrandRose,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Notifications Blocked",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = BrandRose
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Real phone push alerts require permissions. Tap here to open App Settings, choose Notifications, and turn them on.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                                        lineHeight = 15.sp
+                                    )
+                                }
+                            }
                         }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(notifications) { item ->
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(12.dp)
+
+                    if (notifications.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsOff,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "All caught up!",
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f, fill = false),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(notifications) { item ->
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Column(
+                                        modifier = Modifier.padding(12.dp)
                                     ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = item.title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = BrandViolet
+                                            )
+                                            Text(
+                                                text = item.timestamp,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = item.title,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = BrandViolet
-                                        )
-                                        Text(
-                                            text = item.timestamp,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                            text = item.message,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = item.message,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
-                                    )
                                 }
                             }
                         }
