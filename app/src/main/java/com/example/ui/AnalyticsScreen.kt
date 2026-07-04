@@ -59,6 +59,12 @@ fun AnalyticsScreen(
     var analyticsYear by remember { mutableStateOf(2026) }
     var analyticsMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH) + 1) } // 1-12
 
+    var showHelpDialog by remember { mutableStateOf(false) }
+
+    if (showHelpDialog) {
+        TrackWiseHelpDialog(onDismiss = { showHelpDialog = false })
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -68,29 +74,47 @@ fun AnalyticsScreen(
     ) {
         // --- Dashboard Header ---
         item {
-            Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Assessment,
-                        contentDescription = "Analytics",
-                        tint = BrandViolet,
-                        modifier = Modifier.size(32.dp)
-                    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(bottom = 8.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Assessment,
+                            contentDescription = "Analytics",
+                            tint = BrandViolet,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text(
+                            text = "Analytics Center",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                     Text(
-                        text = "Analytics Center",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        text = "Interactive rich tracking visualization and insights.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     )
                 }
-                Text(
-                    text = "Interactive rich tracking visualization and insights.",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                )
+
+                IconButton(
+                    onClick = { showHelpDialog = true },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "App Usage Help",
+                        tint = BrandViolet,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
 
@@ -3404,5 +3428,63 @@ fun NetWorthPieChartCard(
             )
         }
     }
+}
+
+@Composable
+fun TrackWiseHelpDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.Help, contentDescription = null, tint = BrandViolet)
+                Text("How to Use TrackWise", fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.heightIn(max = 400.dp)
+            ) {
+                item {
+                    Text(
+                        text = "TrackWise is your unified companion for habits, health, budget, and net worth tracking. Here is how to make the most of it:",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                }
+                item {
+                    Divider()
+                }
+                item {
+                    Text("📊 Analytics Center", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BrandViolet)
+                    Text("Toggle between Finance, Habits, and Health categories using the dropdown. Interactive donut charts and bar graphs show your progress and allocations in real time.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+                item {
+                    Text("💸 Monthly Budget & Equation", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BrandViolet)
+                    Text("Add your income, expenses, and savings. The equation must balance (Income = Expenses + Savings). Any savings you record automatically increase your Net Worth assets, and any expenses are deducted from your spend source.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+                item {
+                    Text("🏦 Net Worth & Accounts", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BrandGreen)
+                    Text("Add and monitor assets (cash, mutual funds, stocks) vs liabilities/loans. Expenses deduct from assets, and savings add to assets, giving you a crystal clear net worth calculation.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+                item {
+                    Text("❤️ Health & Hydration Meter", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BrandRose)
+                    Text("Log metrics to calculate BMI. Tap '+' or '-' on the Hydration Meter to track daily water glasses. Record exercise logs, monitor sleep times, and view clinical tips.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+                item {
+                    Text("📝 Habits & Tasks", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = BrandAmber)
+                    Text("Add daily habits and toggle completions to build streaks. Create tasks with priorities, sub-tasks, and due dates to organize your day.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Got It", color = BrandViolet, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 

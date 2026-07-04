@@ -116,14 +116,20 @@ fun HealthScreen(
 
         // --- BMI Tracker & Water Logs (First row of visual analytics) ---
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
-                BMICard(bmi = bmi, weight = weight, height = height, modifier = Modifier.weight(1f).fillMaxHeight())
-                WaterTrackerCard(viewModel = viewModel, logs = waterLogs, modifier = Modifier.weight(1f).fillMaxHeight())
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 480.dp)
+                        .height(IntrinsicSize.Max),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    BMICard(bmi = bmi, weight = weight, height = height, modifier = Modifier.weight(1f).fillMaxHeight())
+                    WaterTrackerCard(viewModel = viewModel, logs = waterLogs, modifier = Modifier.weight(1f).fillMaxHeight())
+                }
             }
         }
 

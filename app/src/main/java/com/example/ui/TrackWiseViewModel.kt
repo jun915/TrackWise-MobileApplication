@@ -1018,11 +1018,22 @@ class TrackWiseViewModel(
                 }
             }
 
-            // If it's an expense log with a specified spendSource, deduct from that asset!
-            if (type == "expense" && spendSource != null) {
-                val existing = repository.getNetWorthItemByName(user.id, spendSource)
+            // If it's an expense log, deduct from that asset!
+            if (type == "expense") {
+                val source = spendSource ?: "Cash / Current Income"
+                val existing = repository.getNetWorthItemByName(user.id, source)
                 if (existing != null) {
                     repository.insertNetWorthItem(existing.copy(amount = existing.amount - amount))
+                } else {
+                    repository.insertNetWorthItem(
+                        NetWorthItemEntity(
+                            id = "nw-${System.currentTimeMillis()}-${(1000..9999).random()}",
+                            userId = user.id,
+                            name = source,
+                            type = "asset",
+                            amount = -amount
+                        )
+                    )
                 }
             }
 
@@ -1040,10 +1051,11 @@ class TrackWiseViewModel(
                     val assetName = log.category
                     val existing = repository.getNetWorthItemByName(user.id, assetName)
                     if (existing != null) {
-                        repository.insertNetWorthItem(existing.copy(amount = max(0.0, existing.amount - log.amount)))
+                        repository.insertNetWorthItem(existing.copy(amount = maxOf(0.0, existing.amount - log.amount)))
                     }
-                } else if (log.type == "expense" && log.spendSource != null) {
-                    val existing = repository.getNetWorthItemByName(user.id, log.spendSource)
+                } else if (log.type == "expense") {
+                    val source = log.spendSource ?: "Cash / Current Income"
+                    val existing = repository.getNetWorthItemByName(user.id, source)
                     if (existing != null) {
                         repository.insertNetWorthItem(existing.copy(amount = existing.amount + log.amount))
                     }
@@ -1093,11 +1105,18 @@ class TrackWiseViewModel(
             val existingList = repository.getNetWorthItems(user.id)
             if (existingList.isEmpty()) {
                 val defaults = listOf(
-                    NetWorthItemEntity("nw-def-1", user.id, "Simple Savings in Account", "asset", 50000.0),
-                    NetWorthItemEntity("nw-def-2", user.id, "Mutual Funds", "asset", 25000.0),
-                    NetWorthItemEntity("nw-def-3", user.id, "Stocks", "asset", 15000.0),
-                    NetWorthItemEntity("nw-def-4", user.id, "Home Loan", "loan", 100000.0),
-                    NetWorthItemEntity("nw-def-5", user.id, "Credit Card Outstanding", "liability", 5000.0)
+                    NetWorthItemEntity("nw-def-cash", user.id, "Cash / Current Income", "asset", 10000.0),
+                    NetWorthItemEntity("nw-def-ssa", user.id, "Simple Savings in Account", "asset", 50000.0),
+                    NetWorthItemEntity("nw-def-mf", user.id, "Mutual Funds", "asset", 25000.0),
+                    NetWorthItemEntity("nw-def-stocks", user.id, "Stocks", "asset", 15000.0),
+                    NetWorthItemEntity("nw-def-ppf", user.id, "PPF", "asset", 0.0),
+                    NetWorthItemEntity("nw-def-fd", user.id, "FD", "asset", 0.0),
+                    NetWorthItemEntity("nw-def-rd", user.id, "RD", "asset", 0.0),
+                    NetWorthItemEntity("nw-def-nps", user.id, "NPS", "asset", 0.0),
+                    NetWorthItemEntity("nw-def-epf", user.id, "EPF", "asset", 0.0),
+                    NetWorthItemEntity("nw-def-others", user.id, "Others", "asset", 0.0),
+                    NetWorthItemEntity("nw-def-loan", user.id, "Home Loan", "loan", 100000.0),
+                    NetWorthItemEntity("nw-def-cc", user.id, "Credit Card Outstanding", "liability", 5000.0)
                 )
                 defaults.forEach { repository.insertNetWorthItem(it) }
                 triggerFakeSync()

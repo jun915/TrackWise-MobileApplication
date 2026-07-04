@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.HabitEntity
 import com.example.data.TaskEntity
 import com.example.data.WishItemEntity
+import com.example.data.WaterLogEntity
 import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
@@ -53,6 +54,24 @@ fun DashboardScreen(
 
     val todayStr = TrackWiseUtils.getTodayString()
     val isPreLaunch = TrackWiseUtils.isBeforeLaunch(todayStr)
+
+    val todayFocusItems = remember(allTasks, todayStr) {
+        allTasks.filter { it.deadline == todayStr && !it.completed }
+            .sortedWith(compareBy<TaskEntity> { it.reminderTime == null }
+                .thenBy { it.reminderTime ?: "" }
+                .thenBy { it.title }
+            )
+            .take(5)
+    }
+
+    val priorityAndOverdueItems = remember(allTasks, todayStr) {
+        allTasks.filter { !it.completed && (it.deadline < todayStr || it.priority == "high") }
+            .sortedWith(compareBy<TaskEntity> { it.deadline }
+                .thenByDescending { it.priority == "high" }
+                .thenBy { it.title }
+            )
+            .take(5)
+    }
 
     val name = currentUser?.fullName?.split(" ")?.firstOrNull() ?: "there"
 
@@ -275,15 +294,26 @@ fun DashboardScreen(
             }
         }
 
-        // --- Progress Widget (Section 8.2) ---
+        // --- Daily Scores Overview Widget ---
         item {
-            ProgressWidget(viewModel = viewModel)
+            DailyScoresOverviewWidget(viewModel = viewModel)
+        }
+
+        // --- Habit Streaks Widget (1st section of streaks) ---
+        item {
+            HabitStreaksWidget(allHabits = allHabits)
+        }
+
+        // --- Water Intake Widget (1st section of health) ---
+        item {
+            val waterLogs by viewModel.waterLogs.collectAsState()
+            WaterIntakeWidget(viewModel = viewModel, waterLogs = waterLogs)
         }
 
         // --- Today's Items Widget (Section 8.3) ---
         item {
             TodayItemsWidget(
-                tasks = allTasks.filter { it.deadline == todayStr },
+                tasks = todayFocusItems,
                 onToggleTask = { viewModel.toggleTaskCompletion(it) }
             )
         }
@@ -291,8 +321,7 @@ fun DashboardScreen(
         // --- Priority Items Widget (Section 8.4) ---
         item {
             PriorityItemsWidget(
-                tasks = allTasks,
-                wishlist = allWishlist,
+                tasks = priorityAndOverdueItems,
                 onToggleTask = { viewModel.toggleTaskCompletion(it) }
             )
         }
@@ -357,18 +386,11 @@ fun StatTile(
 }
 
 @Composable
-fun ProgressWidget(
+fun DailyScoresOverviewWidget(
     viewModel: TrackWiseViewModel,
     modifier: Modifier = Modifier
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Overview", "Streaks", "Health")
-
     val streakHistory by viewModel.streakHistory.collectAsState()
-    val allHabits by viewModel.allHabits.collectAsState()
-    val weightEntries by viewModel.weightEntries.collectAsState()
-    val waterLogs by viewModel.waterLogs.collectAsState()
-
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -378,236 +400,61 @@ fun ProgressWidget(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "ANALYTICS & PROGRESS",
+                text = "DAILY SCORES OVERVIEW",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = BrandViolet,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            // Sub-tabs row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                tabs.forEachIndexed { index, label ->
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (selectedTab == index) BrandViolet else Color.Transparent)
-                            .clickable { selectedTab = index }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (selectedTab == index) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
-
-            // Sub-tab Content
-            when (selectedTab) {
-                0 -> { // Overview Tab
-                    if (streakHistory.isEmpty()) {
-                        EmptyProgressPlaceholder("Complete tasks and habits to populate historical analytics charts.")
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (streakHistory.isEmpty()) {
+                EmptyProgressPlaceholder("Complete tasks and habits to populate historical analytics charts.")
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Daily Scores (Last 7 Days)",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    streakHistory.take(7).reversed().forEach { history ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = "Daily Scores (Last 7 Days)",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
+                                text = history.date.substring(5), // MM-DD
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.width(48.dp)
                             )
-                            // Clean visual list representing history bars since complex external charts can fail
-                            streakHistory.take(7).reversed().forEach { history ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = history.date.substring(5), // MM-DD
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.width(48.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(16.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    ) {
-                                        // Score fill bar
-                                        val fillWidthFraction = (history.score / 30f).coerceIn(0f, 1f)
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxHeight()
-                                                .fillMaxWidth(fillWidthFraction)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(
-                                                    Brush.horizontalGradient(
-                                                        listOf(BrandViolet, BrandPink)
-                                                    )
-                                                )
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "${history.score} pts",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BrandPink
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                1 -> { // Streaks Tab
-                    if (allHabits.isEmpty()) {
-                        EmptyProgressPlaceholder("Create habits in the Workspace tab to view streak trajectories.")
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            allHabits.take(4).forEach { habit ->
-                                Column {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = habit.name,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        )
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                Icons.Default.LocalFireDepartment,
-                                                contentDescription = null,
-                                                tint = BrandOrange,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Text(
-                                                text = "${habit.streak}d streak",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = BrandOrange,
-                                                modifier = Modifier.padding(start = 2.dp)
-                                            )
-                                        }
-                                    }
-                                    // Progress bar to next milestone
-                                    val milestones = listOf(1, 3, 5, 7, 14, 21, 30, 45, 60, 90, 100, 365)
-                                    val nextMilestone = milestones.firstOrNull { it > habit.streak } ?: 365
-                                    val progressFraction = (habit.streak.toFloat() / nextMilestone).coerceIn(0f, 1f)
-
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 4.dp)
-                                            .height(8.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxHeight()
-                                                .fillMaxWidth(progressFraction)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(BrandOrange)
-                                        )
-                                    }
-                                    Text(
-                                        text = "Next milestone: $nextMilestone days",
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                        modifier = Modifier.padding(top = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                2 -> { // Health Tab
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // Water log progress
-                        val todayWater = waterLogs.find { it.date == TrackWiseUtils.getTodayString() }
-                        val waterGlasses = todayWater?.glasses ?: 0
-                        val waterGoal = todayWater?.goal ?: 8
-                        val waterFraction = (waterGlasses.toFloat() / waterGoal).coerceIn(0f, 1f)
-
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Water Intake Today 💧",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "$waterGlasses/$waterGoal glasses",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandCyan
-                                )
-                            }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 4.dp)
-                                    .height(10.dp)
-                                    .clip(RoundedCornerShape(5.dp))
+                                    .weight(1f)
+                                    .height(16.dp)
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                             ) {
+                                val fillWidthFraction = (history.score / 30f).coerceIn(0f, 1f)
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight()
-                                        .fillMaxWidth(waterFraction)
-                                        .clip(RoundedCornerShape(5.dp))
-                                        .background(BrandCyan)
+                                        .fillMaxWidth(fillWidthFraction)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(BrandViolet, BrandPink)
+                                            )
+                                        )
                                 )
                             }
-                        }
-
-                        // Latest Weight log
-                        val latestWeight = weightEntries.firstOrNull()
-                        if (latestWeight != null) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Latest Weight Log ⚖️",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "${latestWeight.weightKg} kg (${latestWeight.date})",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandPink
-                                )
-                            }
-                        } else {
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "No weight logs recorded yet.",
+                                text = "${history.score} pts",
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                modifier = Modifier.padding(top = 4.dp)
+                                fontWeight = FontWeight.Bold,
+                                color = BrandPink
                             )
                         }
                     }
@@ -616,6 +463,187 @@ fun ProgressWidget(
         }
     }
 }
+
+@Composable
+fun HabitStreaksWidget(
+    allHabits: List<HabitEntity>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "HABIT STREAK TRAJECTORIES",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = BrandOrange,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            if (allHabits.isEmpty()) {
+                EmptyProgressPlaceholder("Create habits in the Workspace tab to view streak trajectories.")
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    allHabits.take(4).forEach { habit ->
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = habit.name,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.LocalFireDepartment,
+                                        contentDescription = null,
+                                        tint = BrandOrange,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "${habit.streak}d streak",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandOrange,
+                                        modifier = Modifier.padding(start = 2.dp)
+                                    )
+                                }
+                            }
+                            val milestones = listOf(1, 3, 5, 7, 14, 21, 30, 45, 60, 90, 100, 365)
+                            val nextMilestone = milestones.firstOrNull { it > habit.streak } ?: 365
+                            val progressFraction = (habit.streak.toFloat() / nextMilestone).coerceIn(0f, 1f)
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(progressFraction)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(BrandOrange)
+                                )
+                            }
+                            Text(
+                                text = "Next milestone: $nextMilestone days",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WaterIntakeWidget(
+    viewModel: TrackWiseViewModel,
+    waterLogs: List<WaterLogEntity>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "DAILY HYDRATION MONITOR",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandCyan
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val todayStr = TrackWiseUtils.getTodayString()
+                    val todayWater = waterLogs.firstOrNull { it.date == todayStr }
+                    val currentGlasses = todayWater?.glasses ?: 0
+
+                    IconButton(
+                        onClick = { viewModel.adjustWaterLog(-1) },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Decrement water", tint = BrandCyan, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(
+                        onClick = { viewModel.adjustWaterLog(1) },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Increment water", tint = BrandCyan, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+
+            val todayWater = waterLogs.firstOrNull { it.date == TrackWiseUtils.getTodayString() }
+            val waterGlasses = todayWater?.glasses ?: 0
+            val waterGoal = todayWater?.goal ?: 8
+            val waterFraction = (waterGlasses.toFloat() / waterGoal).coerceIn(0f, 1f)
+
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Water Intake Today 💧",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "$waterGlasses/$waterGoal glasses",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandCyan
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(waterFraction)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(BrandCyan)
+                    )
+                }
+            }
+        }
+    }
+}
+
+
 
 @Composable
 fun EmptyProgressPlaceholder(message: String) {
@@ -757,13 +785,11 @@ fun TodayItemsWidget(
 @Composable
 fun PriorityItemsWidget(
     tasks: List<TaskEntity>,
-    wishlist: List<WishItemEntity>,
     onToggleTask: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val today = TrackWiseUtils.getTodayString()
     val overdueTasks = tasks.filter { !it.completed && it.deadline < today }
-    val urgentTasks = tasks.filter { !it.completed && (it.priority == "high" || it.deadline <= today) }
 
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -813,7 +839,7 @@ fun PriorityItemsWidget(
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = "${overdueTasks.size} overdue task(s) detect! Complete them immediately.",
+                            text = "${overdueTasks.size} overdue task(s) detected! Complete them immediately.",
                             color = BrandRose,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -823,15 +849,15 @@ fun PriorityItemsWidget(
                 }
             }
 
-            if (urgentTasks.isEmpty() && wishlist.none { it.priority == "high" && !it.purchased }) {
+            if (tasks.isEmpty()) {
                 Text(
-                    text = "No urgent tasks or high-priority wishlist items recorded.",
+                    text = "No urgent tasks or overdue items recorded.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    urgentTasks.take(5).forEach { task ->
+                    tasks.forEach { task ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -844,7 +870,7 @@ fun PriorityItemsWidget(
                             Icon(
                                 Icons.Default.Star,
                                 contentDescription = null,
-                                tint = BrandAmber,
+                                tint = if (task.priority == "high") BrandAmber else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -858,7 +884,7 @@ fun PriorityItemsWidget(
                                 )
                                 Row {
                                     Text(
-                                        text = "${task.deadline} · ${task.project}",
+                                        text = "${task.deadline} · ${task.project} · ${task.priority.uppercase()}",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                                     )
@@ -871,40 +897,6 @@ fun PriorityItemsWidget(
                                         )
                                     }
                                 }
-                            }
-                        }
-                    }
-
-                    // Top wishlist high-priority items
-                    wishlist.filter { it.priority == "high" && !it.purchased }.take(3).forEach { item ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.CardGiftcard,
-                                contentDescription = null,
-                                tint = BrandPink,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = item.title,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "Wishlist aspirational · ₹${item.price}",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                                )
                             }
                         }
                     }
@@ -979,7 +971,7 @@ fun DailyHabitsWidget(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     habits.sortedBy {
                         TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
-                    }.forEach { habit ->
+                    }.take(5).forEach { habit ->
                         val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
                         Row(
                             modifier = Modifier

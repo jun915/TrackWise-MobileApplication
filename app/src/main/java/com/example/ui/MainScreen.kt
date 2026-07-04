@@ -121,6 +121,8 @@ fun MainScreen(
                     "analytics" -> AnalyticsScreen(viewModel = viewModel)
                     "profile" -> ProfileScreen(viewModel = viewModel)
                     "social" -> SocialScreen(viewModel = viewModel)
+                    "help" -> HelpScreen(onBack = { activeTab = "dashboard" })
+                    "archive" -> ArchiveScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" })
                 }
 
                 // In-App Toast alerts (Section 13.4)
@@ -727,7 +729,13 @@ fun SettingsPanel(viewModel: TrackWiseViewModel) {
                 .statusBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("PROFILE & APP CONFIGURATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("PROFILE & APP CONFIGURATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+            }
 
             CompactTextField(
                 value = nameInput,
@@ -1141,36 +1149,142 @@ fun LeftDrawerPane(
                     }
                 }
 
-                if (settingsExpanded) {
-                    // --- Theme Modes (Light, Dark, System) ---
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("THEME MODE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                // --- Completed Items Archive Navigation Link ---
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeTab == "archive") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigate("archive")
+                                onClose()
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                listOf("light", "dark", "system").forEach { mode ->
-                                    val isSelected = currentTheme == mode
+                                Icon(Icons.Default.Archive, contentDescription = null, tint = BrandViolet)
+                                Text(
+                                    text = "COMPLETED ARCHIVE",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (activeTab == "archive") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = if (activeTab == "archive") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+
+                if (settingsExpanded) {
+                    // --- Theme Configurations with Dropdowns ---
+                    item {
+                        var themeModeExpanded by remember { mutableStateOf(false) }
+                        var themeAccentExpanded by remember { mutableStateOf(false) }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("THEME", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                            
+                            // Combined Theme Mode
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Theme Mode", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                Box {
                                     Card(
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (isSelected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant
-                                        ),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .clickable { viewModel.setThemeMode(mode) }
+                                            .fillMaxWidth()
+                                            .clickable { themeModeExpanded = true }
                                     ) {
-                                        Box(
+                                        Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = mode.uppercase(),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                            val currentThemeLabel = when (currentTheme) {
+                                                "light" -> "Light Mode ☀️"
+                                                "dark" -> "Dark Mode 🌙"
+                                                else -> "System Default ⚙️"
+                                            }
+                                            Text(text = currentThemeLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Theme Mode")
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = themeModeExpanded,
+                                        onDismissRequest = { themeModeExpanded = false }
+                                    ) {
+                                        listOf("light" to "Light Mode ☀️", "dark" to "Dark Mode 🌙", "system" to "System Default ⚙️").forEach { (mode, label) ->
+                                            DropdownMenuItem(
+                                                text = { Text(label, fontSize = 12.sp) },
+                                                onClick = {
+                                                    viewModel.setThemeMode(mode)
+                                                    themeModeExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Combined Theme Design Accent
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Design Accent", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                Box {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { themeAccentExpanded = true }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            val accentEmoji = when (themeAccent) {
+                                                "Default Violet" -> "💜"
+                                                "Ocean Blue" -> "💙"
+                                                "Forest Green" -> "💚"
+                                                "Sunset Orange" -> "🧡"
+                                                "Crimson Red" -> "❤️"
+                                                else -> "🎨"
+                                            }
+                                            Text(text = "$themeAccent $accentEmoji", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Accent")
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = themeAccentExpanded,
+                                        onDismissRequest = { themeAccentExpanded = false }
+                                    ) {
+                                        listOf("Default Violet" to "💜", "Ocean Blue" to "💙", "Forest Green" to "💚", "Sunset Orange" to "🧡", "Crimson Red" to "❤️").forEach { (accent, emoji) ->
+                                            DropdownMenuItem(
+                                                text = { Text("$accent $emoji", fontSize = 12.sp) },
+                                                onClick = {
+                                                    viewModel.setAppThemeSelection(accent)
+                                                    themeAccentExpanded = false
+                                                }
                                             )
                                         }
                                     }
@@ -1179,101 +1293,132 @@ fun LeftDrawerPane(
                         }
                     }
 
-                    // --- Theme Selection (Different Theme of App) ---
+                    // --- Sounds Configurations with Dropdowns ---
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("THEME DESIGN ACCENT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("Default Violet", "Ocean Blue", "Forest Green", "Sunset Orange", "Crimson Red").forEach { accent ->
-                                    val isSelected = themeAccent == accent
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSelected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant)
-                                            .border(1.dp, if (isSelected) BrandViolet else Color.Transparent, RoundedCornerShape(8.dp))
-                                            .clickable { viewModel.setAppThemeSelection(accent) }
-                                            .padding(vertical = 6.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = accent.split(" ").last(),
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                        var taskSoundExpanded by remember { mutableStateOf(false) }
+                        var alarmSoundExpanded by remember { mutableStateOf(false) }
 
-                    // --- Sound Selection for Task Completion ---
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("TASK COMPLETION SOUND", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("Chime", "Ding", "Bell", "None").forEach { snd ->
-                                    val isSelected = taskSound == snd
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSelected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant)
-                                            .clickable { viewModel.setTaskSound(snd) }
-                                            .padding(vertical = 6.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = snd,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("SOUNDS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
 
-                    // --- Sound Selection for Alarm ---
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("ALARM ALERT SOUND", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("Reflection", "Marimba", "Over the Horizon", "The Big Adventure").forEach { snd ->
-                                    val isSelected = alarmSound == snd
-                                    Box(
+                            // Task Completion Sound Dropdown
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Task Completion Trigger", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                Box {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSelected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant)
-                                            .clickable { viewModel.setAlarmSound(snd) }
-                                            .padding(vertical = 6.dp),
-                                        contentAlignment = Alignment.Center
+                                            .fillMaxWidth()
+                                            .clickable { taskSoundExpanded = true }
                                     ) {
-                                        val displayName = when (snd) {
-                                            "Over the Horizon" -> "Horizon"
-                                            "The Big Adventure" -> "Adventure"
-                                            else -> snd
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(text = "🎵 $taskSound", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Task Sound")
                                         }
-                                        Text(
-                                            text = displayName,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = taskSoundExpanded,
+                                        onDismissRequest = { taskSoundExpanded = false }
+                                    ) {
+                                        listOf("Chime", "Ding", "Bell", "None").forEach { snd ->
+                                            DropdownMenuItem(
+                                                text = { Text(snd, fontSize = 12.sp) },
+                                                onClick = {
+                                                    viewModel.setTaskSound(snd)
+                                                    taskSoundExpanded = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
+                            }
+
+                            // Alarm Sound Dropdown
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Alarm Alert Melody", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                Box {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { alarmSoundExpanded = true }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(text = "🔔 $alarmSound", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Alarm Sound")
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = alarmSoundExpanded,
+                                        onDismissRequest = { alarmSoundExpanded = false }
+                                    ) {
+                                        listOf("Reflection", "Marimba", "Over the Horizon", "The Big Adventure").forEach { snd ->
+                                            DropdownMenuItem(
+                                                text = { Text(snd, fontSize = 12.sp) },
+                                                onClick = {
+                                                    viewModel.setAlarmSound(snd)
+                                                    alarmSoundExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // --- Help Navigation Link (Below Sounds, Shipped from Profile) ---
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (activeTab == "help") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onNavigate("help")
+                                    onClose()
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.HelpOutline, contentDescription = null, tint = BrandViolet)
+                                    Text(
+                                        text = "HOW THIS APP WORKS",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
                             }
                         }
                     }

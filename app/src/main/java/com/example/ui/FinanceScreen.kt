@@ -78,11 +78,16 @@ fun FinanceScreen(
     val overallBalance = overallIncome - (overallExpense + overallSavings)
 
     val userProfile by viewModel.userProfile.collectAsState()
-    val dailyTarget = userProfile?.financeDailyTarget ?: 1000.0
+    val monthlyTarget = userProfile?.financeDailyTarget ?: 30000.0
 
-    val todayDateStr = TrackWiseUtils.getTodayString()
-    val todayExpenses = remember(financeLogs, todayDateStr) {
-        financeLogs.filter { it.date == todayDateStr && it.type == "expense" }.sumOf { it.amount }
+    val currentMonthStr = remember(selectedDateStr) {
+        if (selectedDateStr.length >= 7) selectedDateStr.substring(0, 7) else "2026-07"
+    }
+    val monthlyExpenses = remember(financeLogs, currentMonthStr) {
+        financeLogs.filter { it.date.startsWith(currentMonthStr) && it.type == "expense" }.sumOf { it.amount }
+    }
+    val remainingBalance = remember(monthlyTarget, monthlyExpenses) {
+        monthlyTarget - monthlyExpenses
     }
 
     // Deficit & Daily target States
@@ -96,7 +101,7 @@ fun FinanceScreen(
     var pendingSpendSource by remember { mutableStateOf<String?>(null) }
 
     // Navigation and Input States
-    var currentMainTab by remember { mutableStateOf("Daily Budget") } // "Daily Budget" or "Net Worth"
+    var currentMainTab by remember { mutableStateOf("Monthly Budget") } // "Monthly Budget" or "Net Worth"
     var selectedTab by remember { mutableStateOf("expense") } // "income", "expense", "savings"
     var transactionDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
 
@@ -140,7 +145,7 @@ fun FinanceScreen(
         "Transport and Commute" to listOf("Vehicle Fuel", "Public Commute", "Vehicle Maintenance", "Others"),
         "Healthcare and Insurance" to listOf("Routine Medicines", "Doctor Consultations", "Insurance Premiums", "Others"),
         "Lifestyle, Entertainment, and Discretionary" to listOf("Dining & Delivery", "Shopping & Apparel", "Salons & Wellness", "Family Events", "Others"),
-        "Others" to listOf("General Expense", "Miscellaneous")
+        "Others" to listOf("General Expense", "Miscellaneous", "Others")
     )
 
     // Savings Inputs
@@ -186,7 +191,7 @@ fun FinanceScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Track daily income, expenses, and savings while ensuring a balanced budget equation.",
+                    text = "Track monthly budget, expenses, and savings while ensuring a balanced budget equation.",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
@@ -204,11 +209,11 @@ fun FinanceScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 listOf(
-                    "Daily Budget" to Icons.Default.AccountBalance,
+                    "Monthly Budget" to Icons.Default.AccountBalance,
                     "Net Worth" to Icons.Default.PieChart
                 ).forEach { (tabName, tabIcon) ->
                     val isSelected = currentMainTab == tabName
-                    val tabColor = if (tabName == "Daily Budget") BrandViolet else BrandGreen
+                    val tabColor = if (tabName == "Monthly Budget") BrandViolet else BrandGreen
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -240,8 +245,8 @@ fun FinanceScreen(
             }
         }
 
-        if (currentMainTab == "Daily Budget") {
-            // --- Daily Budget Target Panel ---
+        if (currentMainTab == "Monthly Budget") {
+            // --- Monthly Budget Target Panel ---
             item {
                 var showEditTargetDialog by remember { mutableStateOf(false) }
 
@@ -273,35 +278,41 @@ fun FinanceScreen(
                             }
                             Column {
                                 Text(
-                                    text = "Daily Limit: ₹${String.format("%.0f", dailyTarget)}",
+                                    text = "Monthly Limit: ₹${String.format("%.0f", monthlyTarget)}",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Text(
-                                    text = "Today spent: ₹${String.format("%.1f", todayExpenses)}",
+                                    text = "Month Spent: ₹${String.format("%.1f", monthlyExpenses)}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = if (todayExpenses > dailyTarget) BrandRose else BrandGreen
+                                    color = if (monthlyExpenses > monthlyTarget) BrandRose else BrandGreen
+                                )
+                                Text(
+                                    text = "Remaining Balance: ₹${String.format("%.1f", remainingBalance)}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (remainingBalance >= 0) BrandGreen else BrandRose
                                 )
                             }
                         }
                         IconButton(onClick = { showEditTargetDialog = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Daily Target Limit", tint = BrandRose)
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Monthly Target Limit", tint = BrandRose)
                         }
                     }
                 }
 
                 if (showEditTargetDialog) {
-                    var inputLimit by remember { mutableStateOf(dailyTarget.toInt().toString()) }
+                    var inputLimit by remember { mutableStateOf(monthlyTarget.toInt().toString()) }
                     AlertDialog(
                         onDismissRequest = { showEditTargetDialog = false },
-                        title = { Text("Update Daily Limit") },
+                        title = { Text("Update Monthly Limit") },
                         text = {
                             OutlinedTextField(
                                 value = inputLimit,
                                 onValueChange = { inputLimit = it },
-                                label = { Text("Daily Budget Target (₹)") },
+                                label = { Text("Monthly Budget Target (₹)") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
@@ -580,10 +591,10 @@ fun FinanceScreen(
                                                 pendingSpendSource = sourceArg
                                                 showDeficitWarningDialog = true
                                             } else {
-                                                if (transactionDate == todayDateStr && todayExpenses + amt > dailyTarget) {
+                                                if (transactionDate.startsWith(currentMonthStr) && monthlyExpenses + amt > monthlyTarget) {
                                                     viewModel.addNotification(
-                                                        title = "⚠️ Daily Spending Limit Breached!",
-                                                        message = "You spent ₹${String.format("%.1f", todayExpenses + amt)} today, exceeding your daily target limit of ₹${dailyTarget}."
+                                                        title = "⚠️ Monthly Spending Limit Breached!",
+                                                        message = "You spent ₹${String.format("%.1f", monthlyExpenses + amt)} this month, exceeding your monthly target limit of ₹${monthlyTarget}."
                                                     )
                                                 }
 
