@@ -59,12 +59,6 @@ fun AnalyticsScreen(
     var analyticsYear by remember { mutableStateOf(2026) }
     var analyticsMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH) + 1) } // 1-12
 
-    var showHelpDialog by remember { mutableStateOf(false) }
-
-    if (showHelpDialog) {
-        TrackWiseHelpDialog(onDismiss = { showHelpDialog = false })
-    }
-
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -101,18 +95,6 @@ fun AnalyticsScreen(
                         text = "Interactive rich tracking visualization and insights.",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                }
-
-                IconButton(
-                    onClick = { showHelpDialog = true },
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.HelpOutline,
-                        contentDescription = "App Usage Help",
-                        tint = BrandViolet,
-                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
@@ -2677,13 +2659,13 @@ fun CustomDonutChart(
         // Left side: Pie Chart Canvas
         Box(
             modifier = Modifier
-                .size(130.dp)
+                .size(132.dp)
                 .weight(1.1f),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val sizeMin = min(size.width, size.height)
-                val strokeWidth = sizeMin * 0.25f // Donut ring width
+                val strokeWidth = sizeMin * 0.16f // Sleeker Donut ring width to prevent overlap
                 val arcSize = sizeMin - strokeWidth
                 
                 var startAngle = -90f
@@ -2705,7 +2687,17 @@ fun CustomDonutChart(
             }
             
             // Center text inside donut
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val amountStr = "₹${String.format("%.0f", total)}"
+            val dynamicFontSize = when {
+                amountStr.length > 9 -> 9.sp
+                amountStr.length > 7 -> 10.sp
+                amountStr.length > 5 -> 12.sp
+                else -> 14.sp
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
                 Text(
                     text = "TOTAL",
                     fontSize = 8.sp,
@@ -2713,10 +2705,11 @@ fun CustomDonutChart(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                 )
                 Text(
-                    text = "₹${String.format("%.0f", total)}",
-                    fontSize = 13.sp,
+                    text = amountStr,
+                    fontSize = dynamicFontSize,
                     fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
                 )
             }
         }

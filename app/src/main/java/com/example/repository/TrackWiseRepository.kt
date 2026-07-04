@@ -521,6 +521,10 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
     // --- Finance Logs ---
     fun getFinanceLogsFlow(userId: String): Flow<List<FinanceLogEntity>> = dao.getFinanceLogsForUserFlow(userId)
 
+    suspend fun getFinanceLogs(userId: String): List<FinanceLogEntity> {
+        return dao.getFinanceLogsForUser(userId)
+    }
+
     suspend fun insertFinanceLog(log: FinanceLogEntity) {
         dao.insertFinanceLog(log)
     }

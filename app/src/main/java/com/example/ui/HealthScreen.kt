@@ -67,15 +67,28 @@ fun HealthScreen(
     }
 
     val focusManager = LocalFocusManager.current
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) {
+            focusManager.clearFocus()
+        }
+    }
 
-    // Dynamic BMI
-    val height = currentUser?.heightCm ?: 0.0
-    val weight = currentUser?.weightKg ?: 0.0
+    // Dynamic BMI - pick up latest logged weight in weightEntries, fallback to profile weight
+    val rawHeight = userProfile?.height ?: ""
+    val heightFromProfile = rawHeight.replace("cm", "", ignoreCase = true).trim().toDoubleOrNull()
+    val height = heightFromProfile ?: currentUser?.heightCm ?: 0.0
+
+    val latestWeightEntry = weightEntries.sortedByDescending { it.date }.firstOrNull()
+    val rawWeight = userProfile?.weight ?: ""
+    val weightFromProfile = rawWeight.replace("kg", "", ignoreCase = true).trim().toDoubleOrNull()
+    val weight = latestWeightEntry?.weightKg ?: weightFromProfile ?: currentUser?.weightKg ?: 0.0
     val bmi = if (height > 50 && weight > 20) {
         weight / (height / 100.0).pow(2)
     } else 0.0
 
     LazyColumn(
+        state = listState,
         modifier = modifier
             .fillMaxSize()
             .clickable(
@@ -306,28 +319,39 @@ fun BMICard(bmi: Double, weight: Double, height: Double, modifier: Modifier = Mo
             modifier = Modifier.padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("BODY MASS INDEX", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+            Text(
+                text = "BODY MASS INDEX", 
+                fontSize = 10.sp, 
+                fontWeight = FontWeight.Bold, 
+                color = BrandViolet,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
             
             Text(
                 text = if (bmi > 0) "%.1f".format(bmi) else "—",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = categoryColor,
-                modifier = Modifier.padding(vertical = 8.dp)
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth()
             )
 
             Text(
                 text = category,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = categoryColor
+                color = categoryColor,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Text(
                 text = "${weight.toInt()} kg · ${height.toInt()} cm",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                modifier = Modifier.padding(top = 4.dp)
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp).fillMaxWidth()
             )
         }
     }
@@ -349,7 +373,14 @@ fun WaterTrackerCard(viewModel: TrackWiseViewModel, logs: List<WaterLogEntity>, 
             modifier = Modifier.padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("HYDRATION METER", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
+            Text(
+                text = "HYDRATION METER", 
+                fontSize = 10.sp, 
+                fontWeight = FontWeight.Bold, 
+                color = BrandCyan,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -378,7 +409,13 @@ fun WaterTrackerCard(viewModel: TrackWiseViewModel, logs: List<WaterLogEntity>, 
                 }
             }
 
-            Text("Glasses today", fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+            Text(
+                text = "Glasses today", 
+                fontSize = 11.sp, 
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -695,14 +732,25 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                         value = if (contextInput == "fasting") "Fasting" else if (contextInput == "post_meal") "Post Meal" else "Random",
                         onValueChange = {},
                         readOnly = true,
+                        enabled = false,
                         label = { Text("Condition / Meal State") },
                         trailingIcon = {
-                            IconButton(onClick = { contextExpanded = !contextExpanded }) {
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
-                            }
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
                         },
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth().clickable { contextExpanded = !contextExpanded }
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    // Transparent overlay to ensure the entire container is clickable and opens the dropdown
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { contextExpanded = !contextExpanded }
                     )
                     DropdownMenu(
                         expanded = contextExpanded,

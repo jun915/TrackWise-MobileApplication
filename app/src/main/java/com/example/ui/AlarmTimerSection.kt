@@ -47,8 +47,8 @@ fun AlarmTimerSection(
     viewModel: TrackWiseViewModel,
     modifier: Modifier = Modifier
 ) {
-    var selectedUtilityTab by remember { mutableStateOf(0) } // 0 = Alarms, 1 = Timer, 2 = Stopwatch
-    val utilityTabs = listOf("Alarms ⏰", "Timer ⏱️", "Stopwatch ⏳")
+    var selectedUtilityTab by remember { mutableStateOf(0) } // 0 = Timer, 1 = Stopwatch
+    val utilityTabs = listOf("Timer ⏱️", "Stopwatch ⏳")
 
     Column(
         modifier = modifier
@@ -66,11 +66,12 @@ fun AlarmTimerSection(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             utilityTabs.forEachIndexed { index, title ->
+                val isSelected = selectedUtilityTab == index
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (selectedUtilityTab == index) BrandViolet else Color.Transparent)
+                        .background(if (isSelected) BrandViolet else Color.Transparent)
                         .clickable { selectedUtilityTab = index }
                         .padding(vertical = 10.dp)
                         .testTag("utility_tab_$index"),
@@ -80,7 +81,7 @@ fun AlarmTimerSection(
                         text = title,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (selectedUtilityTab == index) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -95,9 +96,8 @@ fun AlarmTimerSection(
             label = "utility_animation"
         ) { tabIndex ->
             when (tabIndex) {
-                0 -> AlarmsSubSection(viewModel = viewModel)
-                1 -> TimerSubSection()
-                2 -> StopwatchSubSection()
+                0 -> TimerSubSection()
+                1 -> StopwatchSubSection()
             }
         }
     }

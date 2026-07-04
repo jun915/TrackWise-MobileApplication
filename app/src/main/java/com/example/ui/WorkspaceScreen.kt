@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1366,6 +1367,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
     var selectedCategory by remember { mutableStateOf("Friend") }
     var listFilter by remember { mutableStateOf("All") }
     var showError by remember { mutableStateOf(false) }
+    var editingBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Toggle add birthday form
@@ -1699,7 +1701,13 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                IconButton(onClick = { editingBirthday = bday }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit Birthday", tint = BrandCyan)
+                                }
+
+                                Spacer(modifier = Modifier.width(4.dp))
 
                                 IconButton(onClick = { viewModel.deleteBirthday(bday.id) }) {
                                     Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose)
@@ -1710,6 +1718,187 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 }
             }
         }
+    }
+
+    if (editingBirthday != null) {
+        val bday = editingBirthday!!
+        var editName by remember(bday) { mutableStateOf(bday.name) }
+        val parts = remember(bday) { bday.date.split("-") }
+        var editIsYearSelected by remember(bday) { mutableStateOf(parts.size == 3) }
+        var editDateText by remember(bday) {
+            mutableStateOf(
+                if (parts.size == 3) "${parts[2]}/${parts[1]}/${parts[0]}"
+                else if (parts.size == 2) "${parts[1]}/${parts[0]}"
+                else bday.date
+            )
+        }
+        var editGiftIdea by remember(bday) { mutableStateOf(bday.giftIdea ?: "") }
+        var editCategory by remember(bday) { mutableStateOf(bday.category) }
+        var editShowError by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { editingBirthday = null },
+            title = {
+                Text(
+                    text = "EDIT BIRTHDAY",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandCyan
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Name *") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "CHOOSE DATE FORMAT",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(false to "DD/MM (No Year)", true to "DD/MM/YYYY (With Year)").forEach { (hasYearOption, labelText) ->
+                                val isSel = editIsYearSelected == hasYearOption
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSel) BrandCyan else Color.Transparent)
+                                        .clickable { 
+                                            editIsYearSelected = hasYearOption
+                                            editShowError = false
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = labelText,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = editDateText,
+                        onValueChange = { 
+                            editDateText = it
+                            editShowError = false
+                        },
+                        label = { Text(if (editIsYearSelected) "Date (DD/MM/YYYY) *" else "Date (DD/MM) *") },
+                        placeholder = { Text(if (editIsYearSelected) "15/10/1995" else "15/10") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editGiftIdea,
+                        onValueChange = { editGiftIdea = it },
+                        label = { Text("Gift Idea") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "SEGREGATION CATEGORY",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("Friend", "Family", "Relative", "Others").forEach { cat ->
+                                val isSel = editCategory == cat
+                                val catColor = when (cat) {
+                                    "Friend" -> BrandCyan
+                                    "Family" -> BrandRose
+                                    "Relative" -> BrandViolet
+                                    else -> BrandAmber
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSel) catColor.copy(alpha = 0.15f) else Color.Transparent)
+                                        .border(1.dp, if (isSel) catColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                        .clickable { editCategory = cat }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = cat,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isSel) catColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (editShowError) {
+                        Text(
+                            text = if (editIsYearSelected) "Please enter a valid date in DD/MM/YYYY format" 
+                                   else "Please enter a valid date in DD/MM format",
+                            color = BrandRose,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val parsed = parseInputDate(editDateText, editIsYearSelected)
+                        if (editName.isNotBlank() && parsed != null) {
+                            viewModel.updateBirthday(
+                                bday.copy(
+                                    name = editName.trim(),
+                                    date = parsed,
+                                    giftIdea = if (editGiftIdea.isBlank()) null else editGiftIdea.trim(),
+                                    category = editCategory
+                                )
+                            )
+                            editingBirthday = null
+                        } else {
+                            editShowError = true
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingBirthday = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        )
     }
 }
 

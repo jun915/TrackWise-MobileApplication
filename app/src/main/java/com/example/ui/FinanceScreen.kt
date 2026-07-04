@@ -48,19 +48,25 @@ fun FinanceScreen(
         viewModel.populateDefaultNetWorthItemsIfEmpty()
     }
 
-    // Filtered Logs
-    val dayLogs = remember(financeLogs, selectedDateStr) {
-        financeLogs.filter { it.date == selectedDateStr }
+    val currentMonthStr = remember(selectedDateStr) {
+        if (selectedDateStr.length >= 7) selectedDateStr.substring(0, 7) else "2026-07"
     }
 
-    val totalIncome = remember(dayLogs) {
-        dayLogs.filter { it.type == "income" }.sumOf { it.amount }
+    // Filtered Logs - Monthly Entries Log
+    val monthLogs = remember(financeLogs, currentMonthStr) {
+        financeLogs.filter { it.date.startsWith(currentMonthStr) }.sortedByDescending { it.date }
     }
-    val totalExpense = remember(dayLogs) {
-        dayLogs.filter { it.type == "expense" }.sumOf { it.amount }
+
+    val totalIncome = remember(monthLogs) {
+        monthLogs.filter { it.type == "income" }.sumOf { it.amount }
     }
-    val totalSavings = remember(dayLogs) {
-        dayLogs.filter { it.type == "savings" }.sumOf { it.amount }
+    val totalExpense = remember(monthLogs) {
+        monthLogs.filter {
+            it.type == "expense" && (it.spendSource == null || it.spendSource == "Cash / Current Income" || it.spendSource == "Cash / Cash / Current Income" || it.spendSource == "")
+        }.sumOf { it.amount }
+    }
+    val totalSavings = remember(monthLogs) {
+        monthLogs.filter { it.type == "savings" }.sumOf { it.amount }
     }
 
     // Equation Check: income = expense + savings
@@ -73,18 +79,21 @@ fun FinanceScreen(
 
     // Overall Balance and Daily Target States
     val overallIncome = remember(financeLogs) { financeLogs.filter { it.type == "income" }.sumOf { it.amount } }
-    val overallExpense = remember(financeLogs) { financeLogs.filter { it.type == "expense" }.sumOf { it.amount } }
+    val overallExpense = remember(financeLogs) {
+        financeLogs.filter {
+            it.type == "expense" && (it.spendSource == null || it.spendSource == "Cash / Current Income" || it.spendSource == "Cash / Cash / Current Income" || it.spendSource == "")
+        }.sumOf { it.amount }
+    }
     val overallSavings = remember(financeLogs) { financeLogs.filter { it.type == "savings" }.sumOf { it.amount } }
     val overallBalance = overallIncome - (overallExpense + overallSavings)
 
     val userProfile by viewModel.userProfile.collectAsState()
     val monthlyTarget = userProfile?.financeDailyTarget ?: 30000.0
 
-    val currentMonthStr = remember(selectedDateStr) {
-        if (selectedDateStr.length >= 7) selectedDateStr.substring(0, 7) else "2026-07"
-    }
     val monthlyExpenses = remember(financeLogs, currentMonthStr) {
-        financeLogs.filter { it.date.startsWith(currentMonthStr) && it.type == "expense" }.sumOf { it.amount }
+        financeLogs.filter {
+            it.date.startsWith(currentMonthStr) && it.type == "expense" && (it.spendSource == null || it.spendSource == "Cash / Current Income" || it.spendSource == "Cash / Cash / Current Income" || it.spendSource == "")
+        }.sumOf { it.amount }
     }
     val remainingBalance = remember(monthlyTarget, monthlyExpenses) {
         monthlyTarget - monthlyExpenses
@@ -104,6 +113,10 @@ fun FinanceScreen(
     var currentMainTab by remember { mutableStateOf("Monthly Budget") } // "Monthly Budget" or "Net Worth"
     var selectedTab by remember { mutableStateOf("expense") } // "income", "expense", "savings"
     var transactionDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+
+    val filteredMonthLogs = remember(monthLogs, selectedTab) {
+        monthLogs.filter { it.type == selectedTab }
+    }
 
     // Income Inputs
     var incomeAmount by remember { mutableStateOf("") }
@@ -174,7 +187,15 @@ fun FinanceScreen(
         }
     }
 
+    val financeListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(financeListState.isScrollInProgress) {
+        if (financeListState.isScrollInProgress) {
+            focusManager.clearFocus()
+        }
+    }
+
     LazyColumn(
+        state = financeListState,
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
@@ -249,6 +270,13 @@ fun FinanceScreen(
             // --- Monthly Budget Target Panel ---
             item {
                 var showEditTargetDialog by remember { mutableStateOf(false) }
+                val monthlyIncome = remember(financeLogs, currentMonthStr) {
+                    financeLogs.filter { it.date.startsWith(currentMonthStr) && it.type == "income" }.sumOf { it.amount }
+                }
+                val monthlySavings = remember(financeLogs, currentMonthStr) {
+                    financeLogs.filter { it.date.startsWith(currentMonthStr) && it.type == "savings" }.sumOf { it.amount }
+                }
+                val monthlyRemainingBalance = monthlyIncome - (monthlyExpenses + monthlySavings)
 
                 Card(
                     colors = CardDefaults.cardColors(
@@ -260,45 +288,116 @@ fun FinanceScreen(
                         .clickable { showEditTargetDialog = true }
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(BrandRose.copy(alpha = 0.12f), CircleShape),
-                                contentAlignment = Alignment.Center
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.TrendingDown, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
-                            }
-                            Column {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(BrandViolet.copy(alpha = 0.12f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(18.dp))
+                                }
                                 Text(
                                     text = "Monthly Limit: ₹${String.format("%.0f", monthlyTarget)}",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
-                                Text(
-                                    text = "Month Spent: ₹${String.format("%.1f", monthlyExpenses)}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (monthlyExpenses > monthlyTarget) BrandRose else BrandGreen
-                                )
-                                Text(
-                                    text = "Remaining Balance: ₹${String.format("%.1f", remainingBalance)}",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (remainingBalance >= 0) BrandGreen else BrandRose
-                                )
+                            }
+                            IconButton(
+                                onClick = { showEditTargetDialog = true },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit Monthly Target Limit", tint = BrandRose, modifier = Modifier.size(18.dp))
                             }
                         }
-                        IconButton(onClick = { showEditTargetDialog = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Monthly Target Limit", tint = BrandRose)
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Budget Bar
+                        val progress = if (monthlyTarget > 0) (monthlyExpenses / monthlyTarget).toFloat().coerceIn(0f, 1f) else 0f
+                        val barColor = if (monthlyExpenses > monthlyTarget) BrandRose else BrandGreen
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = barColor,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Budget Spent: ${String.format("%.0f", progress * 100)}%",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                            )
+                            Text(
+                                text = "Remaining Budget: ₹${String.format("%.1f", remainingBalance)}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (remainingBalance >= 0) BrandGreen else BrandRose
+                            )
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 12.dp),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        )
+
+                        // 4 metrics grid: Monthly Income, Monthly Expenses, Monthly Savings, Remaining Balance
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("TOTAL INCOME", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("₹${String.format("%.1f", monthlyIncome)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("TOTAL EXPENSES", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("₹${String.format("%.1f", monthlyExpenses)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("TOTAL SAVINGS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("₹${String.format("%.1f", monthlySavings)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("NET BALANCE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "₹${String.format("%.1f", monthlyRemainingBalance)}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (monthlyRemainingBalance >= 0) BrandGreen else BrandRose
+                                )
+                            }
                         }
                     }
                 }
@@ -806,7 +905,7 @@ fun FinanceScreen(
                 }
             }
 
-            // --- Daily Logs History ---
+            // --- Monthly Logs History ---
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -814,7 +913,7 @@ fun FinanceScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "DAILY ENTRIES LOGS",
+                        text = "MONTHLY ENTRIES LOGS",
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
@@ -839,7 +938,7 @@ fun FinanceScreen(
                 }
             }
 
-            if (dayLogs.isEmpty()) {
+            if (filteredMonthLogs.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -851,7 +950,7 @@ fun FinanceScreen(
                             Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), modifier = Modifier.size(48.dp))
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "No daily entries recorded for this date",
+                                text = "No transactions recorded for this category this month",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                                 fontWeight = FontWeight.Medium
@@ -860,7 +959,7 @@ fun FinanceScreen(
                     }
                 }
             } else {
-                items(dayLogs, key = { it.id }) { log ->
+                items(filteredMonthLogs, key = { it.id }) { log ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)),
                         shape = RoundedCornerShape(16.dp),
@@ -875,7 +974,11 @@ fun FinanceScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 val itemTint = when (log.type) {
                                     "income" -> BrandViolet
                                     "expense" -> BrandRose
@@ -897,12 +1000,23 @@ fun FinanceScreen(
                                 }
 
                                 Column {
-                                    Text(
-                                        text = log.title,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = log.title,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onBackground
+                                        )
+                                        Text(
+                                            text = "(${log.date})",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                        )
+                                    }
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -946,7 +1060,7 @@ fun FinanceScreen(
                                 )
 
                                 IconButton(onClick = { viewModel.deleteFinanceLog(log.id) }, modifier = Modifier.size(24.dp)) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete Daily Log", tint = BrandRose, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete Log", tint = BrandRose, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -1078,6 +1192,7 @@ fun FinanceScreen(
                 var itemName by remember { mutableStateOf("") }
                 var itemAmount by remember { mutableStateOf("") }
                 var itemType by remember { mutableStateOf("asset") }
+                var showSavingsDropdownInAddNw by remember { mutableStateOf(false) }
 
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1108,6 +1223,48 @@ fun FinanceScreen(
                         }
 
                         if (showAddForm) {
+                            // Dropdown with savings options
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = if (itemName in savingsCategories) itemName else "Custom Name",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Savings Option (Select to Auto-Fill Name)") },
+                                    trailingIcon = {
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandViolet)
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .clickable { showSavingsDropdownInAddNw = !showSavingsDropdownInAddNw }
+                                )
+                                DropdownMenu(
+                                    expanded = showSavingsDropdownInAddNw,
+                                    onDismissRequest = { showSavingsDropdownInAddNw = false },
+                                    modifier = Modifier.fillMaxWidth(0.9f)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Custom/None (Type name below)", fontSize = 13.sp) },
+                                        onClick = {
+                                            showSavingsDropdownInAddNw = false
+                                        }
+                                    )
+                                    savingsCategories.forEach { category ->
+                                        DropdownMenuItem(
+                                            text = { Text(category, fontSize = 13.sp) },
+                                            onClick = {
+                                                itemName = category
+                                                itemType = "asset" // Set to asset automatically
+                                                showSavingsDropdownInAddNw = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
                             OutlinedTextField(
                                 value = itemName,
                                 onValueChange = { itemName = it },

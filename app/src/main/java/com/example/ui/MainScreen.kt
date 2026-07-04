@@ -1372,7 +1372,6 @@ fun LeftDrawerPane(
                     // --- Sounds Configurations with Dropdowns ---
                     item {
                         var taskSoundExpanded by remember { mutableStateOf(false) }
-                        var alarmSoundExpanded by remember { mutableStateOf(false) }
 
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("SOUNDS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
@@ -1409,45 +1408,6 @@ fun LeftDrawerPane(
                                                 onClick = {
                                                     viewModel.setTaskSound(snd)
                                                     taskSoundExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Alarm Sound Dropdown
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Alarm Alert Melody", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                Box {
-                                    Card(
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { alarmSoundExpanded = true }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(text = "🔔 $alarmSound", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Alarm Sound")
-                                        }
-                                    }
-                                    DropdownMenu(
-                                        expanded = alarmSoundExpanded,
-                                        onDismissRequest = { alarmSoundExpanded = false }
-                                    ) {
-                                        listOf("Reflection", "Marimba", "Over the Horizon", "The Big Adventure").forEach { snd ->
-                                            DropdownMenuItem(
-                                                text = { Text(snd, fontSize = 12.sp) },
-                                                onClick = {
-                                                    viewModel.setAlarmSound(snd)
-                                                    alarmSoundExpanded = false
                                                 }
                                             )
                                         }

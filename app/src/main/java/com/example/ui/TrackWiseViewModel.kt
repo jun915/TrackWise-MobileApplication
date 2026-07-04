@@ -791,6 +791,13 @@ class TrackWiseViewModel(
         }
     }
 
+    fun updateBirthday(birthday: BirthdayEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertBirthday(birthday)
+            triggerFakeSync()
+        }
+    }
+
     // --- Wishlist Actions ---
     fun addWishItem(title: String, price: Double, link: String?, priority: String) {
         val user = _sessionUser.value ?: return
@@ -1021,22 +1028,24 @@ class TrackWiseViewModel(
                 }
             }
 
-            // If it's an expense log, deduct from that asset!
+            // If it's an expense log, deduct from that asset if it's not Cash/Current Income!
             if (type == "expense") {
                 val source = spendSource ?: "Cash / Current Income"
-                val existing = repository.getNetWorthItemByName(user.id, source)
-                if (existing != null) {
-                    repository.insertNetWorthItem(existing.copy(amount = existing.amount - amount))
-                } else {
-                    repository.insertNetWorthItem(
-                        NetWorthItemEntity(
-                            id = "nw-${System.currentTimeMillis()}-${(1000..9999).random()}",
-                            userId = user.id,
-                            name = source,
-                            type = "asset",
-                            amount = -amount
+                if (source != "Cash / Cash / Current Income" && source != "Cash / Current Income" && source.isNotBlank()) {
+                    val existing = repository.getNetWorthItemByName(user.id, source)
+                    if (existing != null) {
+                        repository.insertNetWorthItem(existing.copy(amount = existing.amount - amount))
+                    } else {
+                        repository.insertNetWorthItem(
+                            NetWorthItemEntity(
+                                id = "nw-${System.currentTimeMillis()}-${(1000..9999).random()}",
+                                userId = user.id,
+                                name = source,
+                                type = "asset",
+                                amount = -amount
+                            )
                         )
-                    )
+                    }
                 }
             }
 
@@ -1058,9 +1067,11 @@ class TrackWiseViewModel(
                     }
                 } else if (log.type == "expense") {
                     val source = log.spendSource ?: "Cash / Current Income"
-                    val existing = repository.getNetWorthItemByName(user.id, source)
-                    if (existing != null) {
-                        repository.insertNetWorthItem(existing.copy(amount = existing.amount + log.amount))
+                    if (source != "Cash / Cash / Current Income" && source != "Cash / Current Income" && source.isNotBlank()) {
+                        val existing = repository.getNetWorthItemByName(user.id, source)
+                        if (existing != null) {
+                            repository.insertNetWorthItem(existing.copy(amount = existing.amount + log.amount))
+                        }
                     }
                 }
                 repository.deleteFinanceLog(id)
@@ -1083,14 +1094,21 @@ class TrackWiseViewModel(
     fun addNetWorthItem(name: String, type: String, amount: Double) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val item = NetWorthItemEntity(
-                id = "nw-${System.currentTimeMillis()}-${(1000..9999).random()}",
-                userId = user.id,
-                name = name.trim(),
-                type = type.lowercase(),
-                amount = amount
-            )
-            repository.insertNetWorthItem(item)
+            val trimmedName = name.trim()
+            val existing = repository.getNetWorthItemByName(user.id, trimmedName)
+            if (existing != null) {
+                val updated = existing.copy(amount = existing.amount + amount)
+                repository.insertNetWorthItem(updated)
+            } else {
+                val item = NetWorthItemEntity(
+                    id = "nw-${System.currentTimeMillis()}-${(1000..9999).random()}",
+                    userId = user.id,
+                    name = trimmedName,
+                    type = type.lowercase(),
+                    amount = amount
+                )
+                repository.insertNetWorthItem(item)
+            }
             triggerFakeSync()
         }
     }
