@@ -222,4 +222,98 @@ interface TrackWiseDao {
 
     @Query("DELETE FROM finance_logs WHERE id = :id")
     suspend fun deleteFinanceLogById(id: String)
+
+    @Query("SELECT * FROM finance_logs WHERE id = :id LIMIT 1")
+    suspend fun getFinanceLogById(id: String): FinanceLogEntity?
+
+    @Transaction
+    suspend fun clearUserData(userId: String) {
+        clearTasksForUser(userId)
+        clearHabitsForUser(userId)
+        clearBirthdaysForUser(userId)
+        clearWishItemsForUser(userId)
+        clearStreakHistoryForUser(userId)
+        clearWeightEntriesForUser(userId)
+        clearVitalReadingsForUser(userId)
+        clearWaterLogsForUser(userId)
+        clearExerciseLogsForUser(userId)
+        clearHealthIssueLogsForUser(userId)
+        clearFriendConnectionsForUser(userId)
+        clearAlarmsForUser(userId)
+        clearSleepLogsForUser(userId)
+        clearGroceryItemsForUser(userId)
+        clearTabletRemindersForUser(userId)
+        clearPeriodCyclesForUser(userId)
+        clearFinanceLogsForUser(userId)
+    }
+
+    @Query("DELETE FROM tasks WHERE userId = :userId")
+    suspend fun clearTasksForUser(userId: String)
+
+    @Query("DELETE FROM habits WHERE userId = :userId")
+    suspend fun clearHabitsForUser(userId: String)
+
+    @Query("DELETE FROM birthdays WHERE userId = :userId")
+    suspend fun clearBirthdaysForUser(userId: String)
+
+    @Query("DELETE FROM wishlist WHERE userId = :userId")
+    suspend fun clearWishItemsForUser(userId: String)
+
+    @Query("DELETE FROM streak_history WHERE userId = :userId")
+    suspend fun clearStreakHistoryForUser(userId: String)
+
+    @Query("DELETE FROM weight_entries WHERE userId = :userId")
+    suspend fun clearWeightEntriesForUser(userId: String)
+
+    @Query("DELETE FROM vital_readings WHERE userId = :userId")
+    suspend fun clearVitalReadingsForUser(userId: String)
+
+    @Query("DELETE FROM water_logs WHERE userId = :userId")
+    suspend fun clearWaterLogsForUser(userId: String)
+
+    @Query("DELETE FROM exercise_logs WHERE userId = :userId")
+    suspend fun clearExerciseLogsForUser(userId: String)
+
+    @Query("DELETE FROM health_issue_logs WHERE userId = :userId")
+    suspend fun clearHealthIssueLogsForUser(userId: String)
+
+    @Query("DELETE FROM friend_connections WHERE userId = :userId")
+    suspend fun clearFriendConnectionsForUser(userId: String)
+
+    @Query("DELETE FROM alarms WHERE userId = :userId")
+    suspend fun clearAlarmsForUser(userId: String)
+
+    @Query("DELETE FROM sleep_logs WHERE userId = :userId")
+    suspend fun clearSleepLogsForUser(userId: String)
+
+    @Query("DELETE FROM grocery_items WHERE userId = :userId")
+    suspend fun clearGroceryItemsForUser(userId: String)
+
+    @Query("DELETE FROM tablet_reminders WHERE userId = :userId")
+    suspend fun clearTabletRemindersForUser(userId: String)
+
+    @Query("DELETE FROM period_cycles WHERE userId = :userId")
+    suspend fun clearPeriodCyclesForUser(userId: String)
+
+    @Query("DELETE FROM finance_logs WHERE userId = :userId")
+    suspend fun clearFinanceLogsForUser(userId: String)
+
+    // --- Net Worth Items ---
+    @Query("SELECT * FROM net_worth_items WHERE userId = :userId")
+    fun getNetWorthItemsFlow(userId: String): kotlinx.coroutines.flow.Flow<List<NetWorthItemEntity>>
+
+    @Query("SELECT * FROM net_worth_items WHERE userId = :userId")
+    suspend fun getNetWorthItems(userId: String): List<NetWorthItemEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNetWorthItem(item: NetWorthItemEntity)
+
+    @Query("DELETE FROM net_worth_items WHERE id = :id")
+    suspend fun deleteNetWorthItemById(id: String)
+
+    @Query("UPDATE net_worth_items SET amount = amount + :delta WHERE name = :name AND userId = :userId")
+    suspend fun updateNetWorthItemAmount(userId: String, name: String, delta: Double)
+
+    @Query("SELECT * FROM net_worth_items WHERE name = :name AND userId = :userId LIMIT 1")
+    suspend fun getNetWorthItemByName(userId: String, name: String): NetWorthItemEntity?
 }

@@ -10,8 +10,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import java.text.SimpleDateFormat
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -114,9 +116,14 @@ fun HealthScreen(
 
         // --- BMI Tracker & Water Logs (First row of visual analytics) ---
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BMICard(bmi = bmi, weight = weight, height = height, modifier = Modifier.weight(1f))
-                WaterTrackerCard(viewModel = viewModel, logs = waterLogs, modifier = Modifier.weight(1.2f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                BMICard(bmi = bmi, weight = weight, height = height, modifier = Modifier.weight(1f).fillMaxHeight())
+                WaterTrackerCard(viewModel = viewModel, logs = waterLogs, modifier = Modifier.weight(1f).fillMaxHeight())
             }
         }
 
@@ -451,6 +458,27 @@ fun HealthTipsPanel(tips: List<HealthTip>) {
 fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEntity>) {
     var weightInput by remember { mutableStateOf("") }
     var notesInput by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+
+    val context = LocalContext.current
+    val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
+    val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
+    val datePickerDialog = remember(calendar) {
+        android.app.DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, selectedDay)
+                }
+                selectedDate = TrackWiseUtils.formatDate(selectedCal.time, "yyyy-MM-dd")
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -481,11 +509,30 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
                 )
             }
 
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = selectedDate,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Log Date") },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandPink, modifier = Modifier.size(16.dp)) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { datePickerDialog.show() }
+                    )
+                }
+            }
+
             Button(
                 onClick = {
                     val w = weightInput.toDoubleOrNull()
                     if (w != null) {
-                        viewModel.logWeight(w, if (notesInput.isBlank()) null else notesInput)
+                        viewModel.logWeight(w, if (notesInput.isBlank()) null else notesInput, selectedDate)
                         weightInput = ""
                         notesInput = ""
                     }
@@ -521,8 +568,68 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
 @Composable
 fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingEntity>) {
     var vitalType by remember { mutableStateOf("blood_sugar") } // "blood_sugar", "blood_pressure"
-    var valueInput by remember { mutableStateOf("") }
+    
+    // Single sugar input box separated by /
+    var sugarInput by remember { mutableStateOf("") }
+    
+    // BP input
+    var bpInput by remember { mutableStateOf("") }
+    
+    // Condition/Meal context dropdown
     var contextInput by remember { mutableStateOf("fasting") } // "fasting", "post_meal", "random"
+    var contextExpanded by remember { mutableStateOf(false) }
+
+    // Date & Time pickers
+    var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var selectedTime by remember { mutableStateOf(SimpleDateFormat("hh:mm a", Locale.US).format(Date())) }
+
+    val context = LocalContext.current
+    
+    // DatePickerDialog setup
+    val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
+    val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
+    val datePickerDialog = remember(calendar) {
+        android.app.DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, selectedDay)
+                }
+                selectedDate = TrackWiseUtils.formatDate(selectedCal.time, "yyyy-MM-dd")
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    // TimePickerDialog setup
+    val timePickerDialog = remember(context, selectedTime) {
+        val cal = Calendar.getInstance()
+        try {
+            val sdf = SimpleDateFormat("hh:mm a", Locale.US)
+            cal.time = sdf.parse(selectedTime) ?: Date()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        val h = cal.get(Calendar.HOUR_OF_DAY)
+        val m = cal.get(Calendar.MINUTE)
+        android.app.TimePickerDialog(
+            context,
+            { _, hour, minute ->
+                val newCal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, hour)
+                    set(Calendar.MINUTE, minute)
+                }
+                selectedTime = SimpleDateFormat("hh:mm a", Locale.US).format(newCal.time)
+            },
+            h,
+            m,
+            false
+        )
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -563,36 +670,126 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                 }
             }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Single input box for Sugar (mg/dL) OR standard BP box
+            if (vitalType == "blood_sugar") {
                 OutlinedTextField(
-                    value = valueInput,
-                    onValueChange = { valueInput = it },
-                    label = { Text(if (vitalType == "blood_sugar") "Value (mg/dL)" else "BP (e.g. 120/80)") },
+                    value = sugarInput,
+                    onValueChange = { sugarInput = it },
+                    label = { Text("Blood Sugar (e.g. 120/1)") },
+                    placeholder = { Text("mg/dL") },
                     singleLine = true,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                if (vitalType == "blood_sugar") {
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // Dropdown for fasting, post_meal, random
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = contextInput,
-                        onValueChange = { contextInput = it },
-                        label = { Text("Context (fasting, post_meal)") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        value = if (contextInput == "fasting") "Fasting" else if (contextInput == "post_meal") "Post Meal" else "Random",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Condition / Meal State") },
+                        trailingIcon = {
+                            IconButton(onClick = { contextExpanded = !contextExpanded }) {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { contextExpanded = !contextExpanded }
+                    )
+                    DropdownMenu(
+                        expanded = contextExpanded,
+                        onDismissRequest = { contextExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Fasting") },
+                            onClick = {
+                                contextInput = "fasting"
+                                contextExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Post Meal") },
+                            onClick = {
+                                contextInput = "post_meal"
+                                contextExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Random") },
+                            onClick = {
+                                contextInput = "random"
+                                contextExpanded = false
+                            }
+                        )
+                    }
+                }
+            } else {
+                OutlinedTextField(
+                    value = bpInput,
+                    onValueChange = { bpInput = it },
+                    label = { Text("BP (e.g. 120/80)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // Date and Time selectors (equal sizes)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = selectedDate,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Log Date") },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(16.dp)) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { datePickerDialog.show() }
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = selectedTime,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Log Time") },
+                        leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(16.dp)) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { timePickerDialog.show() }
                     )
                 }
             }
 
             Button(
                 onClick = {
-                    if (valueInput.isNotBlank()) {
+                    val finalValue = if (vitalType == "blood_sugar") {
+                        sugarInput
+                    } else {
+                        bpInput
+                    }
+                    if (finalValue.isNotBlank()) {
                         viewModel.logVital(
                             type = vitalType,
-                            value = valueInput,
+                            value = finalValue,
                             context = if (vitalType == "blood_sugar") contextInput else "resting",
-                            notes = null
+                            notes = null,
+                            date = selectedDate,
+                            time = selectedTime
                         )
-                        valueInput = ""
+                        sugarInput = ""
+                        bpInput = ""
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
@@ -612,7 +809,8 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${read.date} · ${read.value} (${read.context?.uppercase()})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val displayValue = if (read.type == "blood_sugar") "${read.value} mg/dL" else read.value
+                        Text("${read.date} ${read.time} · $displayValue (${read.context?.uppercase()})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         IconButton(onClick = { viewModel.deleteVitalReading(read.id) }, modifier = Modifier.size(24.dp)) {
                             Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose, modifier = Modifier.size(14.dp))
                         }
@@ -626,10 +824,33 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
 // --- Exercise Log (Section 10.7) ---
 @Composable
 fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEntity>) {
-    var typeInput by remember { mutableStateOf("Walking") }
+    var selectedType by remember { mutableStateOf("Walking") }
+    var customTypeInput by remember { mutableStateOf("") }
     var durationInput by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var dropdownExpanded by remember { mutableStateOf(false) }
 
-    val exerciseTypes = listOf("Walking", "Running", "Gym/Weights", "Yoga", "Cycling")
+    val exerciseOptions = listOf("Walking", "Running", "Gym/Weights", "Yoga", "Cycling", "Others")
+
+    val context = LocalContext.current
+    val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
+    val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
+    val datePickerDialog = remember(calendar) {
+        android.app.DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, selectedDay)
+                }
+                selectedDate = TrackWiseUtils.formatDate(selectedCal.time, "yyyy-MM-dd")
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -642,30 +863,91 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
             Text("LOG EXERCISE ACTIVITY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = typeInput,
-                    onValueChange = { typeInput = it },
-                    label = { Text("Exercise Type") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1.5f)
-                )
+                // Exercise selector dropdown (weight 1f)
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = selectedType,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Exercise") },
+                        trailingIcon = {
+                            IconButton(onClick = { dropdownExpanded = !dropdownExpanded }) {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { dropdownExpanded = !dropdownExpanded }
+                    )
+                    DropdownMenu(
+                        expanded = dropdownExpanded,
+                        onDismissRequest = { dropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.45f)
+                    ) {
+                        exerciseOptions.forEach { opt ->
+                            DropdownMenuItem(
+                                text = { Text(opt) },
+                                onClick = {
+                                    selectedType = opt
+                                    dropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
 
+                // Duration input box (weight 1f)
                 OutlinedTextField(
                     value = durationInput,
                     onValueChange = { durationInput = it },
                     label = { Text("Duration (mins)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            // If "Others" is selected, show an additional field to enter custom exercise name
+            if (selectedType == "Others") {
+                OutlinedTextField(
+                    value = customTypeInput,
+                    onValueChange = { customTypeInput = it },
+                    label = { Text("Enter Custom Exercise Name") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // Date picker box
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = selectedDate,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Log Date") },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(16.dp)) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { datePickerDialog.show() }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
             }
 
             Button(
                 onClick = {
                     val d = durationInput.toIntOrNull() ?: 0
-                    if (typeInput.isNotBlank()) {
-                        viewModel.logExercise(typeInput, d, true, null)
+                    val finalType = if (selectedType == "Others") customTypeInput else selectedType
+                    if (finalType.isNotBlank()) {
+                        viewModel.logExercise(finalType, d, true, null, selectedDate)
                         durationInput = ""
+                        customTypeInput = ""
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
@@ -699,6 +981,27 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
 fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEntity>) {
     var issueName by remember { mutableStateOf("") }
     var severity by remember { mutableStateOf("mild") } // "mild", "moderate", "severe"
+    var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+
+    val context = LocalContext.current
+    val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
+    val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
+    val datePickerDialog = remember(calendar) {
+        android.app.DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, selectedDay)
+                }
+                selectedDate = TrackWiseUtils.formatDate(selectedCal.time, "yyyy-MM-dd")
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -734,6 +1037,27 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
                 }
             }
 
+            // Date picker box
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = selectedDate,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Log Date") },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandRose, modifier = Modifier.size(16.dp)) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { datePickerDialog.show() }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
             Button(
                 onClick = {
                     if (issueName.isNotBlank()) {
@@ -741,7 +1065,8 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
                             issueId = "issue-${System.currentTimeMillis()}",
                             issueName = issueName,
                             severity = severity,
-                            notes = null
+                            notes = null,
+                            date = selectedDate
                         )
                         issueName = ""
                     }
@@ -780,6 +1105,27 @@ fun SleepLogSection(
     var sleepStart by remember { mutableStateOf("22:30") }
     var sleepEnd by remember { mutableStateOf("06:30") }
     var notes by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+
+    val context = LocalContext.current
+    val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
+    val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
+    val datePickerDialog = remember(calendar) {
+        android.app.DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, selectedDay)
+                }
+                selectedDate = TrackWiseUtils.formatDate(selectedCal.time, "yyyy-MM-dd")
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
 
     val calculatedHours = calculateHoursDifference(sleepStart, sleepEnd)
 
@@ -828,6 +1174,26 @@ fun SleepLogSection(
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = selectedDate,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Sleep Date") },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(16.dp)) },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { datePickerDialog.show() }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CompactTextField(
                     value = sleepStart,
                     onValueChange = { sleepStart = it },
@@ -859,7 +1225,8 @@ fun SleepLogSection(
                         hoursSlept = calculatedHours,
                         startTime = sleepStart,
                         endTime = sleepEnd,
-                        notes = notes.ifBlank { "Logged sleep" }
+                        notes = notes.ifBlank { "Logged sleep" },
+                        date = selectedDate
                     )
                     notes = ""
                 },
@@ -1057,10 +1424,11 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text("Tablet Taker Tracker 💊", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    Text("Add and track your medication times & analytics.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Text("Track your medications.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 }
+                Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = { showForm = !showForm },
                     colors = ButtonDefaults.buttonColors(
@@ -1312,22 +1680,28 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                                         val dayName = SimpleDateFormat("E", Locale.getDefault()).format(cal.time).take(1) // M, T, W...
                                         val wasTaken = takenDatesList.contains(dateStr)
 
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.clickable { viewModel.toggleTabletTaken(reminder, dateStr) }
+                                        ) {
                                             Text(dayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                                             Box(
                                                 modifier = Modifier
-                                                    .size(18.dp)
+                                                    .size(24.dp)
                                                     .clip(CircleShape)
-                                                    .background(if (wasTaken) BrandGreen else MaterialTheme.colorScheme.surface)
+                                                    .background(if (wasTaken) BrandGreen else MaterialTheme.colorScheme.surfaceVariant)
                                                     .border(
                                                         1.dp,
-                                                        if (wasTaken) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                        if (wasTaken) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                                                         CircleShape
                                                     ),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 if (wasTaken) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                                } else {
+                                                    Text(dayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                                                 }
                                             }
                                         }
@@ -1352,6 +1726,7 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
     var durationDays by remember { mutableStateOf("5") }
     var cycleLengthDays by remember { mutableStateOf("28") }
     var notes by remember { mutableStateOf("") }
+    var editingCycleId by remember { mutableStateOf<String?>(null) }
 
     val selectedSymptoms = remember { mutableStateListOf<String>() }
 
@@ -1373,7 +1748,7 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
             ) {
                 Column {
                     Text("Period Cycle Tracker 🌸", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    Text("Secure client-side cycle prediction & health analytics.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Text("Secure client predictions.", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
                 Button(
                     onClick = { showForm = !showForm },
@@ -1561,18 +1936,32 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
                             val dur = durationDays.toIntOrNull() ?: 5
                             val cycl = cycleLengthDays.toIntOrNull() ?: 28
                             if (startDate.isNotBlank()) {
-                                viewModel.addPeriodCycle(
-                                    startDate = startDate.trim(),
-                                    durationDays = dur,
-                                    cycleLengthDays = cycl,
-                                    symptoms = selectedSymptoms.joinToString(","),
-                                    notes = if (notes.isBlank()) null else notes.trim()
-                                )
+                                val sym = selectedSymptoms.joinToString(",")
+                                val nt = if (notes.isBlank()) null else notes.trim()
+                                if (editingCycleId != null) {
+                                    viewModel.updatePeriodCycle(
+                                        oldId = editingCycleId!!,
+                                        startDate = startDate.trim(),
+                                        durationDays = dur,
+                                        cycleLengthDays = cycl,
+                                        symptoms = sym,
+                                        notes = nt
+                                    )
+                                } else {
+                                    viewModel.addPeriodCycle(
+                                        startDate = startDate.trim(),
+                                        durationDays = dur,
+                                        cycleLengthDays = cycl,
+                                        symptoms = sym,
+                                        notes = nt
+                                    )
+                                }
                                 startDate = today
                                 durationDays = "5"
                                 cycleLengthDays = "28"
                                 selectedSymptoms.clear()
                                 notes = ""
+                                editingCycleId = null
                                 showForm = false
                             }
                         },
@@ -1580,7 +1969,7 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Log Cycle", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(if (editingCycleId != null) "Update Cycle Entry" else "Log Cycle", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }
@@ -1679,6 +2068,23 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
                                         modifier = Modifier.padding(top = 2.dp)
                                     )
                                 }
+                            }
+                            IconButton(
+                                onClick = {
+                                    editingCycleId = cycle.id
+                                    startDate = cycle.startDate
+                                    durationDays = cycle.durationDays.toString()
+                                    cycleLengthDays = cycle.cycleLengthDays.toString()
+                                    notes = cycle.notes ?: ""
+                                    selectedSymptoms.clear()
+                                    if (cycle.symptoms.isNotBlank()) {
+                                        selectedSymptoms.addAll(cycle.symptoms.split(","))
+                                    }
+                                    showForm = true
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit cycle", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                             }
                             IconButton(onClick = { viewModel.deletePeriodCycle(cycle.id) }, modifier = Modifier.size(28.dp)) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete cycle", tint = BrandRose, modifier = Modifier.size(16.dp))

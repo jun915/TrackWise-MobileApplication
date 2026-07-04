@@ -43,6 +43,9 @@ fun CalendarScreen(
     var activeView by remember { mutableStateOf("month") } // "day", "week", "month"
     var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
 
+    val todayDateStr = TrackWiseUtils.formatDate(Calendar.getInstance().time, "yyyy-MM-dd")
+    var selectedDateStr by remember { mutableStateOf(todayDateStr) }
+
     val todayStr = TrackWiseUtils.formatDate(currentDate.time, "yyyy-MM-dd")
     val focusManager = LocalFocusManager.current
 
@@ -115,7 +118,10 @@ fun CalendarScreen(
             ) {
                 // Today trigger
                 Button(
-                    onClick = { currentDate = Calendar.getInstance() },
+                    onClick = {
+                        currentDate = Calendar.getInstance()
+                        selectedDateStr = todayDateStr
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
                     shape = RoundedCornerShape(10.dp)
                 ) {
@@ -131,6 +137,7 @@ fun CalendarScreen(
                             "month" -> newCal.add(Calendar.MONTH, -1)
                         }
                         currentDate = newCal
+                        selectedDateStr = TrackWiseUtils.formatDate(newCal.time, "yyyy-MM-dd")
                     }) {
                         Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = MaterialTheme.colorScheme.onBackground)
                     }
@@ -166,6 +173,7 @@ fun CalendarScreen(
                             "month" -> newCal.add(Calendar.MONTH, 1)
                         }
                         currentDate = newCal
+                        selectedDateStr = TrackWiseUtils.formatDate(newCal.time, "yyyy-MM-dd")
                     }) {
                         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onBackground)
                     }
@@ -196,9 +204,14 @@ fun CalendarScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             listOf("none", "islamic", "hindu").forEach { mode ->
+                                val label = when(mode) {
+                                    "islamic" -> "URDU / HIJRI"
+                                    "hindu" -> "HINDU"
+                                    else -> "NONE"
+                                }
                                 Row(
                                     modifier = Modifier
-                                        .weight(1f)
+                                        .weight(1.5f)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (overlay == mode) BrandCyan.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                                         .border(1.dp, if (overlay == mode) BrandCyan else Color.Transparent, RoundedCornerShape(8.dp))
@@ -211,11 +224,11 @@ fun CalendarScreen(
                                         imageVector = if (overlay == mode) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
                                         contentDescription = null,
                                         tint = if (overlay == mode) BrandCyan else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(14.dp)
                                     )
                                     Text(
-                                        text = mode.uppercase(),
-                                        fontSize = 11.sp,
+                                        text = label,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (overlay == mode) BrandCyan else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                                         modifier = Modifier.padding(start = 4.dp)
@@ -237,6 +250,7 @@ fun CalendarScreen(
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(bottom = 12.dp)
                         .border(1.dp, BrandCyan.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -290,6 +304,7 @@ fun CalendarScreen(
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(bottom = 12.dp)
                         .border(1.dp, BrandPink.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -344,10 +359,343 @@ fun CalendarScreen(
                 )
                 else -> CalendarGrid(
                     currentDate = currentDate,
+                    selectedDateStr = selectedDateStr,
+                    onDayClick = { dayStr ->
+                        selectedDateStr = dayStr
+                        val pDate = TrackWiseUtils.parseDate(dayStr)
+                        val cal = Calendar.getInstance()
+                        cal.time = pDate
+                        currentDate = cal
+                    },
                     tasks = tasks,
                     birthdays = birthdays,
                     overlayMode = overlay
                 )
+            }
+        }
+
+        // --- Unified Selected Date Details Card ---
+        if (activeView == "month") {
+            item {
+                val parsedSelected = TrackWiseUtils.parseDate(selectedDateStr)
+                val formattedHeader = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.US).format(parsedSelected)
+                val selectedFestivals = TrackWiseUtils.getIndianFestivalsForDate(selectedDateStr)
+                val selectedBirthdays = birthdays.filter { it.date.endsWith(selectedDateStr.substring(5)) }
+                val selectedTasks = tasks.filter { it.deadline == selectedDateStr }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        // Header Date
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        ) {
+                            Icon(Icons.Default.Event, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = formattedHeader,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), modifier = Modifier.padding(bottom = 12.dp))
+
+                        // 1. Urdu / Hijri details
+                        if (overlay == "islamic") {
+                            val hijriInfo = TrackWiseUtils.getHijriInfo(selectedDateStr)
+                            val urduDateStr = "${TrackWiseUtils.toUrduNumerals(hijriInfo.day)} ${hijriInfo.monthNameUr} ${TrackWiseUtils.toUrduNumerals(hijriInfo.year)} ہجری"
+                            val enHijriDate = "${hijriInfo.day} ${hijriInfo.monthNameEn} ${hijriInfo.year} AH"
+                            val allahName = TrackWiseUtils.getAllahNameForDate(selectedDateStr)
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(BrandCyan.copy(alpha = 0.08f))
+                                    .border(1.dp, BrandCyan.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Urdu / Hijri Date",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandCyan
+                                    )
+                                    Text(
+                                        text = "اردو اسلامی تاریخ",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandCyan
+                                    )
+                                }
+
+                                Text(
+                                    text = urduDateStr,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Right,
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                                )
+
+                                Text(
+                                    text = "Hijri Equivalent: $enHijriDate",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Divine Name of the Day (Day ${allahName.dayNum})",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandCyan.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = "${allahName.ar} / ${allahName.ur}",
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Meaning: ${allahName.en} — ${allahName.meaning}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+
+                        // 2. Hindu details
+                        if (overlay == "hindu") {
+                            val hinduInfo = TrackWiseUtils.getHinduCalendarInfo(selectedDateStr)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(BrandPink.copy(alpha = 0.08f))
+                                    .border(1.dp, BrandPink.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = "Hindu Lunar Calendar (Vikram Samvat ${hinduInfo.vsYear})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandPink
+                                )
+
+                                Text(
+                                    text = "Month: ${hinduInfo.vsMonth} · Paksha: ${hinduInfo.paksha}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Tithi: ${hinduInfo.tithi}",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = BrandPink
+                                    )
+
+                                    if (hinduInfo.isPurnima) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(BrandAmber.copy(alpha = 0.15f))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("🌕 Purnima (Full Moon)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandAmber)
+                                        }
+                                    } else if (hinduInfo.isAmavasya) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(BrandRose.copy(alpha = 0.15f))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("🌑 Amavasya (New Moon)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                                        }
+                                    } else if (hinduInfo.tithi == "Ekadashi") {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(BrandViolet.copy(alpha = 0.15f))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("🕉️ Ekadashi (Auspicious Fasting)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                                        }
+                                    }
+                                }
+
+                                Text(
+                                    text = when {
+                                        hinduInfo.isPurnima -> "A highly auspicious day in Hindu culture, perfect for spiritual reflection, fasting (Satyanarayan Vrat), and gratitude."
+                                        hinduInfo.isAmavasya -> "A day of new beginnings, honoring ancestors (Shradh), introspection, and quiet meditation."
+                                        hinduInfo.tithi == "Ekadashi" -> "The eleventh lunar day dedicated to Lord Vishnu. Observers practice complete or partial fasting to cleanse body and mind."
+                                        else -> "The current lunar tithi represents the '${hinduInfo.tithi}' stage of the moon's phase in the ${hinduInfo.paksha} paksha."
+                                    },
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+
+                        // 3. Indian Festivals / Holidays
+                        if (selectedFestivals.isNotEmpty()) {
+                            Text(
+                                text = "FESTIVALS & HOLIDAYS",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandRose,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            selectedFestivals.forEach { festival ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 6.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BrandRose.copy(alpha = 0.08f))
+                                        .border(1.dp, BrandRose.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Celebration, contentDescription = null, tint = BrandRose, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = festival,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandRose
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        // 4. Tasks Deadlines
+                        if (selectedTasks.isNotEmpty()) {
+                            Text(
+                                text = "DEADLINES & TASKS",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandViolet,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            selectedTasks.forEach { task ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 6.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BrandViolet.copy(alpha = 0.08f))
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = if (task.completed) Icons.Default.CheckCircle else Icons.Default.Circle,
+                                        contentDescription = null,
+                                        tint = if (task.completed) BrandViolet else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = task.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (task.completed) {
+                                        Text("Completed", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        // 5. Birthdays
+                        if (selectedBirthdays.isNotEmpty()) {
+                            Text(
+                                text = "BIRTHDAYS",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandPink,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            selectedBirthdays.forEach { bday ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 6.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BrandPink.copy(alpha = 0.08f))
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Cake, contentDescription = null, tint = BrandPink, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (bday.name.contains("Birthday", ignoreCase = true)) "${bday.name} 🎂" else "${bday.name}'s Birthday 🎂",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+
+                        // Empty State for Day events
+                        if (selectedFestivals.isEmpty() && selectedTasks.isEmpty() && selectedBirthdays.isEmpty() && overlay == "none") {
+                            Text(
+                                text = "No personal events or Indian festivals scheduled for this day.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -453,7 +801,8 @@ fun CalendarDayView(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(Icons.Default.Cake, contentDescription = null, tint = BrandPink, modifier = Modifier.size(16.dp))
-                            Text(text = "Birthday: ${bday.name}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                            val bdayTitle = if (bday.name.contains("Birthday", ignoreCase = true)) bday.name else "Birthday: ${bday.name}"
+                            Text(text = bdayTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
                         }
                     }
 
@@ -765,7 +1114,7 @@ fun CalendarWeekView(
                             }
                             dayBirthdays.forEach { bday ->
                                 Text(
-                                    text = "🎂 Birthday: ${bday.name}",
+                                    text = if (bday.name.contains("Birthday", ignoreCase = true)) "🎂 ${bday.name}" else "🎂 Birthday: ${bday.name}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = BrandPink
@@ -816,6 +1165,8 @@ fun CalendarWeekView(
 @Composable
 fun CalendarGrid(
     currentDate: Calendar,
+    selectedDateStr: String,
+    onDayClick: (String) -> Unit,
     tasks: List<TaskEntity>,
     birthdays: List<BirthdayEntity>,
     overlayMode: String,
@@ -879,6 +1230,7 @@ fun CalendarGrid(
                             val festivals = TrackWiseUtils.getIndianFestivalsForDate(dayStr)
 
                             val isToday = dayStr == todayDateStr
+                            val isSelected = dayStr == selectedDateStr
 
                             Box(
                                 modifier = Modifier
@@ -887,67 +1239,102 @@ fun CalendarGrid(
                                     .padding(2.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(
-                                        if (isToday) BrandViolet.copy(alpha = 0.25f)
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                        if (isSelected) BrandViolet.copy(alpha = 0.3f)
+                                        else if (isToday) BrandViolet.copy(alpha = 0.12f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
                                     )
                                     .border(
-                                        width = if (isToday) 2.dp else 1.dp,
-                                        color = if (isToday) BrandViolet else if (festivals.isNotEmpty()) BrandRose.copy(alpha = 0.5f) else Color.Transparent,
+                                        width = if (isSelected) 2.dp else if (isToday) 1.5.dp else 1.dp,
+                                        color = if (isSelected) BrandViolet else if (isToday) BrandViolet.copy(alpha = 0.5f) else if (festivals.isNotEmpty()) BrandRose.copy(alpha = 0.4f) else Color.Transparent,
                                         shape = RoundedCornerShape(8.dp)
-                                    ),
+                                    )
+                                    .clickable {
+                                        onDayClick(dayStr)
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = "$dayNumber",
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Bold,
-                                        color = if (isToday) BrandViolet else if (festivals.isNotEmpty()) BrandRose else MaterialTheme.colorScheme.onBackground
-                                    )
-
-                                    // Dynamic overlay indicators
-                                    if (overlayMode == "islamic") {
-                                        val allahName = TrackWiseUtils.getAllahNameForDate(dayStr)
+                                if (overlayMode == "islamic") {
+                                    Box(modifier = Modifier.fillMaxSize().padding(4.dp)) {
+                                        // Gregorian Day Number (Top Left)
                                         Text(
-                                            text = allahName.ar,
+                                            text = "$dayNumber",
                                             fontSize = 8.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = BrandCyan,
-                                            maxLines = 1
+                                            color = if (isToday) BrandViolet else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                            modifier = Modifier.align(Alignment.TopStart)
                                         )
-                                    } else if (overlayMode == "hindu") {
-                                        val hinduInfo = TrackWiseUtils.getHinduCalendarInfo(dayStr)
+
+                                        // Urdu Hijri Day (Center/Bottom Right)
+                                        val hijriInfo = TrackWiseUtils.getHijriInfo(dayStr)
                                         Text(
-                                            text = hinduInfo.tithi.take(4),
-                                            fontSize = 7.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = BrandPink,
-                                            maxLines = 1
+                                            text = TrackWiseUtils.toUrduNumerals(hijriInfo.day),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandCyan,
+                                            modifier = Modifier.align(Alignment.Center)
                                         )
-                                    } else {
-                                        // Standard simple dot indicator
+                                    }
+                                } else if (overlayMode == "hindu") {
+                                    Box(modifier = Modifier.fillMaxSize().padding(4.dp)) {
+                                        // Gregorian Day Number (Top Left)
+                                        Text(
+                                            text = "$dayNumber",
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (isToday) BrandViolet else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                            modifier = Modifier.align(Alignment.TopStart)
+                                        )
+
+                                        // Hindu Tithi Info
+                                        val hinduInfo = TrackWiseUtils.getHinduCalendarInfo(dayStr)
+                                        val displayStr = if (hinduInfo.isPurnima) "🌕"
+                                            else if (hinduInfo.isAmavasya) "🌑"
+                                            else if (hinduInfo.tithi == "Ekadashi") "🕉️"
+                                            else hinduInfo.tithi.take(4)
+
+                                        Text(
+                                            text = displayStr,
+                                            fontSize = if (hinduInfo.isPurnima || hinduInfo.isAmavasya || hinduInfo.tithi == "Ekadashi") 12.sp else 7.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (hinduInfo.isPurnima || hinduInfo.isAmavasya) BrandAmber else BrandPink,
+                                            modifier = Modifier.align(Alignment.Center)
+                                        )
+                                    }
+                                } else {
+                                    // Standard Mode (Gregorian centered + dots)
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Text(
+                                            text = "$dayNumber",
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Bold,
+                                            color = if (isToday) BrandViolet else if (festivals.isNotEmpty()) BrandRose else MaterialTheme.colorScheme.onBackground
+                                        )
+
                                         Row(
                                             horizontalArrangement = Arrangement.Center,
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.padding(top = 2.dp)
                                         ) {
                                             if (hasTasks) {
-                                                Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(BrandViolet))
+                                                Box(modifier = Modifier.size(3.dp).clip(CircleShape).background(BrandViolet))
                                             }
                                             if (hasBirthdays) {
                                                 Spacer(modifier = Modifier.width(2.dp))
-                                                Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(BrandPink))
+                                                Box(modifier = Modifier.size(3.dp).clip(CircleShape).background(BrandPink))
                                             }
                                             if (festivals.isNotEmpty()) {
                                                 Spacer(modifier = Modifier.width(2.dp))
-                                                Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(BrandRose))
+                                                Box(modifier = Modifier.size(3.dp).clip(CircleShape).background(BrandRose))
                                             }
                                         }
                                     }
                                 }
                             }
                         } else {
-                            // Empty cells representing offset/out of month cells
                             Spacer(modifier = Modifier.weight(1f).aspectRatio(1f))
                         }
                     }

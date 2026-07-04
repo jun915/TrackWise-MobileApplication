@@ -41,7 +41,6 @@ fun ProfileScreen(
     var maritalStatus by remember { mutableStateOf("Single") }
     var nationality by remember { mutableStateOf("") }
     var nationalId by remember { mutableStateOf("") }
-    var bloodGroup by remember { mutableStateOf("O+") }
 
     // --- State Holders for Contact & Address ---
     var residentialStreet by remember { mutableStateOf("") }
@@ -67,21 +66,19 @@ fun ProfileScreen(
     var emergencyPhone by remember { mutableStateOf("") }
     var alternateEmergencyPhone by remember { mutableStateOf("") }
 
-    // --- State Holders for Health & Medical Information ---
+    // --- State Holders for Health, Medical & Biometrics (Consolidated) ---
     var height by remember { mutableStateOf("") }
     var weight by remember { mutableStateOf("") }
+    var bloodGroup by remember { mutableStateOf("O+") }
     var primaryDoctor by remember { mutableStateOf("") }
     var medicalConditions by remember { mutableStateOf("") }
     var currentMedications by remember { mutableStateOf("") }
     var allergies by remember { mutableStateOf("") }
     var dietaryRestrictions by remember { mutableStateOf("") }
 
-    // --- State Holders for Vitals & Biometrics ---
-    var vitalsHeight by remember { mutableStateOf("") }
-    var vitalsWeight by remember { mutableStateOf("") }
+    // --- State Holders for Clinical Vitals ---
     var vitalsBloodPressure by remember { mutableStateOf("") }
     var vitalsHeartRate by remember { mutableStateOf("") }
-    var vitalsBloodGroup by remember { mutableStateOf("O+") }
 
     // --- Load existing data from DB ---
     LaunchedEffect(dbProfile) {
@@ -94,7 +91,15 @@ fun ProfileScreen(
             maritalStatus = if (prof.maritalStatus.isBlank()) "Single" else prof.maritalStatus
             nationality = prof.nationality
             nationalId = prof.nationalId
-            bloodGroup = if (prof.bloodGroup.isBlank()) "O+" else prof.bloodGroup
+            
+            // Consolidate blood group from either field
+            bloodGroup = if (prof.bloodGroup.isNotBlank()) {
+                prof.bloodGroup
+            } else if (prof.vitalsBloodGroup.isNotBlank()) {
+                prof.vitalsBloodGroup
+            } else {
+                "O+"
+            }
 
             residentialStreet = prof.residentialStreet
             residentialCity = prof.residentialCity
@@ -118,19 +123,17 @@ fun ProfileScreen(
             emergencyPhone = prof.emergencyPhone
             alternateEmergencyPhone = prof.alternateEmergencyPhone
 
-            height = prof.height
-            weight = prof.weight
+            // Consolidate height & weight from either field
+            height = if (prof.height.isNotBlank()) prof.height else prof.vitalsHeight
+            weight = if (prof.weight.isNotBlank()) prof.weight else prof.vitalsWeight
             primaryDoctor = prof.primaryDoctor
             medicalConditions = prof.medicalConditions
             currentMedications = prof.currentMedications
             allergies = prof.allergies
             dietaryRestrictions = prof.dietaryRestrictions
 
-            vitalsHeight = prof.vitalsHeight
-            vitalsWeight = prof.vitalsWeight
             vitalsBloodPressure = prof.vitalsBloodPressure
             vitalsHeartRate = prof.vitalsHeartRate
-            vitalsBloodGroup = if (prof.vitalsBloodGroup.isBlank()) "O+" else prof.vitalsBloodGroup
         } ?: run {
             emailAddress = sessionUser?.email ?: ""
         }
@@ -263,19 +266,6 @@ fun ProfileScreen(
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
                     }
-
-                    // Blood Group Selector
-                    Text("Blood Group", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-").forEach { option ->
-                            val isSel = bloodGroup == option
-                            ChoiceChip(text = option, isSelected = isSel, onClick = { bloodGroup = option })
-                        }
-                    }
                 }
             }
         }
@@ -292,6 +282,7 @@ fun ProfileScreen(
                         value = residentialStreet,
                         onValueChange = { residentialStreet = it },
                         label = { Text("Street Address") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -300,6 +291,7 @@ fun ProfileScreen(
                             value = residentialCity,
                             onValueChange = { residentialCity = it },
                             label = { Text("City") },
+                            singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
@@ -307,6 +299,7 @@ fun ProfileScreen(
                             value = residentialState,
                             onValueChange = { residentialState = it },
                             label = { Text("State") },
+                            singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
@@ -316,6 +309,7 @@ fun ProfileScreen(
                             value = residentialZip,
                             onValueChange = { residentialZip = it },
                             label = { Text("ZIP / Pin Code") },
+                            singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
@@ -323,6 +317,7 @@ fun ProfileScreen(
                             value = residentialCountry,
                             onValueChange = { residentialCountry = it },
                             label = { Text("Country") },
+                            singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
@@ -354,6 +349,7 @@ fun ProfileScreen(
                                 value = permanentStreet,
                                 onValueChange = { permanentStreet = it },
                                 label = { Text("Street Address") },
+                                singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                             )
@@ -362,6 +358,7 @@ fun ProfileScreen(
                                     value = permanentCity,
                                     onValueChange = { permanentCity = it },
                                     label = { Text("City") },
+                                    singleLine = true,
                                     modifier = Modifier.weight(1f),
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                                 )
@@ -369,6 +366,7 @@ fun ProfileScreen(
                                     value = permanentState,
                                     onValueChange = { permanentState = it },
                                     label = { Text("State") },
+                                    singleLine = true,
                                     modifier = Modifier.weight(1f),
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                                 )
@@ -378,6 +376,7 @@ fun ProfileScreen(
                                     value = permanentZip,
                                     onValueChange = { permanentZip = it },
                                     label = { Text("ZIP / Pin Code") },
+                                    singleLine = true,
                                     modifier = Modifier.weight(1f),
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                                 )
@@ -385,6 +384,7 @@ fun ProfileScreen(
                                     value = permanentCountry,
                                     onValueChange = { permanentCountry = it },
                                     label = { Text("Country") },
+                                    singleLine = true,
                                     modifier = Modifier.weight(1f),
                                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                                 )
@@ -399,6 +399,7 @@ fun ProfileScreen(
                         value = mobileNumber,
                         onValueChange = { mobileNumber = it },
                         label = { Text("Mobile Number") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -406,6 +407,7 @@ fun ProfileScreen(
                         value = alternatePhone,
                         onValueChange = { alternatePhone = it },
                         label = { Text("Alternate Phone Number") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -413,6 +415,7 @@ fun ProfileScreen(
                         value = emailAddress,
                         onValueChange = { emailAddress = it },
                         label = { Text("Email Address") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -431,6 +434,7 @@ fun ProfileScreen(
                         value = emergencyName,
                         onValueChange = { emergencyName = it },
                         label = { Text("Emergency Contact Name") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -438,6 +442,7 @@ fun ProfileScreen(
                         value = emergencyRelationship,
                         onValueChange = { emergencyRelationship = it },
                         label = { Text("Relationship (e.g. Father)") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -445,6 +450,7 @@ fun ProfileScreen(
                         value = emergencyPhone,
                         onValueChange = { emergencyPhone = it },
                         label = { Text("Emergency Phone Number") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -452,6 +458,7 @@ fun ProfileScreen(
                         value = alternateEmergencyPhone,
                         onValueChange = { alternateEmergencyPhone = it },
                         label = { Text("Alternate Emergency Phone") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -466,26 +473,11 @@ fun ProfileScreen(
                 icon = Icons.Default.Healing
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = height,
-                            onValueChange = { height = it },
-                            label = { Text("Height (e.g. 178 cm)") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
-                        )
-                        OutlinedTextField(
-                            value = weight,
-                            onValueChange = { weight = it },
-                            label = { Text("Weight (e.g. 72 kg)") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
-                        )
-                    }
                     OutlinedTextField(
                         value = primaryDoctor,
                         onValueChange = { primaryDoctor = it },
                         label = { Text("Primary Doctor / Physician Name") },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -521,25 +513,27 @@ fun ProfileScreen(
             }
         }
 
-        // --- 5. General Vitals & Biometrics ---
+        // --- 5. Biometrics & Clinical Vitals (Consolidated) ---
         item {
             ProfileSectionCard(
-                title = "5. GENERAL VITALS & BIOMETRICS",
+                title = "5. BIOMETRICS & CLINICAL VITALS",
                 icon = Icons.Default.Favorite
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
-                            value = vitalsHeight,
-                            onValueChange = { vitalsHeight = it },
-                            label = { Text("Height (cm / ft-in)") },
+                            value = height,
+                            onValueChange = { height = it },
+                            label = { Text("Height (e.g. 178 cm)") },
+                            singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
                         OutlinedTextField(
-                            value = vitalsWeight,
-                            onValueChange = { vitalsWeight = it },
-                            label = { Text("Weight (kg / lbs)") },
+                            value = weight,
+                            onValueChange = { weight = it },
+                            label = { Text("Weight (e.g. 72 kg)") },
+                            singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
@@ -548,8 +542,9 @@ fun ProfileScreen(
                         OutlinedTextField(
                             value = vitalsBloodPressure,
                             onValueChange = { vitalsBloodPressure = it },
-                            label = { Text("BP (Last known reading)") },
+                            label = { Text("Blood Pressure") },
                             placeholder = { Text("e.g. 120/80") },
+                            singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
@@ -558,12 +553,13 @@ fun ProfileScreen(
                             onValueChange = { vitalsHeartRate = it },
                             label = { Text("Resting Heart Rate (BPM)") },
                             placeholder = { Text("e.g. 72") },
+                            singleLine = true,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
                     }
 
-                    // Vitals Blood Group Selector
+                    // Consolidated Blood Group Selector
                     Text("Verified Blood Group", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
@@ -571,8 +567,8 @@ fun ProfileScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-").forEach { option ->
-                            val isSel = vitalsBloodGroup == option
-                            ChoiceChip(text = option, isSelected = isSel, onClick = { vitalsBloodGroup = option })
+                            val isSel = bloodGroup == option
+                            ChoiceChip(text = option, isSelected = isSel, onClick = { bloodGroup = option })
                         }
                     }
                 }
@@ -620,11 +616,11 @@ fun ProfileScreen(
                         currentMedications = currentMedications,
                         allergies = allergies,
                         dietaryRestrictions = dietaryRestrictions,
-                        vitalsHeight = vitalsHeight,
-                        vitalsWeight = vitalsWeight,
+                        vitalsHeight = height,
+                        vitalsWeight = weight,
                         vitalsBloodPressure = vitalsBloodPressure,
                         vitalsHeartRate = vitalsHeartRate,
-                        vitalsBloodGroup = vitalsBloodGroup
+                        vitalsBloodGroup = bloodGroup
                     )
                     viewModel.saveDetailedProfile(newProfile)
                 },

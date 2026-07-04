@@ -615,14 +615,65 @@ fun SocialScreen(
                 val socialCircleSize = friends.size
                 
                 val achievementsData = listOf(
+                    // --- 1. Habiteers & Streaks ---
                     AchievementItem(
                         title = "Streak Champion",
-                        desc = "Develop consistent routines by checking off habits.",
+                        desc = "Develop consistent routines by checking off habits today.",
                         progress = habitsCheckedToday,
                         target = 1,
                         icon = Icons.Default.LocalFireDepartment,
                         iconColor = BrandRose
                     ),
+                    AchievementItem(
+                        title = "Habit Novice",
+                        desc = "Create 3 habits to structure your life.",
+                        progress = habits.size,
+                        target = 3,
+                        icon = Icons.Default.Star,
+                        iconColor = BrandViolet
+                    ),
+                    AchievementItem(
+                        title = "Habit Enthusiast",
+                        desc = "Build consistency with 5 active habits.",
+                        progress = habits.size,
+                        target = 5,
+                        icon = Icons.Default.Star,
+                        iconColor = BrandAmber
+                    ),
+                    AchievementItem(
+                        title = "Habit Master",
+                        desc = "Reach peak self-discipline with 10 active habits.",
+                        progress = habits.size,
+                        target = 10,
+                        icon = Icons.Default.Star,
+                        iconColor = BrandCyan
+                    ),
+                    AchievementItem(
+                        title = "Consistent Builder",
+                        desc = "Reach a 5-day maximum streak on any habit.",
+                        progress = habits.maxOfOrNull { it.maxStreak } ?: 0,
+                        target = 5,
+                        icon = Icons.Default.Favorite,
+                        iconColor = BrandViolet
+                    ),
+                    AchievementItem(
+                        title = "Unstoppable Force",
+                        desc = "Reach a 15-day streak to lock in your routine.",
+                        progress = habits.maxOfOrNull { it.maxStreak } ?: 0,
+                        target = 15,
+                        icon = Icons.Default.Favorite,
+                        iconColor = BrandRose
+                    ),
+                    AchievementItem(
+                        title = "Legendary Routine",
+                        desc = "Maintain a 30-day streak — you are now unbreakable!",
+                        progress = habits.maxOfOrNull { it.maxStreak } ?: 0,
+                        target = 30,
+                        icon = Icons.Default.Favorite,
+                        iconColor = BrandAmber
+                    ),
+
+                    // --- 2. Tasks & Execution ---
                     AchievementItem(
                         title = "Getting Things Done",
                         desc = "Mark at least 3 tasks as completed.",
@@ -632,13 +683,163 @@ fun SocialScreen(
                         iconColor = BrandGreen
                     ),
                     AchievementItem(
-                        title = "Stay Structured",
-                        desc = "Keep an active structured habit schedule.",
-                        progress = habits.size,
-                        target = 2,
-                        icon = Icons.Default.Star,
+                        title = "Task Journeyman",
+                        desc = "Complete 10 total tasks successfully.",
+                        progress = completedTasksCount,
+                        target = 10,
+                        icon = Icons.Default.CheckCircle,
+                        iconColor = BrandPink
+                    ),
+                    AchievementItem(
+                        title = "Task Master",
+                        desc = "Complete 25 distinct tasks.",
+                        progress = completedTasksCount,
+                        target = 25,
+                        icon = Icons.Default.CheckCircle,
                         iconColor = BrandViolet
                     ),
+                    AchievementItem(
+                        title = "Task Overlord",
+                        desc = "Execute 50 tasks to dominate your workflow.",
+                        progress = completedTasksCount,
+                        target = 50,
+                        icon = Icons.Default.CheckCircle,
+                        iconColor = BrandCyan
+                    ),
+                    AchievementItem(
+                        title = "Super Planner",
+                        desc = "Draft 10 tasks to organize your future.",
+                        progress = tasks.size,
+                        target = 10,
+                        icon = Icons.Default.AddCircle,
+                        iconColor = BrandRose
+                    ),
+                    AchievementItem(
+                        title = "Architect of Life",
+                        desc = "Build a massive plan of 30 total recorded tasks.",
+                        progress = tasks.size,
+                        target = 30,
+                        icon = Icons.Default.Build,
+                        iconColor = BrandAmber
+                    ),
+                    AchievementItem(
+                        title = "High Priority Hero",
+                        desc = "Complete 1 critical high-priority task.",
+                        progress = tasks.count { it.completed && it.priority.lowercase() == "high" },
+                        target = 1,
+                        icon = Icons.Default.Warning,
+                        iconColor = BrandRose
+                    ),
+                    AchievementItem(
+                        title = "Elite Executor",
+                        desc = "Complete 5 critical high-priority tasks.",
+                        progress = tasks.count { it.completed && it.priority.lowercase() == "high" },
+                        target = 5,
+                        icon = Icons.Default.Warning,
+                        iconColor = BrandViolet
+                    ),
+                    AchievementItem(
+                        title = "Apex Achiever",
+                        desc = "Conquer 15 high-priority tasks under pressure.",
+                        progress = tasks.count { it.completed && it.priority.lowercase() == "high" },
+                        target = 15,
+                        icon = Icons.Default.Warning,
+                        iconColor = BrandAmber
+                    ),
+
+                    // --- 3. Hydration & Health ---
+                    AchievementItem(
+                        title = "Hydration Initiate",
+                        desc = "Drink your first glass of water of the journey.",
+                        progress = waterLogs.sumOf { it.glasses },
+                        target = 1,
+                        icon = Icons.Default.Info,
+                        iconColor = BrandCyan
+                    ),
+                    AchievementItem(
+                        title = "Hydration Hero",
+                        desc = "Drink 8 glasses of water in total.",
+                        progress = waterLogs.sumOf { it.glasses },
+                        target = 8,
+                        icon = Icons.Default.Info,
+                        iconColor = BrandCyan
+                    ),
+                    AchievementItem(
+                        title = "Waterfall",
+                        desc = "Log 40 total glasses of water.",
+                        progress = waterLogs.sumOf { it.glasses },
+                        target = 40,
+                        icon = Icons.Default.Info,
+                        iconColor = BrandViolet
+                    ),
+                    AchievementItem(
+                        title = "Aquarius",
+                        desc = "Achieve prime hydration with 100 total logged glasses.",
+                        progress = waterLogs.sumOf { it.glasses },
+                        target = 100,
+                        icon = Icons.Default.Info,
+                        iconColor = BrandRose
+                    ),
+
+                    // --- 4. Fitness & Exercise ---
+                    AchievementItem(
+                        title = "Fitness Rookie",
+                        desc = "Record 1 completed exercise session.",
+                        progress = exerciseLogs.size,
+                        target = 1,
+                        icon = Icons.Default.Favorite,
+                        iconColor = BrandGreen
+                    ),
+                    AchievementItem(
+                        title = "Fitness Buff",
+                        desc = "Stay active by logging 5 workouts.",
+                        progress = exerciseLogs.size,
+                        target = 5,
+                        icon = Icons.Default.Favorite,
+                        iconColor = BrandViolet
+                    ),
+                    AchievementItem(
+                        title = "Iron Athlete",
+                        desc = "Complete 15 workout sessions.",
+                        progress = exerciseLogs.size,
+                        target = 15,
+                        icon = Icons.Default.Favorite,
+                        iconColor = BrandRose
+                    ),
+                    AchievementItem(
+                        title = "Olympian Elite",
+                        desc = "Log 30 distinct workout sessions.",
+                        progress = exerciseLogs.size,
+                        target = 30,
+                        icon = Icons.Default.Favorite,
+                        iconColor = BrandAmber
+                    ),
+                    AchievementItem(
+                        title = "Active Mover",
+                        desc = "Exercise for a total of 150 minutes.",
+                        progress = exerciseLogs.sumOf { it.durationMinutes },
+                        target = 150,
+                        icon = Icons.Default.AccessTime,
+                        iconColor = BrandCyan
+                    ),
+                    AchievementItem(
+                        title = "Cardio Legend",
+                        desc = "Burn sweat for 500 minutes in total.",
+                        progress = exerciseLogs.sumOf { it.durationMinutes },
+                        target = 500,
+                        icon = Icons.Default.AccessTime,
+                        iconColor = BrandRose
+                    ),
+                    AchievementItem(
+                        title = "Endurance Master",
+                        desc = "Exercise for a grand total of 1200 minutes.",
+                        progress = exerciseLogs.sumOf { it.durationMinutes },
+                        target = 1200,
+                        icon = Icons.Default.AccessTime,
+                        iconColor = BrandViolet
+                    ),
+
+                    // --- 5. Social & Community ---
                     AchievementItem(
                         title = "Social Networker",
                         desc = "Connect with 3 friends to share goals.",
@@ -648,6 +849,50 @@ fun SocialScreen(
                         iconColor = BrandCyan
                     ),
                     AchievementItem(
+                        title = "Social Influencer",
+                        desc = "Grow your community by adding 5 friends.",
+                        progress = socialCircleSize,
+                        target = 5,
+                        icon = Icons.Default.Group,
+                        iconColor = BrandViolet
+                    ),
+                    AchievementItem(
+                        title = "Community Pillar",
+                        desc = "Become a mentor with 10 connected friends.",
+                        progress = socialCircleSize,
+                        target = 10,
+                        icon = Icons.Default.Group,
+                        iconColor = BrandAmber
+                    ),
+
+                    // --- 6. Specialized Habits ---
+                    AchievementItem(
+                        title = "Healthy Spirit",
+                        desc = "Build 3 distinct wellness habits.",
+                        progress = habits.count { it.category.lowercase().contains("wellness") || it.category.lowercase().contains("health") },
+                        target = 3,
+                        icon = Icons.Default.FavoriteBorder,
+                        iconColor = BrandRose
+                    ),
+                    AchievementItem(
+                        title = "Mind Gym",
+                        desc = "Cultivate intellect with 3 learning habits.",
+                        progress = habits.count { it.category.lowercase().contains("learning") || it.category.lowercase().contains("mind") },
+                        target = 3,
+                        icon = Icons.Default.Info,
+                        iconColor = BrandViolet
+                    ),
+                    AchievementItem(
+                        title = "Productivity Ninja",
+                        desc = "Track 3 professional work habits.",
+                        progress = habits.count { it.category.lowercase().contains("work") || it.category.lowercase().contains("productivity") },
+                        target = 3,
+                        icon = Icons.Default.Build,
+                        iconColor = BrandCyan
+                    ),
+
+                    // --- 7. Utility & Alarms ---
+                    AchievementItem(
                         title = "Early Bird Alarm",
                         desc = "Enable at least one active alarm.",
                         progress = if (hasActiveAlarm) 1 else 0,
@@ -656,12 +901,20 @@ fun SocialScreen(
                         iconColor = BrandAmber
                     ),
                     AchievementItem(
-                        title = "Task Master",
-                        desc = "Complete 5 distinct tasks.",
-                        progress = completedTasksCount,
-                        target = 5,
-                        icon = Icons.Default.CheckCircle,
-                        iconColor = BrandPink
+                        title = "Snooze Defier",
+                        desc = "Set up 3 custom timers/alarms.",
+                        progress = alarms.size,
+                        target = 3,
+                        icon = Icons.Default.AccessTime,
+                        iconColor = BrandViolet
+                    ),
+                    AchievementItem(
+                        title = "Stay Structured",
+                        desc = "Keep an active structured habit schedule.",
+                        progress = habits.size,
+                        target = 2,
+                        icon = Icons.Default.List,
+                        iconColor = BrandViolet
                     )
                 )
 

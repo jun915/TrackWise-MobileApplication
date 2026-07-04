@@ -25,9 +25,10 @@ import androidx.room.RoomDatabase
         GroceryItemEntity::class,
         TabletReminderEntity::class,
         PeriodCycleEntity::class,
-        FinanceLogEntity::class
+        FinanceLogEntity::class,
+        NetWorthItemEntity::class
     ],
-    version = 5,
+    version = 8,
     exportSchema = false
 )
 abstract class TrackWiseDatabase : RoomDatabase() {

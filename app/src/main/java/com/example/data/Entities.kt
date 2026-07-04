@@ -43,7 +43,11 @@ data class TaskEntity(
     val completed: Boolean,
     val points: Int,
     val subtasksJson: String = "[]", // List<SubTask> serialized
-    val reminderTime: String? = null // HH:MM
+    val reminderTime: String? = null, // HH:MM
+    val repeatType: String = "none", // "none", "daily", "weekdays", "weekly", "monthly", "yearly", "custom"
+    val customRepeatValue: Int = 1,
+    val customRepeatUnit: String = "days", // "days", "weeks", "months", "years"
+    val customRepeatDaysOfWeek: String? = null // Comma-separated list like "Sun,Mon..."
 )
 
 @Entity(tableName = "habits")
@@ -57,7 +61,15 @@ data class HabitEntity(
     val streak: Int = 0,
     val maxStreak: Int = 0,
     val badgesEarnedJson: String = "[]", // List<Int> representing milestone day counts
-    val createdAt: String // YYYY-MM-DD
+    val createdAt: String, // YYYY-MM-DD
+    val isMultipleTimesPerDay: Boolean = false,
+    val multipleTimesTarget: Int = 1,
+    val isTimeBound: Boolean = false,
+    val timeBoundDuration: String? = null, // e.g. "30 mins" or "08:00 - 09:00"
+    val repeatType: String = "none", // "none", "daily", "weekdays", "weekly", "monthly", "yearly", "custom"
+    val customRepeatValue: Int = 1,
+    val customRepeatUnit: String = "days", // "days", "weeks", "months", "years"
+    val customRepeatDaysOfWeek: String? = null // Comma-separated list like "Sun,Mon..."
 )
 
 @Entity(tableName = "birthdays")
@@ -66,7 +78,8 @@ data class BirthdayEntity(
     val userId: String,
     val name: String,
     val date: String, // YYYY-MM-DD or MM-DD
-    val giftIdea: String? = null
+    val giftIdea: String? = null,
+    val category: String = "Others"
 )
 
 @Entity(tableName = "wishlist")
@@ -230,7 +243,10 @@ data class GroceryItemEntity(
     val name: String,
     val quantity: String = "1",
     val completed: Boolean = false,
-    val category: String = "Other"
+    val category: String = "Other",
+    val price: Double? = null,
+    val priceUnit: String? = null, // "single item", "single kg", "single gram", "single set"
+    val numericQuantity: Double? = null
 )
 
 @Entity(tableName = "tablet_reminders")
@@ -265,8 +281,19 @@ data class FinanceLogEntity(
     val category: String, // e.g. "Housing and Utilities (Fixed Essentials)", "PPF"
     val title: String, // e.g. "Rent or EMI", "Electricity Bill"
     val amount: Double,
-    val notes: String? = null
+    val notes: String? = null,
+    val spendSource: String? = null
 )
+
+@Entity(tableName = "net_worth_items")
+data class NetWorthItemEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val name: String, // e.g. "Simple Savings in Account", "Mutual Funds", "Home Loan"
+    val type: String, // "asset", "loan", "liability"
+    val amount: Double
+)
+
 
 
 

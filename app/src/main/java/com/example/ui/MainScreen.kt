@@ -710,6 +710,10 @@ fun SettingsPanel(viewModel: TrackWiseViewModel) {
     // Boolean stats share trigger
     var shareStats by remember { mutableStateOf(currentUser?.enabledConditions?.contains("share_stats") ?: true) }
 
+    var showClearDataConfirm by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showDeleteAccountConfirm by remember { mutableStateOf(false) }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
@@ -896,6 +900,10 @@ fun LeftDrawerPane(
     var profileFormExpanded by remember { mutableStateOf(false) }
     var friendEmailInput by remember { mutableStateOf("") }
     val authError by viewModel.authError.collectAsState()
+
+    var showClearDataConfirm by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showDeleteAccountConfirm by remember { mutableStateOf(false) }
 
     // --- Profile Form Local State Binding ---
     var firstName by remember { mutableStateOf("") }
@@ -1242,7 +1250,7 @@ fun LeftDrawerPane(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                listOf("Morning Birds", "Digital Beep", "Phone Ringtone", "Classic Bell").forEach { snd ->
+                                listOf("Reflection", "Marimba", "Over the Horizon", "The Big Adventure").forEach { snd ->
                                     val isSelected = alarmSound == snd
                                     Box(
                                         modifier = Modifier
@@ -1253,8 +1261,13 @@ fun LeftDrawerPane(
                                             .padding(vertical = 6.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
+                                        val displayName = when (snd) {
+                                            "Over the Horizon" -> "Horizon"
+                                            "The Big Adventure" -> "Adventure"
+                                            else -> snd
+                                        }
                                         Text(
-                                            text = snd.split(" ").last(),
+                                            text = displayName,
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
@@ -1306,7 +1319,7 @@ fun LeftDrawerPane(
                             
                             Spacer(modifier = Modifier.height(4.dp))
                             Button(
-                                onClick = { viewModel.clearAllData() },
+                                onClick = { showClearDataConfirm = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.fillMaxWidth(),
@@ -1327,7 +1340,7 @@ fun LeftDrawerPane(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { viewModel.logout() },
+                    onClick = { showLogoutConfirm = true },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.weight(1f)
@@ -1338,7 +1351,7 @@ fun LeftDrawerPane(
                 }
 
                 Button(
-                    onClick = { viewModel.deleteAccount() },
+                    onClick = { showDeleteAccountConfirm = true },
                     colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.weight(1.2f)
@@ -1349,5 +1362,74 @@ fun LeftDrawerPane(
                 }
             }
         }
+    }
+
+    if (showClearDataConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearDataConfirm = false },
+            title = { Text("Clear All Data", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to clear all your local logs, tracking history, and health statistics? This action cannot be undone, but your user account will remain active.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearDataConfirm = false
+                        viewModel.clearAllData()
+                    }
+                ) {
+                    Text("Clear All", color = BrandRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDataConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text("Logout Account", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to log out of your account on this device?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutConfirm = false
+                        viewModel.logout()
+                    }
+                ) {
+                    Text("Logout", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteAccountConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountConfirm = false },
+            title = { Text("Delete User Account", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you absolutely sure you want to delete your entire user profile and all associated data permanently? This action is completely irreversible!") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteAccountConfirm = false
+                        viewModel.deleteAccount()
+                    }
+                ) {
+                    Text("Delete Permanently", color = BrandRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAccountConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

@@ -7,10 +7,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -215,11 +217,15 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
     var description by remember { mutableStateOf("") }
     var project by remember { mutableStateOf("Work") }
     var priority by remember { mutableStateOf("medium") }
-    var points by remember { mutableStateOf("3") }
     var deadline by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
     var reminderTime by remember { mutableStateOf("") }
 
-    val projects = listOf("Tasks", "Wish List", "Work", "Personal", "Health", "Learning")
+    var repeatType by remember { mutableStateOf("none") }
+    var customRepeatValue by remember { mutableStateOf("1") }
+    var customRepeatUnit by remember { mutableStateOf("days") }
+    var customRepeatDaysOfWeek by remember { mutableStateOf(emptySet<String>()) }
+
+    val projects = listOf("Personal", "Work")
     val priorities = listOf("low", "medium", "high")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -259,18 +265,29 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Project dropdown replacement (Simple Row selection)
+                    // Project Workspace (Simple Row selection, centered text)
                     Column {
                         Text("Project Workspace", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            projects.take(3).forEach { proj ->
+                            projects.forEach { proj ->
                                 Card(
                                     colors = CardDefaults.cardColors(containerColor = if (project == proj) BrandViolet else MaterialTheme.colorScheme.surfaceVariant),
                                     modifier = Modifier
                                         .weight(1f)
                                         .clickable { project = proj }
                                 ) {
-                                    Text(proj, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp), color = if (project == proj) Color.White else MaterialTheme.colorScheme.onBackground)
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = proj,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(vertical = 8.dp),
+                                            color = if (project == proj) Color.White else MaterialTheme.colorScheme.onBackground
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -278,7 +295,7 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Bottom) {
                         // Priority selection
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
                             Text("Priority", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -297,15 +314,6 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                                 }
                             }
                         }
-
-                        CompactTextField(
-                            value = points,
-                            onValueChange = { points = it },
-                            label = "Pts",
-                            placeholder = "3",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.width(72.dp)
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(2.dp))
@@ -328,6 +336,18 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                         )
                     }
 
+                    RecurrenceSelector(
+                        repeatType = repeatType,
+                        onRepeatTypeChange = { repeatType = it },
+                        customRepeatValue = customRepeatValue,
+                        onCustomRepeatValueChange = { customRepeatValue = it },
+                        customRepeatUnit = customRepeatUnit,
+                        onCustomRepeatUnitChange = { customRepeatUnit = it },
+                        customRepeatDaysOfWeek = customRepeatDaysOfWeek,
+                        onCustomRepeatDaysOfWeekChange = { customRepeatDaysOfWeek = it },
+                        themeColor = BrandViolet
+                    )
+
                     Button(
                         onClick = {
                             if (title.isNotBlank()) {
@@ -336,13 +356,21 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                                     description = description,
                                     project = project,
                                     priority = priority,
-                                    points = points.toIntOrNull() ?: 3,
+                                    points = 0,
                                     deadline = deadline,
-                                    reminderTime = if (reminderTime.isBlank()) null else reminderTime
+                                    reminderTime = if (reminderTime.isBlank()) null else reminderTime,
+                                    repeatType = repeatType,
+                                    customRepeatValue = customRepeatValue.toIntOrNull() ?: 1,
+                                    customRepeatUnit = customRepeatUnit,
+                                    customRepeatDaysOfWeek = if (repeatType == "custom" && customRepeatUnit == "weeks") customRepeatDaysOfWeek.joinToString(",") else null
                                 )
                                 // Reset
                                 title = ""
                                 description = ""
+                                repeatType = "none"
+                                customRepeatValue = "1"
+                                customRepeatUnit = "days"
+                                customRepeatDaysOfWeek = emptySet()
                                 showForm = false
                             }
                         },
@@ -480,6 +508,37 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                         Text("⏰ ${task.reminderTime}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
                     }
                 }
+
+                if (task.repeatType != "none") {
+                    val repeatLabel = when (task.repeatType) {
+                        "daily" -> "Daily"
+                        "weekdays" -> "Weekdays"
+                        "weekly" -> "Weekly"
+                        "monthly" -> "Monthly"
+                        "yearly" -> "Yearly"
+                        "custom" -> {
+                            val unitStr = if (task.customRepeatValue == 1) {
+                                task.customRepeatUnit.removeSuffix("s")
+                            } else {
+                                task.customRepeatUnit
+                            }
+                            var base = "Every ${task.customRepeatValue} $unitStr"
+                            if (task.customRepeatUnit == "weeks" && !task.customRepeatDaysOfWeek.isNullOrBlank()) {
+                                base += " on ${task.customRepeatDaysOfWeek}"
+                            }
+                            base
+                        }
+                        else -> task.repeatType
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(BrandGreen.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("🔁 $repeatLabel", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    }
+                }
             }
 
             // Subtasks section
@@ -580,60 +639,190 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
 @Composable
 fun HabitSection(viewModel: TrackWiseViewModel) {
     val habits by viewModel.allHabits.collectAsState()
+    var showForm by remember { mutableStateOf(false) }
 
     var name by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Wellness") }
 
+    var isMultipleTimes by remember { mutableStateOf(false) }
+    var multipleTimesTargetInput by remember { mutableStateOf("1") }
+    var isTimeBound by remember { mutableStateOf(false) }
+    var timeBoundDurationInput by remember { mutableStateOf("") }
+
+    var repeatType by remember { mutableStateOf("none") }
+    var customRepeatValue by remember { mutableStateOf("1") }
+    var customRepeatUnit by remember { mutableStateOf("days") }
+    var customRepeatDaysOfWeek by remember { mutableStateOf(emptySet<String>()) }
+
     val categories = listOf("Wellness", "Fitness", "Learning", "Productivity")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+        // Toggle add habit card
+        Button(
+            onClick = { showForm = !showForm },
+            colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("LAUNCH HABIT RUNWAY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
+            Text(if (showForm) "Close Form" else "Add New Habit", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+        }
 
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Habit Name *") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+        if (showForm) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("LAUNCH HABIT RUNWAY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
 
-                Column {
-                    Text("Category", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        categories.forEach { cat ->
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = if (category == cat) BrandOrange else MaterialTheme.colorScheme.surfaceVariant),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { category = cat }
-                            ) {
-                                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    Text(cat, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (category == cat) Color.White else MaterialTheme.colorScheme.onBackground)
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Habit Name *") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Column {
+                        Text("Category", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            categories.forEach { cat ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = if (category == cat) BrandOrange else MaterialTheme.colorScheme.surfaceVariant),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { category = cat }
+                                ) {
+                                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        Text(cat, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (category == cat) Color.White else MaterialTheme.colorScheme.onBackground)
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                Button(
-                    onClick = {
-                        if (name.isNotBlank()) {
-                            viewModel.addHabit(name, category)
-                            name = ""
+                    Text("Habit Type Constraint ⚙️", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isMultipleTimes) BrandOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { 
+                                    isMultipleTimes = !isMultipleTimes
+                                    if (isMultipleTimes) isTimeBound = false
+                                },
+                            border = BorderStroke(1.dp, if (isMultipleTimes) BrandOrange else Color.Transparent),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text("Multiple Times", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isMultipleTimes) BrandOrange else MaterialTheme.colorScheme.onSurface)
+                                Text("Per Day", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Create Runway", color = Color.White, fontWeight = FontWeight.Bold)
+
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isTimeBound) BrandOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { 
+                                    isTimeBound = !isTimeBound
+                                    if (isTimeBound) isMultipleTimes = false
+                                },
+                            border = BorderStroke(1.dp, if (isTimeBound) BrandOrange else Color.Transparent),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text("Time Bound", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isTimeBound) BrandOrange else MaterialTheme.colorScheme.onSurface)
+                                Text("e.g. 30 mins", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    if (isMultipleTimes) {
+                        OutlinedTextField(
+                            value = multipleTimesTargetInput,
+                            onValueChange = { multipleTimesTargetInput = it },
+                            label = { Text("Target Count Per Day") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    if (isTimeBound) {
+                        OutlinedTextField(
+                            value = timeBoundDurationInput,
+                            onValueChange = { timeBoundDurationInput = it },
+                            label = { Text("Duration / Time Constraint") },
+                            placeholder = { Text("e.g. 30 mins, or 18:00") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    RecurrenceSelector(
+                        repeatType = repeatType,
+                        onRepeatTypeChange = { repeatType = it },
+                        customRepeatValue = customRepeatValue,
+                        onCustomRepeatValueChange = { customRepeatValue = it },
+                        customRepeatUnit = customRepeatUnit,
+                        onCustomRepeatUnitChange = { customRepeatUnit = it },
+                        customRepeatDaysOfWeek = customRepeatDaysOfWeek,
+                        onCustomRepeatDaysOfWeekChange = { customRepeatDaysOfWeek = it },
+                        themeColor = BrandOrange
+                    )
+
+                    Button(
+                        onClick = {
+                            if (name.isNotBlank()) {
+                                viewModel.addHabit(
+                                    name = name,
+                                    category = category,
+                                    isMultipleTimesPerDay = isMultipleTimes,
+                                    multipleTimesTarget = if (isMultipleTimes) (multipleTimesTargetInput.toIntOrNull() ?: 1) else 1,
+                                    isTimeBound = isTimeBound,
+                                    timeBoundDuration = if (isTimeBound) timeBoundDurationInput else null,
+                                    repeatType = repeatType,
+                                    customRepeatValue = customRepeatValue.toIntOrNull() ?: 1,
+                                    customRepeatUnit = customRepeatUnit,
+                                    customRepeatDaysOfWeek = if (repeatType == "custom" && customRepeatUnit == "weeks") customRepeatDaysOfWeek.joinToString(",") else null
+                                )
+                                name = ""
+                                isMultipleTimes = false
+                                multipleTimesTargetInput = "1"
+                                isTimeBound = false
+                                timeBoundDurationInput = ""
+                                repeatType = "none"
+                                customRepeatValue = "1"
+                                customRepeatUnit = "days"
+                                customRepeatDaysOfWeek = emptySet()
+                                showForm = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Create Runway", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -652,7 +841,12 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
 fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
     val completedDays = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
     val today = TrackWiseUtils.getTodayString()
-    val isCompletedToday = completedDays.contains(today)
+    val completedCountToday = completedDays.count { it == today }
+    val isCompletedToday = if (habit.isMultipleTimesPerDay) {
+        completedCountToday >= habit.multipleTimesTarget
+    } else {
+        completedCountToday >= 1
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -666,23 +860,60 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .border(
-                            2.dp,
-                            if (isCompletedToday) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                            CircleShape
-                        )
-                        .background(
-                            if (isCompletedToday) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
-                            CircleShape
-                        )
-                        .clickable { viewModel.toggleHabitToday(habit) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isCompletedToday) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
+                if (habit.isMultipleTimesPerDay) {
+                    IconButton(
+                        onClick = { viewModel.decrementHabitToday(habit) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = BrandOrange, modifier = Modifier.size(18.dp))
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .border(
+                                2.dp,
+                                if (isCompletedToday) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                CircleShape
+                            )
+                            .background(
+                                if (isCompletedToday) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isCompletedToday) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
+                        } else {
+                            Text(text = "$completedCountToday", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                        }
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.incrementHabitToday(habit) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Increase", tint = BrandOrange, modifier = Modifier.size(18.dp))
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .border(
+                                2.dp,
+                                if (isCompletedToday) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                CircleShape
+                            )
+                            .background(
+                                if (isCompletedToday) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
+                                CircleShape
+                            )
+                            .clickable { viewModel.toggleHabitToday(habit) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isCompletedToday) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
 
@@ -695,11 +926,61 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-                    Text(
-                        text = habit.category,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = habit.category,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        )
+                        if (habit.isTimeBound && !habit.timeBoundDuration.isNullOrBlank()) {
+                            Text(
+                                text = "• ⏰ ${habit.timeBoundDuration}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = BrandOrange
+                            )
+                        }
+                        if (habit.isMultipleTimesPerDay) {
+                            Text(
+                                text = "• 🎯 Target: ${habit.multipleTimesTarget}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = BrandOrange
+                            )
+                        }
+                        if (habit.repeatType != "none") {
+                            val repeatLabel = when (habit.repeatType) {
+                                "daily" -> "Daily"
+                                "weekdays" -> "Weekdays"
+                                "weekly" -> "Weekly"
+                                "monthly" -> "Monthly"
+                                "yearly" -> "Yearly"
+                                "custom" -> {
+                                    val unitStr = if (habit.customRepeatValue == 1) {
+                                        habit.customRepeatUnit.removeSuffix("s")
+                                    } else {
+                                        habit.customRepeatUnit
+                                    }
+                                    var base = "Every ${habit.customRepeatValue} $unitStr"
+                                    if (habit.customRepeatUnit == "weeks" && !habit.customRepeatDaysOfWeek.isNullOrBlank()) {
+                                        base += " on ${habit.customRepeatDaysOfWeek}"
+                                    }
+                                    base
+                                }
+                                else -> habit.repeatType
+                            }
+                            Text(
+                                text = "• 🔁 $repeatLabel",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = BrandGreen
+                            )
+                        }
+                    }
                 }
 
                 // Streaks & Badges indicators
@@ -785,6 +1066,7 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
 @Composable
 fun WishlistSection(viewModel: TrackWiseViewModel) {
     val items by viewModel.allWishlist.collectAsState()
+    var showForm by remember { mutableStateOf(false) }
 
     var title by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
@@ -792,77 +1074,91 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
     var priority by remember { mutableStateOf("medium") }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+        // Toggle add wishlist item form
+        Button(
+            onClick = { showForm = !showForm },
+            colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("ADD WISHLIST ASPIRATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+            Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
+            Text(if (showForm) "Close Form" else "Add New Item", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+        }
 
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Item Title *") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+        if (showForm) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("ADD WISHLIST ASPIRATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    CompactTextField(
-                        value = price,
-                        onValueChange = { price = it },
-                        label = "Price (₹)",
-                        placeholder = "e.g. 1500",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f)
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Item Title *") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
 
-                    CompactTextField(
-                        value = link,
-                        onValueChange = { link = it },
-                        label = "Product URL Link",
-                        placeholder = "https://...",
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        CompactTextField(
+                            value = price,
+                            onValueChange = { price = it },
+                            label = "Price (₹)",
+                            placeholder = "e.g. 1500",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f)
+                        )
 
-                // Priority Selection
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("low", "medium", "high").forEach { prio ->
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = if (priority == prio) BrandPink else MaterialTheme.colorScheme.surfaceVariant),
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { priority = prio }
-                        ) {
-                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                Text(prio.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (priority == prio) Color.White else MaterialTheme.colorScheme.onBackground)
+                        CompactTextField(
+                            value = link,
+                            onValueChange = { link = it },
+                            label = "Product URL Link",
+                            placeholder = "https://...",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Priority Selection
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("low", "medium", "high").forEach { prio ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = if (priority == prio) BrandPink else MaterialTheme.colorScheme.surfaceVariant),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { priority = prio }
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                    Text(prio.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (priority == prio) Color.White else MaterialTheme.colorScheme.onBackground)
+                                }
                             }
                         }
                     }
-                }
 
-                Button(
-                    onClick = {
-                        if (title.isNotBlank()) {
-                            viewModel.addWishItem(
-                                title = title,
-                                price = price.toDoubleOrNull() ?: 0.0,
-                                link = if (link.isBlank()) null else link,
-                                priority = priority
-                            )
-                            title = ""
-                            price = ""
-                            link = ""
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Add to Wishlist", color = Color.White, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = {
+                            if (title.isNotBlank()) {
+                                viewModel.addWishItem(
+                                    title = title,
+                                    price = price.toDoubleOrNull() ?: 0.0,
+                                    link = if (link.isBlank()) null else link,
+                                    priority = priority
+                                )
+                                title = ""
+                                price = ""
+                                link = ""
+                                showForm = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Add to Wishlist", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -929,102 +1225,486 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
 }
 
 // ==================== 4. BIRTHDAYS SECTION ====================
+private fun daysUntilBirthday(storedDate: String): Int {
+    val parts = storedDate.split("-")
+    val (month, day) = if (parts.size == 3) {
+        Pair(parts[1].toIntOrNull() ?: 1, parts[2].toIntOrNull() ?: 1)
+    } else if (parts.size == 2) {
+        Pair(parts[0].toIntOrNull() ?: 1, parts[1].toIntOrNull() ?: 1)
+    } else {
+        return 999
+    }
+
+    val today = Calendar.getInstance()
+    today.set(Calendar.HOUR_OF_DAY, 0)
+    today.set(Calendar.MINUTE, 0)
+    today.set(Calendar.SECOND, 0)
+    today.set(Calendar.MILLISECOND, 0)
+
+    val bdayThisYear = Calendar.getInstance()
+    bdayThisYear.set(Calendar.YEAR, today.get(Calendar.YEAR))
+    bdayThisYear.set(Calendar.MONTH, month - 1)
+    bdayThisYear.set(Calendar.DAY_OF_MONTH, day)
+    bdayThisYear.set(Calendar.HOUR_OF_DAY, 0)
+    bdayThisYear.set(Calendar.MINUTE, 0)
+    bdayThisYear.set(Calendar.SECOND, 0)
+    bdayThisYear.set(Calendar.MILLISECOND, 0)
+
+    if (bdayThisYear.timeInMillis == today.timeInMillis) {
+        return 0
+    }
+
+    if (bdayThisYear.before(today)) {
+        val bdayNextYear = Calendar.getInstance()
+        bdayNextYear.set(Calendar.YEAR, today.get(Calendar.YEAR) + 1)
+        bdayNextYear.set(Calendar.MONTH, month - 1)
+        bdayNextYear.set(Calendar.DAY_OF_MONTH, day)
+        bdayNextYear.set(Calendar.HOUR_OF_DAY, 0)
+        bdayNextYear.set(Calendar.MINUTE, 0)
+        bdayNextYear.set(Calendar.SECOND, 0)
+        bdayNextYear.set(Calendar.MILLISECOND, 0)
+        
+        val diffMs = bdayNextYear.timeInMillis - today.timeInMillis
+        return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+    } else {
+        val diffMs = bdayThisYear.timeInMillis - today.timeInMillis
+        return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+    }
+}
+
+private fun calculateAge(birthDateStr: String): Int? {
+    val parts = birthDateStr.split("-")
+    if (parts.size != 3) return null
+    val birthYear = parts[0].toIntOrNull() ?: return null
+    val birthMonth = parts[1].toIntOrNull() ?: return null
+    val birthDay = parts[2].toIntOrNull() ?: return null
+
+    val today = Calendar.getInstance()
+    val currentYear = today.get(Calendar.YEAR)
+    val currentMonth = today.get(Calendar.MONTH) + 1
+    val currentDay = today.get(Calendar.DAY_OF_MONTH)
+
+    var age = currentYear - birthYear
+    if (currentMonth < birthMonth || (currentMonth == birthMonth && currentDay < birthDay)) {
+        age--
+    }
+    return if (age >= 0) age else 0
+}
+
+private fun formatBirthdayDate(storedDate: String): String {
+    val parts = storedDate.split("-")
+    if (parts.size == 3) {
+        val year = parts[0]
+        val month = parts[1].toIntOrNull() ?: 1
+        val day = parts[2].toIntOrNull() ?: 1
+        val monthName = getShortMonthName(month)
+        return "$day $monthName $year"
+    } else if (parts.size == 2) {
+        val month = parts[0].toIntOrNull() ?: 1
+        val day = parts[1].toIntOrNull() ?: 1
+        val monthName = getShortMonthName(month)
+        return "$day $monthName"
+    }
+    return storedDate
+}
+
+private fun getShortMonthName(month: Int): String {
+    return when (month) {
+        1 -> "Jan"
+        2 -> "Feb"
+        3 -> "Mar"
+        4 -> "Apr"
+        5 -> "May"
+        6 -> "Jun"
+        7 -> "Jul"
+        8 -> "Aug"
+        9 -> "Sep"
+        10 -> "Oct"
+        11 -> "Nov"
+        12 -> "Dec"
+        else -> ""
+    }
+}
+
+private fun parseInputDate(input: String, hasYear: Boolean): String? {
+    val cleaned = input.trim().replace('/', '-').replace('.', '-')
+    val parts = cleaned.split("-")
+    if (hasYear) {
+        if (parts.size == 3) {
+            val day = parts[0].toIntOrNull() ?: return null
+            val month = parts[1].toIntOrNull() ?: return null
+            val year = parts[2].toIntOrNull() ?: return null
+            if (day in 1..31 && month in 1..12 && year > 1900 && year < 2100) {
+                val formattedDay = day.toString().padStart(2, '0')
+                val formattedMonth = month.toString().padStart(2, '0')
+                return "$year-$formattedMonth-$formattedDay"
+            }
+        }
+    } else {
+        if (parts.size == 2) {
+            val day = parts[0].toIntOrNull() ?: return null
+            val month = parts[1].toIntOrNull() ?: return null
+            if (day in 1..31 && month in 1..12) {
+                val formattedDay = day.toString().padStart(2, '0')
+                val formattedMonth = month.toString().padStart(2, '0')
+                return "$formattedMonth-$formattedDay"
+            }
+        }
+    }
+    return null
+}
+
 @Composable
 fun BirthdaySection(viewModel: TrackWiseViewModel) {
     val birthdays by viewModel.allBirthdays.collectAsState()
+    var showForm by remember { mutableStateOf(false) }
 
     var name by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
+    var dateText by remember { mutableStateOf("") }
     var giftIdea by remember { mutableStateOf("") }
+    var isYearSelected by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf("Friend") }
+    var listFilter by remember { mutableStateOf("All") }
+    var showError by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+        // Toggle add birthday form
+        Button(
+            onClick = { showForm = !showForm },
+            colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("ADD FRIEND'S BIRTHDAY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
+            Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
+            Text(if (showForm) "Close Form" else "Add New Birthday", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+        }
 
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Friend's Name *") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+        if (showForm) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("ADD BIRTHDAY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    CompactTextField(
-                        value = date,
-                        onValueChange = { date = it },
-                        label = "Birthday Date *",
-                        placeholder = "MM-DD or YYYY-MM-DD",
-                        modifier = Modifier.weight(1f)
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Name * (e.g. Syed)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
 
-                    CompactTextField(
-                        value = giftIdea,
-                        onValueChange = { giftIdea = it },
-                        label = "Gift Idea",
-                        placeholder = "e.g. Perfume",
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Button(
-                    onClick = {
-                        if (name.isNotBlank() && date.isNotBlank()) {
-                            viewModel.addBirthday(name, date, if (giftIdea.isBlank()) null else giftIdea)
-                            name = ""
-                            date = ""
-                            giftIdea = ""
+                    // Format toggle
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "CHOOSE DATE FORMAT",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(false to "DD/MM (No Year)", true to "DD/MM/YYYY (With Year)").forEach { (hasYearOption, labelText) ->
+                                val isSel = isYearSelected == hasYearOption
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSel) BrandCyan else Color.Transparent)
+                                        .clickable { 
+                                            isYearSelected = hasYearOption
+                                            showError = false
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = labelText,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Add Birthday", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        CompactTextField(
+                            value = dateText,
+                            onValueChange = { 
+                                dateText = it
+                                showError = false
+                            },
+                            label = if (isYearSelected) "Date (DD/MM/YYYY) *" else "Date (DD/MM) *",
+                            placeholder = if (isYearSelected) "15/10/1995" else "15/10",
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        CompactTextField(
+                            value = giftIdea,
+                            onValueChange = { giftIdea = it },
+                            label = "Gift Idea",
+                            placeholder = "e.g. Watch",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Category Selection
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "SEGREGATION CATEGORY",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("Friend", "Family", "Relative", "Others").forEach { cat ->
+                                val isSel = selectedCategory == cat
+                                val catColor = when (cat) {
+                                    "Friend" -> BrandCyan
+                                    "Family" -> BrandRose
+                                    "Relative" -> BrandViolet
+                                    else -> BrandAmber
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSel) catColor.copy(alpha = 0.15f) else Color.Transparent)
+                                        .border(1.dp, if (isSel) catColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                        .clickable { selectedCategory = cat }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = cat,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isSel) catColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (showError) {
+                        Text(
+                            text = if (isYearSelected) "Please enter a valid date in DD/MM/YYYY format (e.g. 15/10/1995)" 
+                                   else "Please enter a valid date in DD/MM format (e.g. 15/10)",
+                            color = BrandRose,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val parsed = parseInputDate(dateText, isYearSelected)
+                            if (name.isNotBlank() && parsed != null) {
+                                var finalName = name.trim()
+                                if (!finalName.contains("Birthday", ignoreCase = true)) {
+                                    finalName = if (finalName.endsWith("s", ignoreCase = true)) {
+                                        "$finalName' Birthday"
+                                    } else {
+                                        "$finalName's Birthday"
+                                    }
+                                }
+                                viewModel.addBirthday(
+                                    name = finalName,
+                                    date = parsed,
+                                    giftIdea = if (giftIdea.isBlank()) null else giftIdea,
+                                    category = selectedCategory
+                                )
+                                name = ""
+                                dateText = ""
+                                giftIdea = ""
+                                showError = false
+                                showForm = false
+                            } else {
+                                showError = true
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Add Birthday", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
 
-        if (birthdays.isEmpty()) {
-            Text("No birthdays registered. Store dates to track countdowns!")
-        } else {
-            birthdays.forEach { bday ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+        // Segregated Filter list
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Filter:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                listOf("All", "Friend", "Family", "Relative", "Others").forEach { filter ->
+                    val isSel = listFilter == filter
+                    val catColor = when (filter) {
+                        "All" -> BrandCyan
+                        "Friend" -> BrandCyan
+                        "Family" -> BrandRose
+                        "Relative" -> BrandViolet
+                        else -> BrandAmber
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(if (isSel) catColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .clickable { listFilter = filter }
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
-                        Icon(Icons.Default.Cake, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(24.dp))
-                        
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = filter,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = bday.name,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            Text(
-                                text = "Date: ${bday.date} ${if (bday.giftIdea != null) "· Gift: ${bday.giftIdea}" else ""}",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                            )
+            if (birthdays.isEmpty()) {
+                Text("No birthdays registered. Store dates to track countdowns!")
+            } else {
+                val filteredBirthdays = if (listFilter == "All") {
+                    birthdays
+                } else {
+                    birthdays.filter { it.category.equals(listFilter, ignoreCase = true) }
+                }
+                val sortedBirthdays = filteredBirthdays.sortedBy { daysUntilBirthday(it.date) }
+
+                if (sortedBirthdays.isEmpty()) {
+                    Text(
+                        text = "No birthdays in '$listFilter' category.",
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
+                } else {
+                    sortedBirthdays.forEach { bday ->
+                        val daysLeft = daysUntilBirthday(bday.date)
+                        val age = calculateAge(bday.date)
+                        val catColor = when (bday.category) {
+                            "Friend" -> BrandCyan
+                            "Family" -> BrandRose
+                            "Relative" -> BrandViolet
+                            else -> BrandAmber
                         }
 
-                        IconButton(onClick = { viewModel.deleteBirthday(bday.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose)
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = if (daysLeft == 0) 2.dp else 1.dp,
+                                    color = if (daysLeft == 0) BrandAmber else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Cake, contentDescription = null, tint = catColor, modifier = Modifier.size(24.dp))
+                                
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = bday.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onBackground,
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            color = catColor.copy(alpha = 0.1f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = bday.category.uppercase(),
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = catColor,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = buildString {
+                                            append("Date: ${formatBirthdayDate(bday.date)}")
+                                            if (age != null) {
+                                                append(" (Age: $age)")
+                                            }
+                                            if (bday.giftIdea != null) {
+                                                append(" · Gift: ${bday.giftIdea}")
+                                            }
+                                        },
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            color = if (daysLeft == 0) BrandAmber.copy(alpha = 0.15f)
+                                            else if (daysLeft <= 7) BrandRose.copy(alpha = 0.1f)
+                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                                            shape = RoundedCornerShape(20.dp)
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = when (daysLeft) {
+                                            0 -> "TODAY! 🎂"
+                                            1 -> "Tomorrow"
+                                            else -> "In $daysLeft days"
+                                        },
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (daysLeft == 0) BrandAmber
+                                        else if (daysLeft <= 7) BrandRose
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                IconButton(onClick = { viewModel.deleteBirthday(bday.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose)
+                                }
+                            }
                         }
                     }
                 }
@@ -1051,23 +1731,47 @@ fun CompactTextField(
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
         )
         Spacer(modifier = Modifier.height(4.dp))
-        OutlinedTextField(
+        BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = if (placeholder.isNotEmpty()) { { Text(placeholder, fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)) } } else null,
-            singleLine = singleLine,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
             keyboardOptions = keyboardOptions,
-            shape = RoundedCornerShape(10.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = BrandViolet,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.05f)
+            singleLine = singleLine,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onBackground
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(44.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(10.dp)
+                ),
+            decorationBox = { innerTextField ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (value.isEmpty() && placeholder.isNotEmpty()) {
+                            Text(
+                                text = placeholder,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                maxLines = if (singleLine) 1 else 3
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            }
         )
     }
 }
@@ -1082,7 +1786,32 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
     var category by remember { mutableStateOf("Produce") }
     var filterState by remember { mutableStateOf("All") } // "All", "Pending", "Completed"
 
+    // Pricing Options
+    var enablePricing by remember { mutableStateOf(false) }
+    var priceInput by remember { mutableStateOf("") }
+    var priceUnit by remember { mutableStateOf("single item") }
+    var numericQuantityInput by remember { mutableStateOf("") }
+
     val categories = listOf("Produce", "Dairy", "Bakery", "Pantry", "Meat & Seafood", "Beverages", "Other")
+
+    // Calculations
+    val totalCost = groceryItems.filter { it.price != null }.sumOf {
+        val p = it.price ?: 0.0
+        val q = it.numericQuantity ?: 1.0
+        p * q
+    }
+
+    val completedCost = groceryItems.filter { it.completed && it.price != null }.sumOf {
+        val p = it.price ?: 0.0
+        val q = it.numericQuantity ?: 1.0
+        p * q
+    }
+
+    val pendingCost = groceryItems.filter { !it.completed && it.price != null }.sumOf {
+        val p = it.price ?: 0.0
+        val q = it.numericQuantity ?: 1.0
+        p * q
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1114,7 +1843,7 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                     ) {
                         Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(2.dp))
-                        Text("Clear", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("clear bought", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -1170,6 +1899,99 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                         label = "Quantity / Notes",
                         placeholder = "e.g., 1 dozen, 2 litres, 500g"
                     )
+
+                    // Pricing Toggle Option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { enablePricing = !enablePricing }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = enablePricing,
+                            onCheckedChange = { enablePricing = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandViolet)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Add Price & Cost Tracking (Optional)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    AnimatedVisibility(visible = enablePricing) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CompactTextField(
+                                    value = priceInput,
+                                    onValueChange = { priceInput = it },
+                                    label = "Price ($) *",
+                                    placeholder = "e.g., 2.50",
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                CompactTextField(
+                                    value = numericQuantityInput,
+                                    onValueChange = { numericQuantityInput = it },
+                                    label = "Quantity Value",
+                                    placeholder = "e.g., 3, 1.5 (Defaults to 1)",
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = "Select Price Unit",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf("single item", "single kg", "single gram", "single set").forEach { unit ->
+                                        val isSel = priceUnit == unit
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isSel) BrandViolet.copy(alpha = 0.15f) else Color.Transparent)
+                                                .border(
+                                                    1.dp,
+                                                    if (isSel) BrandViolet else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                    RoundedCornerShape(8.dp)
+                                                )
+                                                .clickable { priceUnit = unit }
+                                                .padding(vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = when(unit) {
+                                                    "single item" -> "Item"
+                                                    "single kg" -> "kg"
+                                                    "single gram" -> "gram"
+                                                    "single set" -> "Set"
+                                                    else -> unit
+                                                },
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSel) BrandViolet else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Category Selection
                     Column {
@@ -1227,7 +2049,7 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                 modifier = Modifier
                                     .fillMaxWidth(0.85f)
                                     .background(MaterialTheme.colorScheme.surface)
-                            ) {
+                             ) {
                                 categories.forEach { cat ->
                                     DropdownMenuItem(
                                         text = { Text(cat, fontSize = 13.sp) },
@@ -1244,14 +2066,22 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                     Button(
                         onClick = {
                             if (name.isNotBlank()) {
+                                val parsedPrice = if (enablePricing) priceInput.toDoubleOrNull() else null
+                                val parsedNumericQty = if (enablePricing) numericQuantityInput.toDoubleOrNull() ?: 1.0 else null
                                 viewModel.addGroceryItem(
                                     name = name.trim(),
                                     quantity = if (quantity.isBlank()) "1" else quantity.trim(),
-                                    category = category
+                                    category = category,
+                                    price = parsedPrice,
+                                    priceUnit = if (enablePricing) priceUnit else null,
+                                    numericQuantity = parsedNumericQty
                                 )
                                 // Reset form fields
                                 name = ""
                                 quantity = ""
+                                priceInput = ""
+                                numericQuantityInput = ""
+                                enablePricing = false
                                 showForm = false
                             }
                         },
@@ -1414,6 +2244,31 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                                         )
 
+                                        // Pricing info tag
+                                        if (item.price != null && item.price > 0) {
+                                            val qtyVal = item.numericQuantity ?: 1.0
+                                            val subTotal = item.price * qtyVal
+                                            val displayUnit = when (item.priceUnit) {
+                                                "single item" -> "item"
+                                                "single kg" -> "kg"
+                                                "single gram" -> "g"
+                                                "single set" -> "set"
+                                                else -> item.priceUnit ?: "item"
+                                            }
+                                            Text(
+                                                text = String.format("· $%.2f/%s", item.price, displayUnit),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = BrandViolet
+                                            )
+                                            Text(
+                                                text = String.format("(Total: $%.2f)", subTotal),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                                            )
+                                        }
+
                                         // Category bubble
                                         Box(
                                             modifier = Modifier
@@ -1443,6 +2298,252 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                     tint = BrandRose,
                                     modifier = Modifier.size(18.dp)
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Pricing Cost Summary Card ---
+        if (totalCost > 0.0) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Cost Summary & Total 💰",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Estimated Cost:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(String.format("$%.2f", totalCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Bought Items Cost:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(String.format("$%.2f", completedCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Remaining to Buy:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(String.format("$%.2f", pendingCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RecurrenceSelector(
+    repeatType: String,
+    onRepeatTypeChange: (String) -> Unit,
+    customRepeatValue: String,
+    onCustomRepeatValueChange: (String) -> Unit,
+    customRepeatUnit: String,
+    onCustomRepeatUnitChange: (String) -> Unit,
+    customRepeatDaysOfWeek: Set<String>,
+    onCustomRepeatDaysOfWeekChange: (Set<String>) -> Unit,
+    themeColor: Color = BrandViolet
+) {
+    var repeatDropdownExpanded by remember { mutableStateOf(false) }
+    var unitDropdownExpanded by remember { mutableStateOf(false) }
+
+    val repeatOptions = listOf(
+        "none" to "No Repeat",
+        "daily" to "Daily",
+        "weekdays" to "Weekdays (Mon-Fri)",
+        "weekly" to "Weekly",
+        "monthly" to "Monthly",
+        "yearly" to "Yearly",
+        "custom" to "Custom..."
+    )
+
+    val currentLabel = repeatOptions.find { it.first == repeatType }?.second ?: "No Repeat"
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Repeat Options 🔁",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = themeColor
+        )
+
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { repeatDropdownExpanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = themeColor),
+                border = BorderStroke(1.dp, themeColor.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(currentLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(
+                        imageVector = if (repeatDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            DropdownMenu(
+                expanded = repeatDropdownExpanded,
+                onDismissRequest = { repeatDropdownExpanded = false },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                repeatOptions.forEach { (optionType, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label, fontSize = 13.sp) },
+                        onClick = {
+                            onRepeatTypeChange(optionType)
+                            repeatDropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        if (repeatType == "custom") {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Custom Recurrence Details", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = themeColor)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = customRepeatValue,
+                            onValueChange = { onCustomRepeatValueChange(it) },
+                            label = { Text("Repeat every", fontSize = 11.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+
+                        Box(modifier = Modifier.weight(1.2f)) {
+                            OutlinedButton(
+                                onClick = { unitDropdownExpanded = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(customRepeatUnit.replaceFirstChar { it.uppercase() }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = unitDropdownExpanded,
+                                onDismissRequest = { unitDropdownExpanded = false }
+                            ) {
+                                listOf("days", "weeks", "months", "years").forEach { unit ->
+                                    DropdownMenuItem(
+                                        text = { Text(unit.replaceFirstChar { it.uppercase() }, fontSize = 13.sp) },
+                                        onClick = {
+                                            onCustomRepeatUnitChange(unit)
+                                            unitDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (customRepeatUnit == "weeks") {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Select Days of Week:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            val daysOfWeekList = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                daysOfWeekList.forEach { day ->
+                                    val isSelected = customRepeatDaysOfWeek.contains(day)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(
+                                                if (isSelected) themeColor else MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                            .clickable {
+                                                val nextSet = customRepeatDaysOfWeek.toMutableSet()
+                                                if (isSelected) {
+                                                    nextSet.remove(day)
+                                                } else {
+                                                    nextSet.add(day)
+                                                }
+                                                onCustomRepeatDaysOfWeekChange(nextSet)
+                                            }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = day,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

@@ -105,6 +105,11 @@ object TrackWiseUtils {
 
     // Tabular Islamic Calendar Approximation
     fun getHijriDate(dateStr: String): String {
+        val info = getHijriInfo(dateStr)
+        return "${info.day} ${info.monthNameEn} ${info.year}"
+    }
+
+    fun getHijriInfo(dateStr: String): HijriInfo {
         val date = parseDate(dateStr)
         val cal = Calendar.getInstance()
         cal.time = date
@@ -127,11 +132,30 @@ object TrackWiseUtils {
         val l3 = l2 - floor((30 - j) / 15.0).toInt() * floor((17719 * j) / 50.0).toInt() - floor(j / 16.0).toInt() * floor((15238 * j) / 43.0).toInt() + 29
         
         val hMonth = floor((24 * l3) / 709.0).toInt()
-        val hDay = l3 - floor((709 * hMonth) / 24.0).toInt()
+        val hDay = (l3 - floor((709 * hMonth) / 24.0)).toInt()
         val hYear = 30 * n + j - 30
 
-        val monthName = HIJRI_MONTHS[hMonth - 1]
-        return "$hDay $monthName $hYear"
+        val monthNameEn = HIJRI_MONTHS.getOrElse(hMonth - 1) { "Muharram" }
+        val monthNameUr = HIJRI_MONTHS_URDU.getOrElse(hMonth - 1) { monthNameEn }
+        return HijriInfo(hDay, hMonth, hYear, monthNameEn, monthNameUr)
+    }
+
+    fun toUrduNumerals(number: Int): String {
+        return number.toString().map { char ->
+            when (char) {
+                '0' -> '۰'
+                '1' -> '۱'
+                '2' -> '۲'
+                '3' -> '۳'
+                '4' -> '۴'
+                '5' -> '۵'
+                '6' -> '۶'
+                '7' -> '۷'
+                '8' -> '۸'
+                '9' -> '۹'
+                else -> char
+            }
+        }.joinToString("")
     }
 
     // --- Hindu Calendar Approximation (Vikram Samvat and Tithi) ---
@@ -210,11 +234,18 @@ object TrackWiseUtils {
 
     data class AllahName(val dayNum: Int, val en: String, val ar: String, val ur: String, val meaning: String)
     data class HinduCalendarInfo(val vsYear: Int, val vsMonth: String, val tithi: String, val paksha: String, val isAmavasya: Boolean, val isPurnima: Boolean)
+    data class HijriInfo(val day: Int, val month: Int, val year: Int, val monthNameEn: String, val monthNameUr: String)
 
     private val HIJRI_MONTHS = listOf(
         "Muharram", "Safar", "Rabi' al-Awwal", "Rabi' al-Thani",
         "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Sha'ban",
         "Ramadan", "Shawwal", "Dhu al-Qadah", "Dhu al-Hijjah"
+    )
+
+    private val HIJRI_MONTHS_URDU = listOf(
+        "محرم", "صفر", "ربیع الاول", "ربیع الثانی",
+        "جمادی الاول", "جمادی الثانی", "رجب", "شعبان",
+        "رمضان", "شوال", "ذی القعدہ", "ذی الحجہ"
     )
 
     private val HINDU_MONTHS = listOf(
@@ -224,36 +255,113 @@ object TrackWiseUtils {
 
     private val FIXED_INDIAN_FESTIVALS = mapOf(
         "01-01" to "New Year's Day 🎉",
+        "01-14" to "Makar Sankranti / Pongal 🌾",
+        "01-15" to "Indian Army Day 🪖",
         "01-26" to "Republic Day 🇮🇳",
+        "03-08" to "International Women's Day ♀️",
+        "04-14" to "Ambedkar Jayanti ✍️ / Baisakhi 🌾",
         "05-01" to "Labour Day 🛠️",
         "08-15" to "Independence Day 🇮🇳",
+        "09-05" to "Teachers' Day 🎓",
         "10-02" to "Gandhi Jayanti 🕊️",
+        "10-31" to "National Unity Day 🤝",
+        "11-14" to "Children's Day 🧸",
         "12-25" to "Christmas 🎄"
     )
 
-    // Movable festivals mapped for 2026/2027
+    // Movable festivals mapped for 2025/2026/2027/2028
     private val MOVABLE_FESTIVALS = mapOf(
+        // 2025
+        "2025-01-13" to "Lohri 🔥",
+        "2025-01-14" to "Makar Sankranti / Pongal 🌾",
+        "2025-02-26" to "Maha Shivratri 🔱",
+        "2025-03-14" to "Holi 🎨",
+        "2025-03-30" to "Gudi Padwa / Ugadi 🍃",
+        "2025-03-31" to "Eid ul-Fitr 🌙",
+        "2025-04-06" to "Rama Navami 🏹",
+        "2025-04-10" to "Mahavir Jayanti 🌸",
+        "2025-04-18" to "Good Friday ✝️",
+        "2025-05-12" to "Buddha Purnima ☸️",
+        "2025-06-07" to "Eid ul-Adha 🐐",
+        "2025-07-06" to "Muharram (Ashura) 🕌",
+        "2025-08-09" to "Raksha Bandhan 🎗️",
+        "2025-08-16" to "Janmashtami 🪈",
+        "2025-08-27" to "Ganesh Chaturthi 🐘",
+        "2025-09-05" to "Milad-un-Nabi 💚",
+        "2025-10-02" to "Dussehra / Vijayadashami 🏹",
+        "2025-10-20" to "Diwali / Deepavali 🪔",
+        "2025-10-22" to "Bhai Dooj 🤝",
+        "2025-10-27" to "Chhath Puja ☀️",
+        "2025-11-05" to "Guru Nanak Jayanti 🪯",
+
+        // 2026
         "2026-01-13" to "Lohri 🔥",
         "2026-01-14" to "Makar Sankranti / Pongal 🌾",
+        "2026-02-15" to "Maha Shivratri 🔱",
         "2026-03-03" to "Holi 🎨",
+        "2026-03-19" to "Gudi Padwa / Ugadi 🍃",
         "2026-03-20" to "Eid ul-Fitr 🌙",
+        "2026-03-27" to "Rama Navami 🏹",
+        "2026-04-02" to "Mahavir Jayanti 🌸",
+        "2026-04-03" to "Good Friday ✝️",
+        "2026-05-02" to "Buddha Purnima ☸️",
         "2026-05-27" to "Eid ul-Adha 🐐",
+        "2026-07-26" to "Muharram (Ashura) 🕌",
         "2026-08-28" to "Raksha Bandhan 🎗️",
         "2026-09-04" to "Janmashtami 🪈",
-        "2026-10-11" to "Dussehra 🏹",
-        "2026-10-20" to "Diwali 🪔",
+        "2026-09-15" to "Ganesh Chaturthi 🐘",
+        "2026-09-25" to "Milad-un-Nabi 💚",
+        "2026-10-11" to "Dussehra / Vijayadashami 🏹",
+        "2026-10-20" to "Diwali / Deepavali 🪔",
         "2026-10-22" to "Bhai Dooj 🤝",
         "2026-11-15" to "Chhath Puja ☀️",
+        "2026-11-24" to "Guru Nanak Jayanti 🪯",
         
+        // 2027
         "2027-01-13" to "Lohri 🔥",
         "2027-01-14" to "Makar Sankranti / Pongal 🌾",
-        "2027-03-22" to "Holi 🎨",
+        "2027-03-06" to "Maha Shivratri 🔱",
         "2027-03-10" to "Eid ul-Fitr 🌙",
+        "2027-03-22" to "Holi 🎨",
+        "2027-04-07" to "Gudi Padwa / Ugadi 🍃",
+        "2027-04-15" to "Rama Navami 🏹",
+        "2027-04-20" to "Mahavir Jayanti 🌸",
+        "2027-04-23" to "Good Friday ✝️",
         "2027-05-16" to "Eid ul-Adha 🐐",
+        "2027-05-20" to "Buddha Purnima ☸️",
+        "2027-07-16" to "Muharram (Ashura) 🕌",
         "2027-08-17" to "Raksha Bandhan 🎗️",
         "2027-08-25" to "Janmashtami 🪈",
-        "2027-10-09" to "Dussehra 🏹",
-        "2027-11-08" to "Diwali 🪔"
+        "2027-09-04" to "Ganesh Chaturthi 🐘",
+        "2027-09-14" to "Milad-un-Nabi 💚",
+        "2027-10-09" to "Dussehra / Vijayadashami 🏹",
+        "2027-11-08" to "Diwali / Deepavali 🪔",
+        "2027-11-10" to "Bhai Dooj 🤝",
+        "2027-11-14" to "Guru Nanak Jayanti 🪯",
+        "2027-12-04" to "Chhath Puja ☀️",
+
+        // 2028
+        "2028-01-13" to "Lohri 🔥",
+        "2028-01-14" to "Makar Sankranti / Pongal 🌾",
+        "2028-02-23" to "Maha Shivratri 🔱",
+        "2028-03-11" to "Holi 🎨",
+        "2028-03-26" to "Gudi Padwa / Ugadi 🍃",
+        "2028-03-28" to "Eid ul-Fitr 🌙",
+        "2028-04-03" to "Rama Navami 🏹",
+        "2028-04-08" to "Mahavir Jayanti 🌸",
+        "2028-04-14" to "Good Friday ✝️",
+        "2028-05-08" to "Buddha Purnima ☸️",
+        "2028-06-04" to "Eid ul-Adha 🐐",
+        "2028-07-04" to "Muharram (Ashura) 🕌",
+        "2028-08-05" to "Raksha Bandhan 🎗️",
+        "2028-08-13" to "Janmashtami 🪈",
+        "2028-08-24" to "Ganesh Chaturthi 🐘",
+        "2028-09-02" to "Milad-un-Nabi 💚",
+        "2028-10-22" to "Dussehra / Vijayadashami 🏹",
+        "2028-11-07" to "Diwali / Deepavali 🪔",
+        "2028-11-09" to "Bhai Dooj 🤝",
+        "2028-11-18" to "Chhath Puja ☀️",
+        "2028-12-02" to "Guru Nanak Jayanti 🪯"
     )
 
     private val ALLAH_NAMES_LIST = listOf(

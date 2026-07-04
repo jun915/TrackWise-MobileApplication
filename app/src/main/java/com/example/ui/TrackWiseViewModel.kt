@@ -41,7 +41,7 @@ class TrackWiseViewModel(
     val notifications: StateFlow<List<AppNotification>> = _notifications.asStateFlow()
 
     fun addNotification(title: String, message: String) {
-        val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
         val timeStr = sdf.format(Date())
         val newNotification = AppNotification(
             id = "notif-${System.currentTimeMillis()}",
@@ -111,7 +111,7 @@ class TrackWiseViewModel(
     private val _taskSound = MutableStateFlow("Chime")
     val taskSound: StateFlow<String> = _taskSound.asStateFlow()
 
-    private val _alarmSound = MutableStateFlow("Morning Birds")
+    private val _alarmSound = MutableStateFlow("Reflection")
     val alarmSound: StateFlow<String> = _alarmSound.asStateFlow()
 
     private val _appThemeSelection = MutableStateFlow("Default Violet")
@@ -226,6 +226,12 @@ class TrackWiseViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allNetWorthItems: StateFlow<List<NetWorthItemEntity>> = _sessionUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getNetWorthItemsFlow(user.id) else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val friendConnections: StateFlow<List<FriendConnectionEntity>> = _sessionUser
         .flatMapLatest { user ->
             if (user != null) repository.getFriendsFlow(user.id) else flowOf(emptyList())
@@ -251,17 +257,55 @@ class TrackWiseViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // --- Computed Score Stats ---
-    val todayScore: StateFlow<Int> = combine(allTasks, allHabits) { tasks, habits ->
+    val todayScore: StateFlow<Int> = combine(
+        allTasks,
+        allHabits,
+        allWishlist,
+        allGroceryItems,
+        allBirthdays
+    ) { tasks, habits, wishlist, groceries, birthdays ->
         val todayStr = TrackWiseUtils.getTodayString()
         if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@combine 0
         
-        val taskPoints = tasks.filter { it.deadline == todayStr && it.completed }.sumOf { it.points }
-        val habitPoints = habits.filter {
-            val days = TrackWiseUtils.deserializeStringList(it.daysCompletedJson)
-            days.contains(todayStr)
-        }.size * 2
+        // 1. Dynamic Task Points (High: 15 pts, Medium: 10 pts, Low: 5 pts)
+        val taskPoints = tasks.filter { it.deadline == todayStr && it.completed }.sumOf { 
+            when (it.priority.lowercase()) {
+                "high" -> 15
+                "medium" -> 10
+                else -> 5
+            }
+        }
         
-        val total = taskPoints + habitPoints
+        // 2. Dynamic Habit Points: 3 pts per completion count, plus 5 pts bonus if they reach the target
+        val habitPoints = habits.sumOf { habit ->
+            val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+            val completionsToday = days.count { it == todayStr }
+            if (completionsToday > 0) {
+                if (habit.isMultipleTimesPerDay) {
+                    val base = completionsToday * 3
+                    val bonus = if (completionsToday >= habit.multipleTimesTarget) 5 else 0
+                    base + bonus
+                } else {
+                    5
+                }
+            } else {
+                0
+            }
+        }
+
+        // 3. Dynamic Wishlist Points: 20 points for each purchased wishlist item
+        val wishPoints = wishlist.filter { it.purchased }.size * 20
+
+        // 4. Dynamic Grocery Points: 2 points for each completed grocery item
+        val groceryPoints = groceries.filter { it.completed }.size * 2
+
+        // 5. Dynamic Birthday Points: 50 points if celebrating a birthday today
+        val todayMMDD = todayStr.substring(5) // from YYYY-MM-DD to MM-DD
+        val birthdayPoints = birthdays.filter { 
+            it.date.endsWith(todayMMDD) 
+        }.size * 50
+        
+        val total = taskPoints + habitPoints + wishPoints + groceryPoints + birthdayPoints
         
         // Auto-save this updated score to Streak History in database background
         _sessionUser.value?.let { user ->
@@ -413,9 +457,26 @@ class TrackWiseViewModel(
     }
 
     // --- Tasks Actions ---
-    fun addTask(title: String, description: String, project: String, priority: String, points: Int, deadline: String, reminderTime: String?) {
+    fun addTask(
+        title: String,
+        description: String,
+        project: String,
+        priority: String,
+        points: Int,
+        deadline: String,
+        reminderTime: String?,
+        repeatType: String = "none",
+        customRepeatValue: Int = 1,
+        customRepeatUnit: String = "days",
+        customRepeatDaysOfWeek: String? = null
+    ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            val taskPoints = when (priority.lowercase()) {
+                "high" -> 15
+                "medium" -> 10
+                else -> 5
+            }
             val task = TaskEntity(
                 id = "task-${System.currentTimeMillis()}",
                 userId = user.id,
@@ -425,8 +486,12 @@ class TrackWiseViewModel(
                 priority = priority,
                 deadline = deadline,
                 completed = false,
-                points = points,
-                reminderTime = reminderTime
+                points = taskPoints,
+                reminderTime = reminderTime,
+                repeatType = repeatType,
+                customRepeatValue = customRepeatValue,
+                customRepeatUnit = customRepeatUnit,
+                customRepeatDaysOfWeek = customRepeatDaysOfWeek
             )
             repository.insertTask(task)
             triggerFakeSync()
@@ -495,7 +560,18 @@ class TrackWiseViewModel(
     }
 
     // --- Habits Actions ---
-    fun addHabit(name: String, category: String) {
+    fun addHabit(
+        name: String,
+        category: String,
+        isMultipleTimesPerDay: Boolean = false,
+        multipleTimesTarget: Int = 1,
+        isTimeBound: Boolean = false,
+        timeBoundDuration: String? = null,
+        repeatType: String = "none",
+        customRepeatValue: Int = 1,
+        customRepeatUnit: String = "days",
+        customRepeatDaysOfWeek: String? = null
+    ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val today = TrackWiseUtils.getTodayString()
@@ -504,7 +580,15 @@ class TrackWiseViewModel(
                 userId = user.id,
                 name = name,
                 category = category,
-                createdAt = today
+                createdAt = today,
+                isMultipleTimesPerDay = isMultipleTimesPerDay,
+                multipleTimesTarget = multipleTimesTarget,
+                isTimeBound = isTimeBound,
+                timeBoundDuration = timeBoundDuration,
+                repeatType = repeatType,
+                customRepeatValue = customRepeatValue,
+                customRepeatUnit = customRepeatUnit,
+                customRepeatDaysOfWeek = customRepeatDaysOfWeek
             )
             repository.insertHabit(habit)
             triggerFakeSync()
@@ -569,6 +653,104 @@ class TrackWiseViewModel(
         }
     }
 
+    fun incrementHabitToday(habit: HabitEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val todayStr = TrackWiseUtils.getTodayString()
+            if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@launch
+            
+            val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).toMutableList()
+            days.add(todayStr)
+            
+            // Recalculate streak
+            var currentStreak = 0
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            if (days.contains(todayStr)) {
+                currentStreak = 1
+                var checkDate = Calendar.getInstance()
+                checkDate.time = sdf.parse(todayStr) ?: Date()
+                
+                while (true) {
+                    checkDate.add(Calendar.DAY_OF_YEAR, -1)
+                    val prevStr = sdf.format(checkDate.time)
+                    if (prevStr < TrackWiseUtils.APP_LAUNCH_DATE) break
+                    if (days.contains(prevStr)) {
+                        currentStreak++
+                    } else {
+                        break
+                    }
+                }
+            }
+            
+            val maxStreak = max(habit.maxStreak, currentStreak)
+            val currentBadges = TrackWiseUtils.deserializeIntList(habit.badgesEarnedJson).toMutableList()
+            val milestones = listOf(1, 3, 5, 7, 14, 21, 30, 45, 60, 90, 100, 365)
+            milestones.forEach { milestone ->
+                if (maxStreak >= milestone && !currentBadges.contains(milestone)) {
+                    currentBadges.add(milestone)
+                }
+            }
+            
+            val updated = habit.copy(
+                daysCompletedJson = TrackWiseUtils.serializeStringList(days),
+                streak = currentStreak,
+                maxStreak = maxStreak,
+                badgesEarnedJson = TrackWiseUtils.serializeIntList(currentBadges)
+            )
+            repository.insertHabit(updated)
+            triggerFakeSync()
+        }
+    }
+
+    fun decrementHabitToday(habit: HabitEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val todayStr = TrackWiseUtils.getTodayString()
+            if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@launch
+            
+            val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).toMutableList()
+            if (days.contains(todayStr)) {
+                days.remove(todayStr)
+            }
+            
+            // Recalculate streak
+            var currentStreak = 0
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            if (days.contains(todayStr)) {
+                currentStreak = 1
+                var checkDate = Calendar.getInstance()
+                checkDate.time = sdf.parse(todayStr) ?: Date()
+                
+                while (true) {
+                    checkDate.add(Calendar.DAY_OF_YEAR, -1)
+                    val prevStr = sdf.format(checkDate.time)
+                    if (prevStr < TrackWiseUtils.APP_LAUNCH_DATE) break
+                    if (days.contains(prevStr)) {
+                        currentStreak++
+                    } else {
+                        break
+                    }
+                }
+            }
+            
+            val maxStreak = max(habit.maxStreak, currentStreak)
+            val currentBadges = TrackWiseUtils.deserializeIntList(habit.badgesEarnedJson).toMutableList()
+            val milestones = listOf(1, 3, 5, 7, 14, 21, 30, 45, 60, 90, 100, 365)
+            milestones.forEach { milestone ->
+                if (maxStreak >= milestone && !currentBadges.contains(milestone)) {
+                    currentBadges.add(milestone)
+                }
+            }
+            
+            val updated = habit.copy(
+                daysCompletedJson = TrackWiseUtils.serializeStringList(days),
+                streak = currentStreak,
+                maxStreak = maxStreak,
+                badgesEarnedJson = TrackWiseUtils.serializeIntList(currentBadges)
+            )
+            repository.insertHabit(updated)
+            triggerFakeSync()
+        }
+    }
+
     fun deleteHabit(habitId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteHabit(habitId)
@@ -577,15 +759,22 @@ class TrackWiseViewModel(
     }
 
     // --- Birthdays Actions ---
-    fun addBirthday(name: String, date: String, giftIdea: String?) {
+    fun addBirthday(name: String, date: String, giftIdea: String?, category: String = "Others") {
         val user = _sessionUser.value ?: return
+        val trimmedName = name.trim()
+        val finalName = if (trimmedName.endsWith("'s Birthday", ignoreCase = true) || trimmedName.endsWith("Birthday", ignoreCase = true)) {
+            trimmedName
+        } else {
+            "$trimmedName's Birthday"
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val birthday = BirthdayEntity(
                 id = "birthday-${System.currentTimeMillis()}",
                 userId = user.id,
-                name = name,
+                name = finalName,
                 date = date,
-                giftIdea = giftIdea
+                giftIdea = giftIdea,
+                category = category
             )
             repository.insertBirthday(birthday)
             triggerFakeSync()
@@ -633,7 +822,14 @@ class TrackWiseViewModel(
     }
 
     // --- Grocery List Actions ---
-    fun addGroceryItem(name: String, quantity: String, category: String) {
+    fun addGroceryItem(
+        name: String,
+        quantity: String,
+        category: String,
+        price: Double? = null,
+        priceUnit: String? = null,
+        numericQuantity: Double? = null
+    ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val item = GroceryItemEntity(
@@ -642,7 +838,10 @@ class TrackWiseViewModel(
                 name = name,
                 quantity = quantity,
                 completed = false,
-                category = category
+                category = category,
+                price = price,
+                priceUnit = priceUnit,
+                numericQuantity = numericQuantity
             )
             repository.insertGroceryItem(item)
             triggerFakeSync()
@@ -731,6 +930,29 @@ class TrackWiseViewModel(
     fun addPeriodCycle(startDate: String, durationDays: Int, cycleLengthDays: Int, symptoms: String, notes: String?) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            val isDuplicate = periodCycles.value.any { it.startDate == startDate }
+            if (isDuplicate) {
+                _authError.value = "Only one period cycle can be logged for this start date!"
+                return@launch
+            }
+            val cycle = PeriodCycleEntity(
+                id = "period-${System.currentTimeMillis()}-${(1000..9999).random()}",
+                userId = user.id,
+                startDate = startDate,
+                durationDays = durationDays,
+                cycleLengthDays = cycleLengthDays,
+                symptoms = symptoms,
+                notes = notes
+            )
+            repository.insertPeriodCycle(cycle)
+            triggerFakeSync()
+        }
+    }
+
+    fun updatePeriodCycle(oldId: String, startDate: String, durationDays: Int, cycleLengthDays: Int, symptoms: String, notes: String?) {
+        val user = _sessionUser.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deletePeriodCycle(oldId)
             val cycle = PeriodCycleEntity(
                 id = "period-${System.currentTimeMillis()}-${(1000..9999).random()}",
                 userId = user.id,
@@ -753,7 +975,15 @@ class TrackWiseViewModel(
     }
 
     // --- Finance Actions ---
-    fun addFinanceLog(type: String, category: String, title: String, amount: Double, notes: String?, date: String = TrackWiseUtils.getTodayString()) {
+    fun addFinanceLog(
+        type: String,
+        category: String,
+        title: String,
+        amount: Double,
+        notes: String?,
+        date: String = TrackWiseUtils.getTodayString(),
+        spendSource: String? = null
+    ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val log = FinanceLogEntity(
@@ -764,17 +994,114 @@ class TrackWiseViewModel(
                 category = category,
                 title = title,
                 amount = amount,
-                notes = notes
+                notes = notes,
+                spendSource = spendSource
             )
             repository.insertFinanceLog(log)
+
+            // If it's a savings log, it automatically goes to Net Worth assets!
+            if (type == "savings") {
+                val assetName = category // e.g. "Mutual Funds", "Simple Savings in Account"
+                val existing = repository.getNetWorthItemByName(user.id, assetName)
+                if (existing != null) {
+                    repository.insertNetWorthItem(existing.copy(amount = existing.amount + amount))
+                } else {
+                    repository.insertNetWorthItem(
+                        NetWorthItemEntity(
+                            id = "nw-${System.currentTimeMillis()}-${(1000..9999).random()}",
+                            userId = user.id,
+                            name = assetName,
+                            type = "asset",
+                            amount = amount
+                        )
+                    )
+                }
+            }
+
+            // If it's an expense log with a specified spendSource, deduct from that asset!
+            if (type == "expense" && spendSource != null) {
+                val existing = repository.getNetWorthItemByName(user.id, spendSource)
+                if (existing != null) {
+                    repository.insertNetWorthItem(existing.copy(amount = existing.amount - amount))
+                }
+            }
+
             triggerFakeSync()
         }
     }
 
     fun deleteFinanceLog(id: String) {
+        val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            repository.deleteFinanceLog(id)
+            val log = repository.getFinanceLogById(id)
+            if (log != null) {
+                // Undo the net worth effect!
+                if (log.type == "savings") {
+                    val assetName = log.category
+                    val existing = repository.getNetWorthItemByName(user.id, assetName)
+                    if (existing != null) {
+                        repository.insertNetWorthItem(existing.copy(amount = max(0.0, existing.amount - log.amount)))
+                    }
+                } else if (log.type == "expense" && log.spendSource != null) {
+                    val existing = repository.getNetWorthItemByName(user.id, log.spendSource)
+                    if (existing != null) {
+                        repository.insertNetWorthItem(existing.copy(amount = existing.amount + log.amount))
+                    }
+                }
+                repository.deleteFinanceLog(id)
+            }
             triggerFakeSync()
+        }
+    }
+
+    fun updateFinanceDailyTarget(target: Double) {
+        val user = _sessionUser.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val existingProfile = repository.getUserProfile(user.id) ?: UserProfileEntity(user.id)
+            val updated = existingProfile.copy(financeDailyTarget = target)
+            repository.insertUserProfile(updated)
+            triggerFakeSync()
+        }
+    }
+
+    // --- Net Worth Specific Actions ---
+    fun addNetWorthItem(name: String, type: String, amount: Double) {
+        val user = _sessionUser.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val item = NetWorthItemEntity(
+                id = "nw-${System.currentTimeMillis()}-${(1000..9999).random()}",
+                userId = user.id,
+                name = name.trim(),
+                type = type.lowercase(),
+                amount = amount
+            )
+            repository.insertNetWorthItem(item)
+            triggerFakeSync()
+        }
+    }
+
+    fun deleteNetWorthItem(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteNetWorthItem(id)
+            triggerFakeSync()
+        }
+    }
+
+    fun populateDefaultNetWorthItemsIfEmpty() {
+        val user = _sessionUser.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val existingList = repository.getNetWorthItems(user.id)
+            if (existingList.isEmpty()) {
+                val defaults = listOf(
+                    NetWorthItemEntity("nw-def-1", user.id, "Simple Savings in Account", "asset", 50000.0),
+                    NetWorthItemEntity("nw-def-2", user.id, "Mutual Funds", "asset", 25000.0),
+                    NetWorthItemEntity("nw-def-3", user.id, "Stocks", "asset", 15000.0),
+                    NetWorthItemEntity("nw-def-4", user.id, "Home Loan", "loan", 100000.0),
+                    NetWorthItemEntity("nw-def-5", user.id, "Credit Card Outstanding", "liability", 5000.0)
+                )
+                defaults.forEach { repository.insertNetWorthItem(it) }
+                triggerFakeSync()
+            }
         }
     }
 
@@ -805,15 +1132,23 @@ class TrackWiseViewModel(
     }
 
     // --- Weight Log Actions ---
-    fun logWeight(weight: Double, notes: String?) {
+    fun logWeight(weight: Double, notes: String?, date: String? = null) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val today = TrackWiseUtils.getTodayString()
-            val time = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+            val finalDate = date ?: TrackWiseUtils.getTodayString()
+            
+            // Limit to one entry per day
+            val isDuplicate = weightEntries.value.any { it.date == finalDate }
+            if (isDuplicate) {
+                _authError.value = "Only one weight entry is allowed per day!"
+                return@launch
+            }
+
+            val time = SimpleDateFormat("hh:mm a", Locale.US).format(Date())
             val entry = WeightEntryEntity(
                 id = "weight-${System.currentTimeMillis()}",
                 userId = user.id,
-                date = today,
+                date = finalDate,
                 time = time,
                 weightKg = weight,
                 notes = notes
@@ -831,17 +1166,17 @@ class TrackWiseViewModel(
     }
 
     // --- Vital Log Actions ---
-    fun logVital(type: String, value: String, context: String?, notes: String?) {
+    fun logVital(type: String, value: String, context: String?, notes: String?, date: String? = null, time: String? = null) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val today = TrackWiseUtils.getTodayString()
-            val time = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+            val finalDate = date ?: TrackWiseUtils.getTodayString()
+            val finalTime = time ?: SimpleDateFormat("hh:mm a", Locale.US).format(Date())
             val entry = VitalReadingEntity(
                 id = "vital-${System.currentTimeMillis()}",
                 userId = user.id,
                 type = type,
-                date = today,
-                time = time,
+                date = finalDate,
+                time = finalTime,
                 value = value,
                 context = context,
                 notes = notes
@@ -859,15 +1194,15 @@ class TrackWiseViewModel(
     }
 
     // --- Exercise Log Actions ---
-    fun logExercise(type: String, duration: Int, completed: Boolean, notes: String?) {
+    fun logExercise(type: String, duration: Int, completed: Boolean, notes: String?, date: String? = null) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val today = TrackWiseUtils.getTodayString()
-            val time = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+            val finalDate = date ?: TrackWiseUtils.getTodayString()
+            val time = SimpleDateFormat("hh:mm a", Locale.US).format(Date())
             val entry = ExerciseLogEntity(
                 id = "exercise-${System.currentTimeMillis()}",
                 userId = user.id,
-                date = today,
+                date = finalDate,
                 time = time,
                 exerciseType = type,
                 durationMinutes = duration,
@@ -887,15 +1222,15 @@ class TrackWiseViewModel(
     }
 
     // --- Health Issue Log Actions ---
-    fun logHealthIssue(issueId: String, issueName: String, severity: String, notes: String?) {
+    fun logHealthIssue(issueId: String, issueName: String, severity: String, notes: String?, date: String? = null) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val today = TrackWiseUtils.getTodayString()
-            val time = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+            val finalDate = date ?: TrackWiseUtils.getTodayString()
+            val time = SimpleDateFormat("hh:mm a", Locale.US).format(Date())
             val entry = HealthIssueLogEntity(
                 id = "issue-${System.currentTimeMillis()}",
                 userId = user.id,
-                date = today,
+                date = finalDate,
                 time = time,
                 issueId = issueId,
                 issueName = issueName,
@@ -1022,14 +1357,22 @@ class TrackWiseViewModel(
     }
 
     // --- Sleep Tracker Actions ---
-    fun addSleepLog(hoursSlept: Double, startTime: String, endTime: String, notes: String? = null) {
+    fun addSleepLog(hoursSlept: Double, startTime: String, endTime: String, notes: String? = null, date: String? = null) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            val date = TrackWiseUtils.getTodayString()
+            val finalDate = date ?: TrackWiseUtils.getTodayString()
+            
+            // Limit to one entry per day
+            val isDuplicate = sleepLogs.value.any { it.date == finalDate }
+            if (isDuplicate) {
+                _authError.value = "Only one sleep entry is allowed per day!"
+                return@launch
+            }
+
             val log = SleepLogEntity(
                 id = "sleep-${System.currentTimeMillis()}",
                 userId = user.id,
-                date = date,
+                date = finalDate,
                 hoursSlept = hoursSlept,
                 startTime = startTime,
                 endTime = endTime,
@@ -1100,57 +1443,60 @@ class TrackWiseViewModel(
                 while (isAlarmPlaying) {
                     val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
                     when (sound) {
-                        "Morning Birds" -> {
-                            // Beautiful cascading high-pitch birdsong
-                            val birdsong = listOf(
+                        "Reflection" -> {
+                            // Beautiful cascading high-pitch meditative notes
+                            val reflectionNotes = listOf(
                                 ToneGenerator.TONE_DTMF_1, ToneGenerator.TONE_DTMF_4, ToneGenerator.TONE_DTMF_7,
-                                ToneGenerator.TONE_DTMF_2, ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_DTMF_8,
-                                ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_6, ToneGenerator.TONE_DTMF_9
+                                ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_DTMF_8, ToneGenerator.TONE_DTMF_3
                             )
-                            for (note in birdsong) {
+                            for (note in reflectionNotes) {
                                 if (!isAlarmPlaying) break
-                                tg.startTone(note, 60)
-                                delay(90)
+                                tg.startTone(note, 120)
+                                delay(160)
                             }
-                            delay(800)
+                            delay(1000)
                         }
-                        "Digital Beep" -> {
-                            // Rhythmic Casio watch melody
-                            val casioNotes = listOf(
+                        "Marimba" -> {
+                            // Bright woodblock marimba rhythmic melody
+                            val marimbaNotes = listOf(
                                 ToneGenerator.TONE_CDMA_PIP, ToneGenerator.TONE_CDMA_PIP,
-                                ToneGenerator.TONE_CDMA_PIP, ToneGenerator.TONE_CDMA_PIP,
-                                ToneGenerator.TONE_CDMA_PIP
+                                ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_CDMA_PIP,
+                                ToneGenerator.TONE_DTMF_7, ToneGenerator.TONE_CDMA_PIP
                             )
-                            for (note in casioNotes) {
+                            for (note in marimbaNotes) {
                                 if (!isAlarmPlaying) break
-                                tg.startTone(note, 100)
-                                delay(180)
+                                tg.startTone(note, 80)
+                                delay(120)
                             }
                             delay(600)
                         }
-                        "Loud Siren" -> {
-                            // Alternating emergency siren waves
-                            for (i in 1..4) {
-                                if (!isAlarmPlaying) break
-                                tg.startTone(ToneGenerator.TONE_SUP_DIAL, 250)
-                                delay(280)
-                                tg.startTone(ToneGenerator.TONE_SUP_ERROR, 250)
-                                delay(280)
-                            }
-                            delay(300)
-                        }
-                        "Classic Bell" -> {
-                            // Royal Westminster Quarters clock chime melody (8 notes)
-                            val westminster = listOf(
-                                ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_1, ToneGenerator.TONE_DTMF_2, ToneGenerator.TONE_DTMF_5,
-                                ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_DTMF_2, ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_1
+                        "Over the Horizon" -> {
+                            // Samsung-like classic melodic sequence
+                            val horizonNotes = listOf(
+                                ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_4, 
+                                ToneGenerator.TONE_DTMF_6, ToneGenerator.TONE_DTMF_8,
+                                ToneGenerator.TONE_DTMF_9
                             )
-                            for (note in westminster) {
+                            for (note in horizonNotes) {
                                 if (!isAlarmPlaying) break
-                                tg.startTone(note, 250)
-                                delay(350)
+                                tg.startTone(note, 180)
+                                delay(220)
                             }
-                            delay(1200)
+                            delay(1000)
+                        }
+                        "The Big Adventure" -> {
+                            // Royal Westminster and chime hybrid dynamic pattern
+                            val adventureNotes = listOf(
+                                ToneGenerator.TONE_DTMF_1, ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_5,
+                                ToneGenerator.TONE_DTMF_2, ToneGenerator.TONE_DTMF_4, ToneGenerator.TONE_DTMF_6,
+                                ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_DTMF_8
+                            )
+                            for (note in adventureNotes) {
+                                if (!isAlarmPlaying) break
+                                tg.startTone(note, 150)
+                                delay(200)
+                            }
+                            delay(800)
                         }
                         else -> {
                             tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 250)
@@ -1181,25 +1527,25 @@ class TrackWiseViewModel(
             try {
                 val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 85)
                 when (sound) {
-                    "Morning Birds" -> {
-                        tg.startTone(ToneGenerator.TONE_DTMF_4, 80)
-                        delay(100)
-                        tg.startTone(ToneGenerator.TONE_DTMF_7, 80)
-                    }
-                    "Digital Beep" -> {
-                        tg.startTone(ToneGenerator.TONE_CDMA_PIP, 100)
+                    "Reflection" -> {
+                        tg.startTone(ToneGenerator.TONE_DTMF_1, 100)
                         delay(120)
-                        tg.startTone(ToneGenerator.TONE_CDMA_PIP, 100)
+                        tg.startTone(ToneGenerator.TONE_DTMF_4, 100)
                     }
-                    "Loud Siren" -> {
-                        tg.startTone(ToneGenerator.TONE_SUP_DIAL, 200)
-                        delay(220)
-                        tg.startTone(ToneGenerator.TONE_SUP_ERROR, 200)
+                    "Marimba" -> {
+                        tg.startTone(ToneGenerator.TONE_CDMA_PIP, 80)
+                        delay(100)
+                        tg.startTone(ToneGenerator.TONE_DTMF_5, 80)
                     }
-                    "Classic Bell" -> {
-                        tg.startTone(ToneGenerator.TONE_DTMF_3, 200)
-                        delay(220)
-                        tg.startTone(ToneGenerator.TONE_DTMF_1, 200)
+                    "Over the Horizon" -> {
+                        tg.startTone(ToneGenerator.TONE_DTMF_3, 120)
+                        delay(140)
+                        tg.startTone(ToneGenerator.TONE_DTMF_6, 120)
+                    }
+                    "The Big Adventure" -> {
+                        tg.startTone(ToneGenerator.TONE_DTMF_1, 100)
+                        delay(120)
+                        tg.startTone(ToneGenerator.TONE_DTMF_5, 100)
                     }
                 }
                 delay(200)
@@ -1231,17 +1577,14 @@ class TrackWiseViewModel(
     }
 
     fun clearAllData() {
-        _sessionUser.value = null
+        val user = _sessionUser.value ?: return
         _settingsPanelOpen.value = false
-        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
-        prefs.edit().clear().apply()
         
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val db = TrackWiseDatabase.getDatabase(getApplication())
-                db.clearAllTables()
+                repository.clearUserData(user.id)
                 viewModelScope.launch(Dispatchers.Main) {
-                    _successMessage.value = "All database and local data cleared! Fresh start."
+                    _successMessage.value = "All your personal logs and statistics have been successfully cleared! Your account is active."
                 }
                 updateAppWidget()
             } catch (e: Exception) {

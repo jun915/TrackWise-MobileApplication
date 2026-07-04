@@ -273,17 +273,17 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
 
         // 11 Sample Birthdays
         val sampleBirthdays = listOf(
-            BirthdayEntity("b-1", userId, "Aarav Sharma", "05-15", "Premium leather wallet"),
-            BirthdayEntity("b-2", userId, "Ammi Jaan", "07-12", "Traditional Kashmiri shawl"),
-            BirthdayEntity("b-3", userId, "Zoya Khan", "09-24", "Wireless noise cancelling earbuds"),
-            BirthdayEntity("b-4", userId, "Rahul Patel", "01-05", "Fitness smartwatch"),
-            BirthdayEntity("b-5", userId, "Priya Nair", "11-30", "Scented candle gift set"),
-            BirthdayEntity("b-6", userId, "Kabir Mehta", "03-18", "Python programming masterclass subscription"),
-            BirthdayEntity("b-7", userId, "Ananya Sen", "12-05", "Ceramic handmade tea mug"),
-            BirthdayEntity("b-8", userId, "Fatima Bi", "02-14", "Orthopedic posture cushion"),
-            BirthdayEntity("b-9", userId, "Rohan Das", "06-10", "Mechanical gaming keyboard"),
-            BirthdayEntity("b-10", userId, "Siddharth", "08-22", "Stainless steel water bottle"),
-            BirthdayEntity("b-11", userId, "Abbu", "10-14", "Digital BP monitoring machine")
+            BirthdayEntity("b-1", userId, "Aarav Sharma's Birthday", "05-15", "Premium leather wallet", "Friend"),
+            BirthdayEntity("b-2", userId, "Ammi Jaan's Birthday", "07-12", "Traditional Kashmiri shawl", "Family"),
+            BirthdayEntity("b-3", userId, "Zoya Khan's Birthday", "09-24", "Wireless noise cancelling earbuds", "Friend"),
+            BirthdayEntity("b-4", userId, "Rahul Patel's Birthday", "01-05", "Fitness smartwatch", "Relative"),
+            BirthdayEntity("b-5", userId, "Priya Nair's Birthday", "11-30", "Scented candle gift set", "Friend"),
+            BirthdayEntity("b-6", userId, "Kabir Mehta's Birthday", "03-18", "Python programming masterclass subscription", "Friend"),
+            BirthdayEntity("b-7", userId, "Ananya Sen's Birthday", "12-05", "Ceramic handmade tea mug", "Friend"),
+            BirthdayEntity("b-8", userId, "Fatima Bi's Birthday", "02-14", "Orthopedic posture cushion", "Relative"),
+            BirthdayEntity("b-9", userId, "Rohan Das's Birthday", "06-10", "Mechanical gaming keyboard", "Friend"),
+            BirthdayEntity("b-10", userId, "Siddharth's Birthday", "08-22", "Stainless steel water bottle", "Others"),
+            BirthdayEntity("b-11", userId, "Abbu's Birthday", "10-14", "Digital BP monitoring machine", "Family")
         )
 
         sampleBirthdays.forEach { dao.insertBirthday(it) }
@@ -525,7 +525,36 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
         dao.insertFinanceLog(log)
     }
 
+    suspend fun getFinanceLogById(id: String): FinanceLogEntity? {
+        return dao.getFinanceLogById(id)
+    }
+
     suspend fun deleteFinanceLog(id: String) {
         dao.deleteFinanceLogById(id)
+    }
+
+    // --- Net Worth Items ---
+    fun getNetWorthItemsFlow(userId: String): Flow<List<NetWorthItemEntity>> = dao.getNetWorthItemsFlow(userId)
+
+    suspend fun getNetWorthItems(userId: String): List<NetWorthItemEntity> = dao.getNetWorthItems(userId)
+
+    suspend fun insertNetWorthItem(item: NetWorthItemEntity) {
+        dao.insertNetWorthItem(item)
+    }
+
+    suspend fun deleteNetWorthItem(id: String) {
+        dao.deleteNetWorthItemById(id)
+    }
+
+    suspend fun updateNetWorthItemAmount(userId: String, name: String, delta: Double) {
+        dao.updateNetWorthItemAmount(userId, name, delta)
+    }
+
+    suspend fun getNetWorthItemByName(userId: String, name: String): NetWorthItemEntity? {
+        return dao.getNetWorthItemByName(userId, name)
+    }
+
+    suspend fun clearUserData(userId: String) {
+        dao.clearUserData(userId)
     }
 }

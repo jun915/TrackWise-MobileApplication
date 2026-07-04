@@ -253,9 +253,15 @@ fun AlarmsSubSection(viewModel: TrackWiseViewModel) {
                             )
                         }
                         Spacer(modifier = Modifier.height(16.dp))
+                        val amPmBanner = if (alarm.hour >= 12) "PM" else "AM"
+                        val displayHourBanner = when {
+                            alarm.hour == 0 -> 12
+                            alarm.hour > 12 -> alarm.hour - 12
+                            else -> alarm.hour
+                        }
                         Text(
-                            text = String.format("%02d:%02d", alarm.hour, alarm.minute),
-                            fontSize = 36.sp,
+                            text = String.format("%d:%02d %s", displayHourBanner, alarm.minute, amPmBanner),
+                            fontSize = 32.sp,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.onBackground
                         )
@@ -611,6 +617,7 @@ fun AddAlarmDialog(
                     value = label,
                     onValueChange = { label = it },
                     label = { Text("Alarm Label (e.g., Morning Meditation)") },
+                    singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = BrandViolet,

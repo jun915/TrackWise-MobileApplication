@@ -47,6 +47,7 @@ fun AnalyticsScreen(
     val sleepLogs by viewModel.sleepLogs.collectAsState()
     val healthIssues by viewModel.healthIssueLogs.collectAsState()
     val financeLogs by viewModel.allFinanceLogs.collectAsState()
+    val netWorthItems by viewModel.allNetWorthItems.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
 
     // Interactive category selector
@@ -316,6 +317,11 @@ fun AnalyticsScreen(
                             }
                         }
                     }
+                }
+                item {
+                    NetWorthPieChartCard(
+                        netWorthItems = netWorthItems
+                    )
                 }
                 item {
                     ExpenseSavingsPieChartCard(
@@ -3261,6 +3267,141 @@ fun TopSpentDaysCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun NetWorthPieChartCard(
+    netWorthItems: List<NetWorthItemEntity>
+) {
+    var activeTab by remember { mutableStateOf(0) } // 0 = Assets vs Debt, 1 = Assets Breakdown, 2 = Debt Breakdown
+
+    val totalAssets = remember(netWorthItems) { netWorthItems.filter { it.type == "asset" }.sumOf { it.amount } }
+    val totalLoans = remember(netWorthItems) { netWorthItems.filter { it.type == "loan" }.sumOf { it.amount } }
+    val totalLiabilities = remember(netWorthItems) { netWorthItems.filter { it.type == "liability" }.sumOf { it.amount } }
+    val totalDebt = totalLoans + totalLiabilities
+    val netWorth = totalAssets - totalDebt
+
+    val chartSlices = remember(netWorthItems, activeTab, totalAssets, totalDebt) {
+        when (activeTab) {
+            0 -> listOf(
+                "Assets" to totalAssets,
+                "Debts" to totalDebt
+            )
+            1 -> {
+                netWorthItems.filter { it.type == "asset" }
+                    .map { it.name to it.amount }
+                    .filter { it.second > 0.0 }
+                    .sortedByDescending { it.second }
+            }
+            2 -> {
+                netWorthItems.filter { it.type != "asset" }
+                    .map { it.name to it.amount }
+                    .filter { it.second > 0.0 }
+                    .sortedByDescending { it.second }
+            }
+            else -> emptyList()
+        }
+    }
+
+    val palette = listOf(
+        BrandGreen, BrandRose, BrandViolet, BrandCyan, BrandAmber, BrandPink, BrandOrange,
+        Color(0xFF3F51B5), Color(0xFF009688), Color(0xFFFF5722), Color(0xFF9C27B0), Color(0xFFE91E63),
+        Color(0xFF4CAF50), Color(0xFF00BCD4), Color(0xFFFFC107), Color(0xFF8BC34A), Color(0xFFCDDC39)
+    )
+
+    val sliceColors = remember(chartSlices, activeTab) {
+        if (activeTab == 0) {
+            listOf(BrandGreen, BrandRose)
+        } else {
+            chartSlices.mapIndexed { index, _ -> palette[index % palette.size] }
+        }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PieChart,
+                        contentDescription = null,
+                        tint = BrandGreen,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Net Worth Allocation",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Total Wealth: ₹${String.format("%,.0f", netWorth)}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (netWorth >= 0) BrandGreen else BrandRose
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sub-tabs
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    "Assets vs Debts" to 0,
+                    "Assets" to 1,
+                    "Debts" to 2
+                ).forEach { (label, tabIndex) ->
+                    val isSel = activeTab == tabIndex
+                    val col = if (tabIndex == 0) BrandGreen else if (tabIndex == 1) BrandGreen else BrandRose
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSel) col.copy(alpha = 0.12f) else Color.Transparent)
+                            .clickable { activeTab = tabIndex }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSel) col else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            CustomDonutChart(
+                slices = chartSlices,
+                colors = sliceColors,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
