@@ -670,10 +670,21 @@ fun CalendarScreen(
                                         .padding(10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Cake, contentDescription = null, tint = BrandPink, modifier = Modifier.size(16.dp))
+                                    val icon = when (bday.category) {
+                                        "Marriage Anniversary" -> Icons.Default.Favorite
+                                        "Death Anniversary" -> Icons.Default.LocalFlorist
+                                        else -> Icons.Default.Cake
+                                    }
+                                    val color = when (bday.category) {
+                                        "Marriage Anniversary" -> BrandPink
+                                        "Death Anniversary" -> BrandViolet
+                                        else -> BrandCyan
+                                    }
+                                    val label = bday.name + if (bday.category == "Death Anniversary") " 🕯️" else if (bday.category == "Marriage Anniversary") " 💍" else " 🎂"
+                                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = if (bday.name.contains("Birthday", ignoreCase = true)) "${bday.name} 🎂" else "${bday.name}'s Birthday 🎂",
+                                        text = label,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -790,19 +801,29 @@ fun CalendarDayView(
                     }
 
                     todayBirthdays.forEach { bday ->
+                        val color = when (bday.category) {
+                            "Marriage Anniversary" -> BrandPink
+                            "Death Anniversary" -> BrandViolet
+                            else -> BrandCyan
+                        }
+                        val icon = when (bday.category) {
+                            "Marriage Anniversary" -> Icons.Default.Favorite
+                            "Death Anniversary" -> Icons.Default.LocalFlorist
+                            else -> Icons.Default.Cake
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(BrandPink.copy(alpha = 0.15f))
-                                .border(1.dp, BrandPink.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .background(color.copy(alpha = 0.15f))
+                                .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                                 .padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.Cake, contentDescription = null, tint = BrandPink, modifier = Modifier.size(16.dp))
-                            val bdayTitle = if (bday.name.contains("Birthday", ignoreCase = true)) bday.name else "Birthday: ${bday.name}"
-                            Text(text = bdayTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+                            val bdayTitle = bday.name
+                            Text(text = bdayTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color)
                         }
                     }
 
@@ -1092,7 +1113,7 @@ fun CalendarWeekView(
                                         .background(BrandPink.copy(alpha = 0.15f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
-                                    Text("BIRTHDAY", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                                    Text("OCCASION", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = BrandPink)
                                 }
                             }
                         }
@@ -1113,11 +1134,21 @@ fun CalendarWeekView(
                                 )
                             }
                             dayBirthdays.forEach { bday ->
+                                val prefix = when (bday.category) {
+                                    "Marriage Anniversary" -> "💖 "
+                                    "Death Anniversary" -> "🕯️ "
+                                    else -> "🎂 "
+                                }
+                                val color = when (bday.category) {
+                                    "Marriage Anniversary" -> BrandPink
+                                    "Death Anniversary" -> BrandViolet
+                                    else -> BrandCyan
+                                }
                                 Text(
-                                    text = if (bday.name.contains("Birthday", ignoreCase = true)) "🎂 ${bday.name}" else "🎂 Birthday: ${bday.name}",
+                                    text = "$prefix${bday.name}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = BrandPink
+                                    color = color
                                 )
                             }
                             dayTasks.take(3).forEach { task ->

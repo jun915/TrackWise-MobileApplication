@@ -28,6 +28,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 
 class MainActivity : ComponentActivity() {
+    private lateinit var viewModel: TrackWiseViewModel
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (::viewModel.isInitialized) {
+            intent.getStringExtra("target_tab")?.let {
+                viewModel.setNotificationNavigateTab(it)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -35,7 +47,11 @@ class MainActivity : ComponentActivity() {
         // Local Room persistence instantiation (Section 5.12 & Repository pattern)
         val database = TrackWiseDatabase.getDatabase(applicationContext)
         val repository = TrackWiseRepository(database.trackWiseDao())
-        val viewModel = TrackWiseViewModel(application, repository)
+        viewModel = TrackWiseViewModel(application, repository)
+
+        intent.getStringExtra("target_tab")?.let {
+            viewModel.setNotificationNavigateTab(it)
+        }
 
         setContent {
             val themeMode by viewModel.themeMode.collectAsState()

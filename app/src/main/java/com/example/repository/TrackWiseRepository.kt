@@ -107,6 +107,10 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
         dao.deleteBirthdayById(birthdayId)
     }
 
+    suspend fun clearBirthdaysForUser(userId: String) {
+        dao.clearBirthdaysForUser(userId)
+    }
+
     // --- Wishlist ---
     fun getWishlistFlow(userId: String): Flow<List<WishItemEntity>> = dao.getWishlistForUserFlow(userId)
 
@@ -132,6 +136,10 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
                 score = score
             )
         )
+    }
+
+    suspend fun insertStreakHistory(history: StreakHistoryEntity) {
+        dao.insertStreakHistory(history)
     }
 
     // --- Weight Entries ---
@@ -233,6 +241,10 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
         dao.deleteFriendById("${friendUserId}_$userId")
     }
 
+    suspend fun insertFriend(friend: FriendConnectionEntity) {
+        dao.insertFriend(friend)
+    }
+
     // --- Seed Demo Data (Part 15) ---
     private suspend fun seedDemoData(userId: String) {
         val today = TrackWiseUtils.getTodayString()
@@ -271,19 +283,52 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
 
         sampleTasks.forEach { dao.insertTask(it) }
 
-        // 11 Sample Birthdays
+        // 44 Custom Birthdays from user's custom list
         val sampleBirthdays = listOf(
-            BirthdayEntity("b-1", userId, "Aarav Sharma's Birthday", "05-15", "Premium leather wallet", "Friend"),
-            BirthdayEntity("b-2", userId, "Ammi Jaan's Birthday", "07-12", "Traditional Kashmiri shawl", "Family"),
-            BirthdayEntity("b-3", userId, "Zoya Khan's Birthday", "09-24", "Wireless noise cancelling earbuds", "Friend"),
-            BirthdayEntity("b-4", userId, "Rahul Patel's Birthday", "01-05", "Fitness smartwatch", "Relative"),
-            BirthdayEntity("b-5", userId, "Priya Nair's Birthday", "11-30", "Scented candle gift set", "Friend"),
-            BirthdayEntity("b-6", userId, "Kabir Mehta's Birthday", "03-18", "Python programming masterclass subscription", "Friend"),
-            BirthdayEntity("b-7", userId, "Ananya Sen's Birthday", "12-05", "Ceramic handmade tea mug", "Friend"),
-            BirthdayEntity("b-8", userId, "Fatima Bi's Birthday", "02-14", "Orthopedic posture cushion", "Relative"),
-            BirthdayEntity("b-9", userId, "Rohan Das's Birthday", "06-10", "Mechanical gaming keyboard", "Friend"),
-            BirthdayEntity("b-10", userId, "Siddharth's Birthday", "08-22", "Stainless steel water bottle", "Others"),
-            BirthdayEntity("b-11", userId, "Abbu's Birthday", "10-14", "Digital BP monitoring machine", "Family")
+            BirthdayEntity("b-custom-1", userId, "Imran's Birthday", "1988-07-07", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-2", userId, "Ashraf's Birthday", "1993-07-14", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-3", userId, "Ayesha's Birthday", "1983-07-31", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-4", userId, "Irfan's Birthday", "1977-08-07", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-5", userId, "Rizwan's Birthday", "1977-08-07", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-6", userId, "Homay's Birthday", "1997-08-08", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-7", userId, "Kashee's Birthday", "1981-08-14", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-8", userId, "Sajjad's Birthday", "08-17", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-9", userId, "Athaul's Birthday", "09-02", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-10", userId, "Asif Al's Birthday", "1994-09-12", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-11", userId, "Saquib's Birthday", "09-17", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-12", userId, "Zubair's Birthday", "2009-09-18", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-13", userId, "Zeba's Birthday", "2012-09-23", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-14", userId, "Triveni's Birthday", "1997-10-08", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-15", userId, "Ilyas' Birthday", "2004-10-13", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-16", userId, "Shaba's Birthday", "2001-10-14", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-17", userId, "Fazil's Birthday", "1995-10-15", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-18", userId, "Vajee's Birthday", "2008-10-15", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-19", userId, "Nasee's Birthday", "2002-10-22", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-20", userId, "Roush's Birthday", "2005-10-28", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-21", userId, "Thilak's Birthday", "1997-11-01", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-22", userId, "Sufiya's Birthday", "11-27", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-23", userId, "Shabe's Birthday", "1969-12-04", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-24", userId, "Masta's Birthday", "1970-01-01", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-25", userId, "Faree's Birthday", "1979-01-01", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-26", userId, "Moha's Birthday", "1968-01-01", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-27", userId, "Triven's Birthday", "01-04", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-28", userId, "Saqui's Birthday", "2013-01-04", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-29", userId, "Tahir's Birthday", "01-21", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-30", userId, "Ziya's Birthday", "1971-02-05", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-31", userId, "Shaik's Birthday", "02-19", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-32", userId, "Fahad's Birthday", "02-23", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-33", userId, "Rayan's Birthday", "03-04", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-34", userId, "Janve's Birthday", "03-20", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-35", userId, "Janve's Birthday", "1951-04-05", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-36", userId, "Fathi's Birthday", "04-19", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-37", userId, "Akram's Birthday", "1998-04-21", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-38", userId, "Sabe'e's Birthday", "1998-05-04", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-39", userId, "Rahm's Birthday", "1967-05-23", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-40", userId, "Shake's Birthday", "1998-05-23", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-41", userId, "Parija's Birthday", "1996-05-29", null, "Birthday|Relative"),
+            BirthdayEntity("b-custom-42", userId, "Noor's Birthday", "1975-06-02", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-43", userId, "Jurai's Birthday", "1997-07-02", null, "Birthday|Family"),
+            BirthdayEntity("b-custom-44", userId, "Nazee's Birthday", "2004-07-02", null, "Birthday|Family")
         )
 
         sampleBirthdays.forEach { dao.insertBirthday(it) }

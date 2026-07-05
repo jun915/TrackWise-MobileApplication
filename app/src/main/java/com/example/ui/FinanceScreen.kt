@@ -440,48 +440,7 @@ fun FinanceScreen(
                 }
             }
 
-            // --- Date Picker Control ---
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = {
-                            selectedCalendar = (selectedCalendar.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, -1) }
-                        }
-                    ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Previous Day", tint = BrandViolet)
-                    }
 
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = BrandViolet.copy(alpha = 0.08f)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .clickable {
-                                selectedCalendar = Calendar.getInstance()
-                            }
-                            .padding(horizontal = 4.dp)
-                    ) {
-                        Text(
-                            text = TrackWiseUtils.formatDate(selectedCalendar.time, "EEEE, MMMM dd"),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandViolet,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = {
-                            selectedCalendar = (selectedCalendar.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, 1) }
-                        }
-                    ) {
-                        Icon(Icons.Default.ArrowForward, contentDescription = "Next Day", tint = BrandViolet)
-                    }
-                }
-            }
 
             // --- Add Daily Transaction Panel ---
             item {
@@ -918,23 +877,6 @@ fun FinanceScreen(
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = if (isBalanced) "✅ EQUATION BALANCED" else "⚠️ EQUATION DISCREPANCY",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isBalanced) BrandGreen else BrandRose
-                        )
-                        if (!isBalanced) {
-                            Text(
-                                text = "₹${String.format("%.1f", discrepancy)}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black,
-                                color = BrandRose
-                            )
-                        }
-                    }
                 }
             }
 
@@ -999,34 +941,44 @@ fun FinanceScreen(
                                     Icon(icon, contentDescription = null, tint = itemTint, modifier = Modifier.size(18.dp))
                                 }
 
-                                Column {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = log.title,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        )
-                                        Text(
-                                            text = "(${log.date})",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                                        )
-                                    }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = log.title,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        val formattedDate = try {
+                                            val date = com.example.utils.TrackWiseUtils.parseDate(log.date, "yyyy-MM-dd")
+                                            com.example.utils.TrackWiseUtils.formatDate(date, "dd MMM")
+                                        } catch (e: Exception) {
+                                            log.date
+                                        }
+                                        Text(
+                                            text = "($formattedDate)",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        Text(
+                                            text = "•",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
+                                        )
                                         Text(
                                             text = log.category,
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                                         )
-                                        if (log.spendSource != null) {
+                                        if (!log.spendSource.isNullOrBlank()) {
                                             Text(
                                                 text = "• Src: ${log.spendSource}",
                                                 fontSize = 11.sp,

@@ -40,6 +40,13 @@ class TrackWiseViewModel(
     private val _notifications = MutableStateFlow<List<AppNotification>>(emptyList())
     val notifications: StateFlow<List<AppNotification>> = _notifications.asStateFlow()
 
+    private val _notificationNavigateTab = MutableStateFlow<String?>(null)
+    val notificationNavigateTab: StateFlow<String?> = _notificationNavigateTab.asStateFlow()
+
+    fun setNotificationNavigateTab(tab: String?) {
+        _notificationNavigateTab.value = tab
+    }
+
     fun addNotification(title: String, message: String) {
         val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
         val timeStr = sdf.format(Date())
@@ -71,6 +78,54 @@ class TrackWiseViewModel(
             val iconId = context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName)
             val smallIcon = if (iconId != 0) iconId else android.R.drawable.ic_dialog_info
 
+            val targetTab = when {
+                title.contains("Budget", ignoreCase = true) || 
+                title.contains("Finance", ignoreCase = true) ||
+                title.contains("Transaction", ignoreCase = true) ||
+                title.contains("Spent", ignoreCase = true) ||
+                title.contains("Savings", ignoreCase = true) ||
+                title.contains("Income", ignoreCase = true) -> "finance"
+                
+                title.contains("Alarm", ignoreCase = true) ||
+                title.contains("Timer", ignoreCase = true) -> "dashboard"
+                
+                title.contains("Habit", ignoreCase = true) ||
+                title.contains("Daily", ignoreCase = true) -> "dashboard"
+                
+                title.contains("Health", ignoreCase = true) ||
+                title.contains("Weight", ignoreCase = true) ||
+                title.contains("Water", ignoreCase = true) ||
+                title.contains("Steps", ignoreCase = true) ||
+                title.contains("Calorie", ignoreCase = true) -> "health"
+                
+                title.contains("Imported", ignoreCase = true) ||
+                title.contains("Exported", ignoreCase = true) ||
+                title.contains("Profile", ignoreCase = true) ||
+                title.contains("Session", ignoreCase = true) ||
+                title.contains("Backup", ignoreCase = true) -> "profile"
+                
+                title.contains("Help", ignoreCase = true) ||
+                title.contains("Guide", ignoreCase = true) -> "help"
+                
+                else -> "dashboard"
+            }
+
+            val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("target_tab", targetTab)
+            }
+            val pendingIntentFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            } else {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            }
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                context,
+                System.currentTimeMillis().toInt(),
+                intent,
+                pendingIntentFlags
+            )
+
             val builder = androidx.core.app.NotificationCompat.Builder(context, "trackwise_notifications")
                 .setSmallIcon(smallIcon)
                 .setContentTitle(title)
@@ -78,6 +133,7 @@ class TrackWiseViewModel(
                 .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
                 .setVibrate(longArrayOf(0, 250, 100, 250))
                 .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
                 
             notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
         } catch (e: Exception) {
@@ -125,6 +181,12 @@ class TrackWiseViewModel(
 
     private val _calendarOverlay = MutableStateFlow("none") // "none", "islamic", "hindu"
     val calendarOverlay: StateFlow<String> = _calendarOverlay.asStateFlow()
+
+    private val _autoBackupFrequency = MutableStateFlow("none") // "none", "hourly", "daily", "weekly"
+    val autoBackupFrequency: StateFlow<String> = _autoBackupFrequency.asStateFlow()
+
+    private val _lastAutoBackupTime = MutableStateFlow(0L)
+    val lastAutoBackupTime: StateFlow<Long> = _lastAutoBackupTime.asStateFlow()
 
     // --- Sync UI indicator state ---
     private val _isSyncing = MutableStateFlow(false)
@@ -762,14 +824,40 @@ class TrackWiseViewModel(
     }
 
     // --- Birthdays Actions ---
+    private fun formatOccasionName(name: String, category: String): String {
+        val baseCategory = category.split("|")[0]
+        var cleaned = name.trim()
+        val suffixes = listOf(
+            "'s Birthday", "' Birthday", " Birthday",
+            "'s Marriage Anniversary", "' Marriage Anniversary", " Marriage Anniversary",
+            "'s Death Anniversary", "' Death Anniversary", " Death Anniversary"
+        )
+        for (suffix in suffixes) {
+            if (cleaned.endsWith(suffix, ignoreCase = true)) {
+                cleaned = cleaned.substring(0, cleaned.length - suffix.length).trim()
+            }
+        }
+        if (cleaned.endsWith("'s", ignoreCase = true)) {
+            cleaned = cleaned.substring(0, cleaned.length - 2).trim()
+        } else if (cleaned.endsWith("'", ignoreCase = true)) {
+            cleaned = cleaned.substring(0, cleaned.length - 1).trim()
+        }
+        
+        val suffix = when (baseCategory) {
+            "Marriage Anniversary" -> "Marriage Anniversary"
+            "Death Anniversary" -> "Death Anniversary"
+            else -> "Birthday"
+        }
+        return if (cleaned.endsWith("s", ignoreCase = true)) {
+            "$cleaned' $suffix"
+        } else {
+            "$cleaned's $suffix"
+        }
+    }
+
     fun addBirthday(name: String, date: String, giftIdea: String?, category: String = "Others") {
         val user = _sessionUser.value ?: return
-        val trimmedName = name.trim()
-        val finalName = if (trimmedName.endsWith("'s Birthday", ignoreCase = true) || trimmedName.endsWith("Birthday", ignoreCase = true)) {
-            trimmedName
-        } else {
-            "$trimmedName's Birthday"
-        }
+        val finalName = formatOccasionName(name, category)
         viewModelScope.launch(Dispatchers.IO) {
             val birthday = BirthdayEntity(
                 id = "birthday-${System.currentTimeMillis()}",
@@ -792,9 +880,85 @@ class TrackWiseViewModel(
     }
 
     fun updateBirthday(birthday: BirthdayEntity) {
+        val formattedName = formatOccasionName(birthday.name, birthday.category)
         viewModelScope.launch(Dispatchers.IO) {
-            repository.insertBirthday(birthday)
+            repository.insertBirthday(birthday.copy(name = formattedName))
             triggerFakeSync()
+        }
+    }
+
+    fun loadCustomUserBirthdays() {
+        val user = _sessionUser.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                repository.clearBirthdaysForUser(user.id)
+                val list = listOf(
+                    Triple("Imran", "1988-07-07", "Family"),
+                    Triple("Ashraf", "1993-07-14", "Family"),
+                    Triple("Ayesha", "1983-07-31", "Family"),
+                    Triple("Irfan", "1977-08-07", "Family"),
+                    Triple("Rizwan", "1977-08-07", "Family"),
+                    Triple("Homay", "1997-08-08", "Relative"),
+                    Triple("Kashee", "1981-08-14", "Family"),
+                    Triple("Sajjad", "08-17", "Relative"),
+                    Triple("Athaul", "09-02", "Family"),
+                    Triple("Asif Al", "1994-09-12", "Family"),
+                    Triple("Saquib", "09-17", "Family"),
+                    Triple("Zubair", "2009-09-18", "Family"),
+                    Triple("Zeba", "2012-09-23", "Family"),
+                    Triple("Triveni", "1997-10-08", "Relative"),
+                    Triple("Ilyas", "2004-10-13", "Family"),
+                    Triple("Shaba", "2001-10-14", "Family"),
+                    Triple("Fazil", "1995-10-15", "Family"),
+                    Triple("Vajee", "2008-10-15", "Family"),
+                    Triple("Nasee", "2002-10-22", "Family"),
+                    Triple("Roush", "2005-10-28", "Family"),
+                    Triple("Thilak", "1997-11-01", "Relative"),
+                    Triple("Sufiya", "11-27", "Family"),
+                    Triple("Shabe", "1969-12-04", "Family"),
+                    Triple("Masta", "1970-01-01", "Family"),
+                    Triple("Faree", "1979-01-01", "Family"),
+                    Triple("Moha", "1968-01-01", "Family"),
+                    Triple("Triven", "01-04", "Relative"),
+                    Triple("Saqui", "2013-01-04", "Family"),
+                    Triple("Tahir", "01-21", "Family"),
+                    Triple("Ziya", "1971-02-05", "Family"),
+                    Triple("Shaik", "02-19", "Relative"),
+                    Triple("Fahad", "02-23", "Relative"),
+                    Triple("Rayan", "03-04", "Family"),
+                    Triple("Janve", "03-20", "Relative"),
+                    Triple("Janve", "1951-04-05", "Family"),
+                    Triple("Fathi", "04-19", "Family"),
+                    Triple("Akram", "1998-04-21", "Family"),
+                    Triple("Sabe'e", "1998-05-04", "Family"),
+                    Triple("Rahm", "1967-05-23", "Family"),
+                    Triple("Shake", "1998-05-23", "Family"),
+                    Triple("Parija", "1996-05-29", "Relative"),
+                    Triple("Noor", "1975-06-02", "Family"),
+                    Triple("Jurai", "1997-07-02", "Family"),
+                    Triple("Nazee", "2004-07-02", "Family")
+                )
+                
+                list.forEachIndexed { index, (name, date, rel) ->
+                    val finalName = formatOccasionName(name, "Birthday|$rel")
+                    val entity = BirthdayEntity(
+                        id = "birthday-custom-$index-${System.currentTimeMillis()}",
+                        userId = user.id,
+                        name = finalName,
+                        date = date,
+                        giftIdea = null,
+                        category = "Birthday|$rel"
+                    )
+                    repository.insertBirthday(entity)
+                }
+                
+                viewModelScope.launch(Dispatchers.Main) {
+                    _successMessage.value = "All existing birthdays removed & your 44 custom birthdays loaded!"
+                }
+                triggerFakeSync()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -1653,6 +1817,327 @@ class TrackWiseViewModel(
     }
 
     // --- Settings Panels Actions ---
+    fun generateBackupJsonString(user: UserEntity): String {
+        val rootJson = org.json.JSONObject()
+        rootJson.put("version", 1)
+        
+        // User info
+        val userJson = org.json.JSONObject()
+        userJson.put("id", user.id)
+        userJson.put("email", user.email)
+        userJson.put("fullName", user.fullName)
+        rootJson.put("user", userJson)
+        
+        // Tasks
+        val tasksArray = org.json.JSONArray()
+        allTasks.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("title", item.title)
+            obj.put("description", item.description)
+            obj.put("completed", item.completed)
+            obj.put("deadline", item.deadline)
+            obj.put("priority", item.priority)
+            obj.put("project", item.project)
+            obj.put("points", item.points)
+            obj.put("subtasksJson", item.subtasksJson)
+            obj.put("reminderTime", item.reminderTime ?: "")
+            tasksArray.put(obj)
+        }
+        rootJson.put("tasks", tasksArray)
+        
+        // Habits
+        val habitsArray = org.json.JSONArray()
+        allHabits.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("name", item.name)
+            obj.put("daysCompletedJson", item.daysCompletedJson)
+            obj.put("frequency", item.frequency)
+            obj.put("category", item.category)
+            obj.put("streak", item.streak)
+            obj.put("maxStreak", item.maxStreak)
+            obj.put("badgesEarnedJson", item.badgesEarnedJson)
+            obj.put("createdAt", item.createdAt)
+            habitsArray.put(obj)
+        }
+        rootJson.put("habits", habitsArray)
+
+        // Alarms
+        val alarmsArray = org.json.JSONArray()
+        allAlarms.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("label", item.label)
+            obj.put("hour", item.hour)
+            obj.put("minute", item.minute)
+            obj.put("isEnabled", item.isEnabled)
+            obj.put("repeatDaysJson", item.repeatDaysJson)
+            obj.put("snoozeCount", item.snoozeCount)
+            alarmsArray.put(obj)
+        }
+        rootJson.put("alarms", alarmsArray)
+
+        // Water Logs
+        val waterArray = org.json.JSONArray()
+        waterLogs.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("date", item.date)
+            obj.put("glasses", item.glasses)
+            obj.put("goal", item.goal)
+            obj.put("remindersEnabled", item.remindersEnabled)
+            obj.put("reminderIntervalMinutes", item.reminderIntervalMinutes)
+            waterArray.put(obj)
+        }
+        rootJson.put("waterLogs", waterArray)
+
+        // Vital Readings
+        val vitalsArray = org.json.JSONArray()
+        vitalReadings.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("type", item.type)
+            obj.put("date", item.date)
+            obj.put("time", item.time ?: "")
+            obj.put("value", item.value)
+            obj.put("context", item.context ?: "")
+            obj.put("notes", item.notes ?: "")
+            vitalsArray.put(obj)
+        }
+        rootJson.put("vitalReadings", vitalsArray)
+
+        // Weight Entries
+        val weightArray = org.json.JSONArray()
+        weightEntries.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("date", item.date)
+            obj.put("time", item.time ?: "")
+            obj.put("weightKg", item.weightKg)
+            obj.put("notes", item.notes ?: "")
+            weightArray.put(obj)
+        }
+        rootJson.put("weightEntries", weightArray)
+
+        // Sleep Logs
+        val sleepArray = org.json.JSONArray()
+        sleepLogs.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("date", item.date)
+            obj.put("hoursSlept", item.hoursSlept)
+            obj.put("startTime", item.startTime)
+            obj.put("endTime", item.endTime)
+            obj.put("notes", item.notes ?: "")
+            sleepArray.put(obj)
+        }
+        rootJson.put("sleepLogs", sleepArray)
+
+        // Profile
+        userProfile.value?.let { prof ->
+            val obj = org.json.JSONObject()
+            obj.put("userId", prof.userId)
+            obj.put("firstName", prof.firstName)
+            obj.put("middleName", prof.middleName)
+            obj.put("lastName", prof.lastName)
+            obj.put("dob", prof.dob)
+            obj.put("gender", prof.gender)
+            obj.put("maritalStatus", prof.maritalStatus)
+            obj.put("nationality", prof.nationality)
+            obj.put("nationalId", prof.nationalId)
+            obj.put("bloodGroup", prof.bloodGroup)
+            obj.put("residentialStreet", prof.residentialStreet)
+            obj.put("residentialCity", prof.residentialCity)
+            obj.put("residentialState", prof.residentialState)
+            obj.put("residentialZip", prof.residentialZip)
+            obj.put("residentialCountry", prof.residentialCountry)
+            obj.put("permanentStreet", prof.permanentStreet)
+            obj.put("permanentCity", prof.permanentCity)
+            obj.put("permanentState", prof.permanentState)
+            obj.put("permanentZip", prof.permanentZip)
+            obj.put("permanentCountry", prof.permanentCountry)
+            obj.put("permanentIsSame", prof.permanentIsSame)
+            obj.put("mobileNumber", prof.mobileNumber)
+            obj.put("alternatePhone", prof.alternatePhone)
+            obj.put("emailAddress", prof.emailAddress)
+            obj.put("emergencyName", prof.emergencyName)
+            obj.put("emergencyRelationship", prof.emergencyRelationship)
+            obj.put("emergencyPhone", prof.emergencyPhone)
+            obj.put("alternateEmergencyPhone", prof.alternateEmergencyPhone)
+            obj.put("height", prof.height)
+            obj.put("weight", prof.weight)
+            obj.put("primaryDoctor", prof.primaryDoctor)
+            obj.put("medicalConditions", prof.medicalConditions)
+            obj.put("currentMedications", prof.currentMedications)
+            obj.put("allergies", prof.allergies)
+            obj.put("dietaryRestrictions", prof.dietaryRestrictions)
+            obj.put("vitalsHeight", prof.vitalsHeight)
+            obj.put("vitalsWeight", prof.vitalsWeight)
+            obj.put("vitalsBloodPressure", prof.vitalsBloodPressure)
+            obj.put("vitalsHeartRate", prof.vitalsHeartRate)
+            obj.put("vitalsBloodGroup", prof.vitalsBloodGroup)
+            obj.put("financeDailyTarget", prof.financeDailyTarget)
+            rootJson.put("profile", obj)
+        }
+
+        // Birthdays / Occasions
+        val birthdaysArray = org.json.JSONArray()
+        allBirthdays.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("name", item.name)
+            obj.put("date", item.date)
+            obj.put("giftIdea", item.giftIdea ?: "")
+            obj.put("category", item.category)
+            birthdaysArray.put(obj)
+        }
+        rootJson.put("birthdays", birthdaysArray)
+
+        // Wishlist
+        val wishlistArray = org.json.JSONArray()
+        allWishlist.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("title", item.title)
+            obj.put("price", item.price)
+            obj.put("link", item.link ?: "")
+            obj.put("priority", item.priority)
+            obj.put("purchased", item.purchased)
+            wishlistArray.put(obj)
+        }
+        rootJson.put("wishlist", wishlistArray)
+
+        // Grocery Items
+        val groceryArray = org.json.JSONArray()
+        allGroceryItems.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("name", item.name)
+            obj.put("quantity", item.quantity)
+            obj.put("completed", item.completed)
+            obj.put("category", item.category)
+            obj.put("price", item.price ?: 0.0)
+            obj.put("priceUnit", item.priceUnit ?: "")
+            obj.put("numericQuantity", item.numericQuantity ?: 0.0)
+            groceryArray.put(obj)
+        }
+        rootJson.put("groceryItems", groceryArray)
+
+        // Streak History
+        val streakHistoryArray = org.json.JSONArray()
+        streakHistory.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("date", item.date)
+            obj.put("score", item.score)
+            streakHistoryArray.put(obj)
+        }
+        rootJson.put("streakHistory", streakHistoryArray)
+
+        // Exercise Logs
+        val exerciseArray = org.json.JSONArray()
+        exerciseLogs.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("date", item.date)
+            obj.put("time", item.time ?: "")
+            obj.put("exerciseType", item.exerciseType)
+            obj.put("durationMinutes", item.durationMinutes)
+            obj.put("completed", item.completed)
+            obj.put("notes", item.notes ?: "")
+            exerciseArray.put(obj)
+        }
+        rootJson.put("exerciseLogs", exerciseArray)
+
+        // Health Issue Logs
+        val healthIssueArray = org.json.JSONArray()
+        healthIssueLogs.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("date", item.date)
+            obj.put("time", item.time ?: "")
+            obj.put("issueId", item.issueId)
+            obj.put("issueName", item.issueName)
+            obj.put("severity", item.severity)
+            obj.put("notes", item.notes ?: "")
+            obj.put("resolved", item.resolved)
+            healthIssueArray.put(obj)
+        }
+        rootJson.put("healthIssueLogs", healthIssueArray)
+
+        // Tablet Reminders
+        val tabletArray = org.json.JSONArray()
+        tabletReminders.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("tabletName", item.tabletName)
+            obj.put("dosage", item.dosage)
+            obj.put("timeOfDay", item.timeOfDay)
+            obj.put("scheduleType", item.scheduleType)
+            obj.put("completedDatesJson", item.completedDatesJson)
+            obj.put("notes", item.notes ?: "")
+            tabletArray.put(obj)
+        }
+        rootJson.put("tabletReminders", tabletArray)
+
+        // Period Cycles
+        val periodArray = org.json.JSONArray()
+        periodCycles.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("startDate", item.startDate)
+            obj.put("durationDays", item.durationDays)
+            obj.put("cycleLengthDays", item.cycleLengthDays)
+            obj.put("symptoms", item.symptoms)
+            obj.put("notes", item.notes ?: "")
+            periodArray.put(obj)
+        }
+        rootJson.put("periodCycles", periodArray)
+
+        // Finance Logs
+        val financeArray = org.json.JSONArray()
+        allFinanceLogs.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("date", item.date)
+            obj.put("type", item.type)
+            obj.put("category", item.category)
+            obj.put("title", item.title)
+            obj.put("amount", item.amount)
+            obj.put("notes", item.notes ?: "")
+            obj.put("spendSource", item.spendSource ?: "")
+            financeArray.put(obj)
+        }
+        rootJson.put("financeLogs", financeArray)
+
+        // Net Worth Items
+        val netWorthArray = org.json.JSONArray()
+        allNetWorthItems.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("name", item.name)
+            obj.put("type", item.type)
+            obj.put("amount", item.amount)
+            netWorthArray.put(obj)
+        }
+        rootJson.put("netWorthItems", netWorthArray)
+
+        // Friends
+        val friendsArray = org.json.JSONArray()
+        friendConnections.value.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("friendUserId", item.friendUserId)
+            obj.put("displayName", item.displayName)
+            obj.put("addedAt", item.addedAt)
+            friendsArray.put(obj)
+        }
+        rootJson.put("friends", friendsArray)
+
+        return rootJson.toString(2)
+    }
+
     fun exportData() {
         val user = _sessionUser.value
         if (user == null) {
@@ -1664,148 +2149,7 @@ class TrackWiseViewModel(
                 _isSyncing.value = true
                 _syncMessage.value = "Exporting data..."
                 
-                val rootJson = org.json.JSONObject()
-                rootJson.put("version", 1)
-                
-                // User info
-                val userJson = org.json.JSONObject()
-                userJson.put("id", user.id)
-                userJson.put("email", user.email)
-                userJson.put("fullName", user.fullName)
-                rootJson.put("user", userJson)
-                
-                // Tasks
-                val tasksArray = org.json.JSONArray()
-                allTasks.value.forEach { item ->
-                    val obj = org.json.JSONObject()
-                    obj.put("id", item.id)
-                    obj.put("title", item.title)
-                    obj.put("description", item.description)
-                    obj.put("completed", item.completed)
-                    obj.put("deadline", item.deadline)
-                    obj.put("priority", item.priority)
-                    obj.put("project", item.project)
-                    obj.put("points", item.points)
-                    obj.put("subtasksJson", item.subtasksJson)
-                    obj.put("reminderTime", item.reminderTime ?: "")
-                    tasksArray.put(obj)
-                }
-                rootJson.put("tasks", tasksArray)
-                
-                // Habits
-                val habitsArray = org.json.JSONArray()
-                allHabits.value.forEach { item ->
-                    val obj = org.json.JSONObject()
-                    obj.put("id", item.id)
-                    obj.put("name", item.name)
-                    obj.put("daysCompletedJson", item.daysCompletedJson)
-                    obj.put("frequency", item.frequency)
-                    obj.put("category", item.category)
-                    obj.put("streak", item.streak)
-                    obj.put("maxStreak", item.maxStreak)
-                    obj.put("badgesEarnedJson", item.badgesEarnedJson)
-                    obj.put("createdAt", item.createdAt)
-                    habitsArray.put(obj)
-                }
-                rootJson.put("habits", habitsArray)
-
-                // Alarms
-                val alarmsArray = org.json.JSONArray()
-                allAlarms.value.forEach { item ->
-                    val obj = org.json.JSONObject()
-                    obj.put("id", item.id)
-                    obj.put("label", item.label)
-                    obj.put("hour", item.hour)
-                    obj.put("minute", item.minute)
-                    obj.put("isEnabled", item.isEnabled)
-                    obj.put("repeatDaysJson", item.repeatDaysJson)
-                    obj.put("snoozeCount", item.snoozeCount)
-                    alarmsArray.put(obj)
-                }
-                rootJson.put("alarms", alarmsArray)
-
-                // Water Logs
-                val waterArray = org.json.JSONArray()
-                waterLogs.value.forEach { item ->
-                    val obj = org.json.JSONObject()
-                    obj.put("id", item.id)
-                    obj.put("date", item.date)
-                    obj.put("glasses", item.glasses)
-                    obj.put("goal", item.goal)
-                    obj.put("remindersEnabled", item.remindersEnabled)
-                    obj.put("reminderIntervalMinutes", item.reminderIntervalMinutes)
-                    waterArray.put(obj)
-                }
-                rootJson.put("waterLogs", waterArray)
-
-                // Vital Readings
-                val vitalsArray = org.json.JSONArray()
-                vitalReadings.value.forEach { item ->
-                    val obj = org.json.JSONObject()
-                    obj.put("id", item.id)
-                    obj.put("type", item.type)
-                    obj.put("date", item.date)
-                    obj.put("time", item.time ?: "")
-                    obj.put("value", item.value)
-                    obj.put("context", item.context ?: "")
-                    obj.put("notes", item.notes ?: "")
-                    vitalsArray.put(obj)
-                }
-                rootJson.put("vitalReadings", vitalsArray)
-
-                // Weight Entries
-                val weightArray = org.json.JSONArray()
-                weightEntries.value.forEach { item ->
-                    val obj = org.json.JSONObject()
-                    obj.put("id", item.id)
-                    obj.put("date", item.date)
-                    obj.put("time", item.time ?: "")
-                    obj.put("weightKg", item.weightKg)
-                    obj.put("notes", item.notes ?: "")
-                    weightArray.put(obj)
-                }
-                rootJson.put("weightEntries", weightArray)
-
-                // Sleep Logs
-                val sleepArray = org.json.JSONArray()
-                sleepLogs.value.forEach { item ->
-                    val obj = org.json.JSONObject()
-                    obj.put("id", item.id)
-                    obj.put("date", item.date)
-                    obj.put("hoursSlept", item.hoursSlept)
-                    obj.put("startTime", item.startTime)
-                    obj.put("endTime", item.endTime)
-                    obj.put("notes", item.notes ?: "")
-                    sleepArray.put(obj)
-                }
-                rootJson.put("sleepLogs", sleepArray)
-
-                // Profile
-                userProfile.value?.let { prof ->
-                    val obj = org.json.JSONObject()
-                    obj.put("userId", prof.userId)
-                    obj.put("firstName", prof.firstName)
-                    obj.put("middleName", prof.middleName)
-                    obj.put("lastName", prof.lastName)
-                    obj.put("dob", prof.dob)
-                    obj.put("gender", prof.gender)
-                    obj.put("maritalStatus", prof.maritalStatus)
-                    obj.put("nationality", prof.nationality)
-                    obj.put("nationalId", prof.nationalId)
-                    obj.put("bloodGroup", prof.bloodGroup)
-                    obj.put("residentialStreet", prof.residentialStreet)
-                    obj.put("permanentStreet", prof.permanentStreet)
-                    obj.put("mobileNumber", prof.mobileNumber)
-                    obj.put("alternatePhone", prof.alternatePhone)
-                    obj.put("emailAddress", prof.emailAddress)
-                    obj.put("emergencyName", prof.emergencyName)
-                    obj.put("emergencyRelationship", prof.emergencyRelationship)
-                    obj.put("emergencyPhone", prof.emergencyPhone)
-                    obj.put("alternateEmergencyPhone", prof.alternateEmergencyPhone)
-                    rootJson.put("profile", obj)
-                }
-
-                val jsonStr = rootJson.toString(2)
+                val jsonStr = generateBackupJsonString(user)
                 
                 // Write to cache file
                 val file = java.io.File(getApplication<Application>().cacheDir, "trackwise_backup.json")
@@ -1854,6 +2198,60 @@ class TrackWiseViewModel(
             } catch (e: Exception) {
                 _isSyncing.value = false
                 _authError.value = "Export failed: ${e.message}"
+            }
+        }
+    }
+
+    fun updateAutoBackupFrequency(freq: String) {
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("auto_backup_frequency", freq).apply()
+        _autoBackupFrequency.value = freq
+        
+        if (freq != "none") {
+            checkAndPerformAutoBackup()
+        }
+    }
+
+    fun checkAndPerformAutoBackup() {
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        val freq = prefs.getString("auto_backup_frequency", "none") ?: "none"
+        if (freq == "none") return
+
+        val lastBackup = prefs.getLong("last_auto_backup_time", 0L)
+        val now = System.currentTimeMillis()
+        val elapsedMs = now - lastBackup
+
+        val thresholdMs = when (freq) {
+            "hourly" -> 60 * 60 * 1000L
+            "daily" -> 24 * 60 * 60 * 1000L
+            "weekly" -> 7 * 24 * 60 * 60 * 1000L
+            else -> Long.MAX_VALUE
+        }
+
+        if (elapsedMs >= thresholdMs) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val user = _sessionUser.value ?: return@launch
+                    val jsonStr = generateBackupJsonString(user)
+
+                    // Write to cache file
+                    val cacheFile = java.io.File(getApplication<Application>().cacheDir, "trackwise_backup.json")
+                    cacheFile.writeText(jsonStr)
+
+                    // Save to Downloads folder as auto-backup
+                    val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                    if (downloadsDir.exists() || downloadsDir.mkdirs()) {
+                        val pubFile = java.io.File(downloadsDir, "trackwise_auto_backup.json")
+                        pubFile.writeText(jsonStr)
+                    }
+
+                    prefs.edit().putLong("last_auto_backup_time", now).apply()
+                    _lastAutoBackupTime.value = now
+                    
+                    addNotification("Auto Backup Created", "Successfully completed automated data export to local storage.")
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
@@ -2053,6 +2451,204 @@ class TrackWiseViewModel(
                     repository.insertUserProfile(entity)
                 }
 
+                // Restore Birthdays / Occasions
+                if (rootJson.has("birthdays")) {
+                    val array = rootJson.getJSONArray("birthdays")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = BirthdayEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            name = obj.getString("name"),
+                            date = obj.getString("date"),
+                            giftIdea = if (obj.has("giftIdea") && obj.getString("giftIdea").isNotEmpty()) obj.getString("giftIdea") else null,
+                            category = obj.optString("category", "Others")
+                        )
+                        repository.insertBirthday(entity)
+                    }
+                }
+
+                // Restore Wishlist
+                if (rootJson.has("wishlist")) {
+                    val array = rootJson.getJSONArray("wishlist")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = WishItemEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            title = obj.getString("title"),
+                            price = obj.optDouble("price", 0.0),
+                            link = if (obj.has("link") && obj.getString("link").isNotEmpty()) obj.getString("link") else null,
+                            priority = obj.optString("priority", "medium"),
+                            purchased = obj.optBoolean("purchased", false)
+                        )
+                        repository.insertWishItem(entity)
+                    }
+                }
+
+                // Restore Grocery Items
+                if (rootJson.has("groceryItems")) {
+                    val array = rootJson.getJSONArray("groceryItems")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = GroceryItemEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            name = obj.getString("name"),
+                            quantity = obj.optString("quantity", "1"),
+                            completed = obj.optBoolean("completed", false),
+                            category = obj.optString("category", "Other"),
+                            price = if (obj.has("price") && !obj.isNull("price")) obj.getDouble("price") else null,
+                            priceUnit = if (obj.has("priceUnit") && !obj.isNull("priceUnit")) obj.getString("priceUnit") else null,
+                            numericQuantity = if (obj.has("numericQuantity") && !obj.isNull("numericQuantity")) obj.getDouble("numericQuantity") else null
+                        )
+                        repository.insertGroceryItem(entity)
+                    }
+                }
+
+                // Restore Streak History
+                if (rootJson.has("streakHistory")) {
+                    val array = rootJson.getJSONArray("streakHistory")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = StreakHistoryEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            date = obj.getString("date"),
+                            score = obj.getInt("score")
+                        )
+                        repository.insertStreakHistory(entity)
+                    }
+                }
+
+                // Restore Exercise Logs
+                if (rootJson.has("exerciseLogs")) {
+                    val array = rootJson.getJSONArray("exerciseLogs")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = ExerciseLogEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            date = obj.getString("date"),
+                            time = if (obj.has("time") && obj.getString("time").isNotEmpty()) obj.getString("time") else null,
+                            exerciseType = obj.getString("exerciseType"),
+                            durationMinutes = obj.optInt("durationMinutes", 0),
+                            completed = obj.optBoolean("completed", false),
+                            notes = if (obj.has("notes") && obj.getString("notes").isNotEmpty()) obj.getString("notes") else null
+                        )
+                        repository.insertExerciseLog(entity)
+                    }
+                }
+
+                // Restore Health Issue Logs
+                if (rootJson.has("healthIssueLogs")) {
+                    val array = rootJson.getJSONArray("healthIssueLogs")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = HealthIssueLogEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            date = obj.getString("date"),
+                            time = if (obj.has("time") && obj.getString("time").isNotEmpty()) obj.getString("time") else null,
+                            issueId = obj.getString("issueId"),
+                            issueName = obj.getString("issueName"),
+                            severity = obj.optString("severity", "mild"),
+                            notes = if (obj.has("notes") && obj.getString("notes").isNotEmpty()) obj.getString("notes") else null,
+                            resolved = obj.optBoolean("resolved", false)
+                        )
+                        repository.insertHealthIssueLog(entity)
+                    }
+                }
+
+                // Restore Tablet Reminders
+                if (rootJson.has("tabletReminders")) {
+                    val array = rootJson.getJSONArray("tabletReminders")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = TabletReminderEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            tabletName = obj.getString("tabletName"),
+                            dosage = obj.getString("dosage"),
+                            timeOfDay = obj.getString("timeOfDay"),
+                            scheduleType = obj.getString("scheduleType"),
+                            completedDatesJson = obj.optString("completedDatesJson", "[]"),
+                            notes = if (obj.has("notes") && obj.getString("notes").isNotEmpty()) obj.getString("notes") else null
+                        )
+                        repository.insertTabletReminder(entity)
+                    }
+                }
+
+                // Restore Period Cycles
+                if (rootJson.has("periodCycles")) {
+                    val array = rootJson.getJSONArray("periodCycles")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = PeriodCycleEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            startDate = obj.getString("startDate"),
+                            durationDays = obj.optInt("durationDays", 5),
+                            cycleLengthDays = obj.optInt("cycleLengthDays", 28),
+                            symptoms = obj.optString("symptoms", ""),
+                            notes = if (obj.has("notes") && obj.getString("notes").isNotEmpty()) obj.getString("notes") else null
+                        )
+                        repository.insertPeriodCycle(entity)
+                    }
+                }
+
+                // Restore Finance Logs
+                if (rootJson.has("financeLogs")) {
+                    val array = rootJson.getJSONArray("financeLogs")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = FinanceLogEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            date = obj.getString("date"),
+                            type = obj.getString("type"),
+                            category = obj.getString("category"),
+                            title = obj.getString("title"),
+                            amount = obj.getDouble("amount"),
+                            notes = if (obj.has("notes") && obj.getString("notes").isNotEmpty()) obj.getString("notes") else null,
+                            spendSource = if (obj.has("spendSource") && obj.getString("spendSource").isNotEmpty()) obj.getString("spendSource") else null
+                        )
+                        repository.insertFinanceLog(entity)
+                    }
+                }
+
+                // Restore Net Worth Items
+                if (rootJson.has("netWorthItems")) {
+                    val array = rootJson.getJSONArray("netWorthItems")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = NetWorthItemEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            name = obj.getString("name"),
+                            type = obj.getString("type"),
+                            amount = obj.getDouble("amount")
+                        )
+                        repository.insertNetWorthItem(entity)
+                    }
+                }
+
+                // Restore Friends
+                if (rootJson.has("friends")) {
+                    val array = rootJson.getJSONArray("friends")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = FriendConnectionEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            friendUserId = obj.getString("friendUserId"),
+                            displayName = obj.getString("displayName"),
+                            addedAt = obj.getString("addedAt")
+                        )
+                        repository.insertFriend(entity)
+                    }
+                }
+
                 _isSyncing.value = false
                 _successMessage.value = "Backup successfully restored! All data has been filled."
                 addNotification("Data Imported", "All your offline categories and states have been restored successfully.")
@@ -2123,6 +2719,12 @@ class TrackWiseViewModel(
         val savedThemeAccent = prefs.getString("saved_theme_accent", "Default Violet") ?: "Default Violet"
         _themeMode.value = savedThemeMode
         _appThemeSelection.value = savedThemeAccent
+
+        // Restore auto-backup preferences
+        val savedBackupFreq = prefs.getString("auto_backup_frequency", "none") ?: "none"
+        val savedLastBackupTime = prefs.getLong("last_auto_backup_time", 0L)
+        _autoBackupFrequency.value = savedBackupFreq
+        _lastAutoBackupTime.value = savedLastBackupTime
         
         if (savedUserId != null) {
             if (dayOfMonth == 28) {
@@ -2135,8 +2737,21 @@ class TrackWiseViewModel(
                     if (user != null) {
                         _sessionUser.value = user
                         addNotification("Welcome Back!", "Automated secure login successful.")
+                        delay(2000)
+                        checkAndPerformAutoBackup()
                     }
                 }
+            }
+        }
+
+        // Start background auto-backup checking loop
+        viewModelScope.launch(Dispatchers.IO) {
+            delay(15000) // 15s initial warm-up delay
+            while (true) {
+                if (_sessionUser.value != null) {
+                    checkAndPerformAutoBackup()
+                }
+                delay(60000) // check every minute
             }
         }
 

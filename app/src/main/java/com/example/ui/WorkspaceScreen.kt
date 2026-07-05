@@ -47,7 +47,7 @@ fun WorkspaceScreen(
     modifier: Modifier = Modifier
 ) {
     val activeSubTab by viewModel.workspaceSubTab.collectAsState()
-    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Birthdays", "Alarms & Clocks", "Grocery List")
+    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Occasions", "Timer & Stopwatch", "Grocery List")
     val focusManager = LocalFocusManager.current
 
     LazyColumn(
@@ -118,7 +118,7 @@ fun WorkspaceScreen(
                                     1 -> Icons.Default.Repeat
                                     2 -> Icons.Default.Star
                                     3 -> Icons.Default.Cake
-                                    4 -> Icons.Default.Alarm
+                                    4 -> Icons.Default.Timer
                                     else -> Icons.Default.ShoppingCart
                                 },
                                 contentDescription = null,
@@ -157,7 +157,7 @@ fun WorkspaceScreen(
                                         1 -> Icons.Default.Repeat
                                         2 -> Icons.Default.Star
                                         3 -> Icons.Default.Cake
-                                        4 -> Icons.Default.Alarm
+                                        4 -> Icons.Default.Timer
                                         else -> Icons.Default.ShoppingCart
                                     },
                                     contentDescription = null,
@@ -1364,21 +1364,39 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
     var dateText by remember { mutableStateOf("") }
     var giftIdea by remember { mutableStateOf("") }
     var isYearSelected by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf("Friend") }
+    var selectedCategory by remember { mutableStateOf("Birthday") }
+    var selectedRelationship by remember { mutableStateOf("Others") }
     var listFilter by remember { mutableStateOf("All") }
+    var relationFilter by remember { mutableStateOf("All") }
     var showError by remember { mutableStateOf(false) }
     var editingBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Toggle add birthday form
-        Button(
-            onClick = { showForm = !showForm },
-            colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
+        // Toggle add birthday form & Seed custom list row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
-            Text(if (showForm) "Close Form" else "Add New Birthday", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+            Button(
+                onClick = { showForm = !showForm },
+                colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.weight(1.1f)
+            ) {
+                Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
+                Text(if (showForm) "Close Form" else "Add Occasion", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp), maxLines = 1)
+            }
+
+            OutlinedButton(
+                onClick = { viewModel.loadCustomUserBirthdays() },
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, BrandPink),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandPink),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, tint = BrandPink)
+                Text("Seed Custom List", fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp), maxLines = 1)
+            }
         }
 
         if (showForm) {
@@ -1389,12 +1407,12 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("ADD BIRTHDAY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
+                    Text("ADD OCCASION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
 
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Name * (e.g. Syed)") },
+                        label = { Text("Name of Person * (e.g. Syed)") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1454,16 +1472,16 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         CompactTextField(
                             value = giftIdea,
                             onValueChange = { giftIdea = it },
-                            label = "Gift Idea",
+                            label = "Gift Idea / Note",
                             placeholder = "e.g. Watch",
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    // Category Selection
+                    // Occasion Type Selection
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "SEGREGATION CATEGORY",
+                            text = "OCCASION TYPE",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1472,12 +1490,12 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            listOf("Friend", "Family", "Relative", "Others").forEach { cat ->
+                            listOf("Birthday", "Marriage Anniversary", "Death Anniversary").forEach { cat ->
                                 val isSel = selectedCategory == cat
                                 val catColor = when (cat) {
-                                    "Friend" -> BrandCyan
-                                    "Family" -> BrandRose
-                                    "Relative" -> BrandViolet
+                                    "Birthday" -> BrandCyan
+                                    "Marriage Anniversary" -> BrandPink
+                                    "Death Anniversary" -> BrandViolet
                                     else -> BrandAmber
                                 }
                                 Box(
@@ -1499,6 +1517,45 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         }
                     }
 
+                    // Relationship Selection
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "RELATIONSHIP",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("Friend", "Family", "Relative", "Others").forEach { rel ->
+                                val isSel = selectedRelationship == rel
+                                val relColor = when (rel) {
+                                    "Friend" -> BrandCyan
+                                    "Family" -> BrandPink
+                                    "Relative" -> BrandViolet
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSel) relColor.copy(alpha = 0.15f) else Color.Transparent)
+                                        .border(1.dp, if (isSel) relColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                        .clickable { selectedRelationship = rel }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = rel,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isSel) relColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     if (showError) {
                         Text(
                             text = if (isYearSelected) "Please enter a valid date in DD/MM/YYYY format (e.g. 15/10/1995)" 
@@ -1513,23 +1570,16 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         onClick = {
                             val parsed = parseInputDate(dateText, isYearSelected)
                             if (name.isNotBlank() && parsed != null) {
-                                var finalName = name.trim()
-                                if (!finalName.contains("Birthday", ignoreCase = true)) {
-                                    finalName = if (finalName.endsWith("s", ignoreCase = true)) {
-                                        "$finalName' Birthday"
-                                    } else {
-                                        "$finalName's Birthday"
-                                    }
-                                }
                                 viewModel.addBirthday(
-                                    name = finalName,
+                                    name = name.trim(),
                                     date = parsed,
-                                    giftIdea = if (giftIdea.isBlank()) null else giftIdea,
-                                    category = selectedCategory
+                                    giftIdea = if (giftIdea.isBlank()) null else giftIdea.trim(),
+                                    category = "$selectedCategory|$selectedRelationship"
                                 )
                                 name = ""
                                 dateText = ""
                                 giftIdea = ""
+                                selectedRelationship = "Others"
                                 showError = false
                                 showForm = false
                             } else {
@@ -1540,7 +1590,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Add Birthday", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Add Occasion", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1556,18 +1606,18 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Filter:",
+                    text = "Type:",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                listOf("All", "Friend", "Family", "Relative", "Others").forEach { filter ->
+                listOf("All", "Birthday", "Marriage Anniversary", "Death Anniversary").forEach { filter ->
                     val isSel = listFilter == filter
                     val catColor = when (filter) {
                         "All" -> BrandCyan
-                        "Friend" -> BrandCyan
-                        "Family" -> BrandRose
-                        "Relative" -> BrandViolet
+                        "Birthday" -> BrandCyan
+                        "Marriage Anniversary" -> BrandPink
+                        "Death Anniversary" -> BrandViolet
                         else -> BrandAmber
                     }
                     Box(
@@ -1587,31 +1637,94 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 }
             }
 
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Relation:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                listOf("All", "Friends", "Family", "Relatives", "Others").forEach { filter ->
+                    val isSel = relationFilter == filter
+                    val catColor = when (filter) {
+                        "All" -> BrandCyan
+                        "Friends" -> BrandCyan
+                        "Family" -> BrandPink
+                        "Relatives" -> BrandViolet
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(if (isSel) catColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .clickable { relationFilter = filter }
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = filter,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             if (birthdays.isEmpty()) {
-                Text("No birthdays registered. Store dates to track countdowns!")
+                Text("No occasions registered. Store dates to track countdowns!")
             } else {
-                val filteredBirthdays = if (listFilter == "All") {
-                    birthdays
-                } else {
-                    birthdays.filter { it.category.equals(listFilter, ignoreCase = true) }
+                val filteredBirthdays = birthdays.filter { bday ->
+                    val bdayType = bday.category.split("|")[0]
+                    val matchesType = if (listFilter == "All") {
+                        true
+                    } else if (listFilter == "Birthday") {
+                        !bdayType.equals("Marriage Anniversary", ignoreCase = true) && !bdayType.equals("Death Anniversary", ignoreCase = true)
+                    } else {
+                        bdayType.equals(listFilter, ignoreCase = true)
+                    }
+
+                    val bdayRelation = bday.category.split("|").getOrNull(1) ?: "Others"
+                    val matchesRelation = if (relationFilter == "All") {
+                        true
+                    } else {
+                        val relationKey = when (relationFilter) {
+                            "Friends" -> "Friend"
+                            "Relatives" -> "Relative"
+                            else -> relationFilter // "Family", "Others"
+                        }
+                        bdayRelation.equals(relationKey, ignoreCase = true)
+                    }
+
+                    matchesType && matchesRelation
                 }
                 val sortedBirthdays = filteredBirthdays.sortedBy { daysUntilBirthday(it.date) }
 
                 if (sortedBirthdays.isEmpty()) {
                     Text(
-                        text = "No birthdays in '$listFilter' category.",
+                        text = "No occasions in current filter criteria.",
                         modifier = Modifier.padding(vertical = 12.dp),
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     )
                 } else {
                     sortedBirthdays.forEach { bday ->
+                        val bdayType = bday.category.split("|")[0]
                         val daysLeft = daysUntilBirthday(bday.date)
                         val age = calculateAge(bday.date)
-                        val catColor = when (bday.category) {
-                            "Friend" -> BrandCyan
-                            "Family" -> BrandRose
-                            "Relative" -> BrandViolet
-                            else -> BrandAmber
+                        val catColor = when (bdayType) {
+                            "Marriage Anniversary" -> BrandPink
+                            "Death Anniversary" -> BrandViolet
+                            else -> BrandCyan
+                        }
+                        val occasionIcon = when (bdayType) {
+                            "Marriage Anniversary" -> Icons.Default.Favorite
+                            "Death Anniversary" -> Icons.Default.LocalFlorist
+                            else -> Icons.Default.Cake
                         }
 
                         Card(
@@ -1628,7 +1741,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Cake, contentDescription = null, tint = catColor, modifier = Modifier.size(24.dp))
+                                Icon(occasionIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(24.dp))
                                 
                                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -1642,32 +1755,23 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onBackground,
-                                            modifier = Modifier.weight(1f, fill = false),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            modifier = Modifier.weight(1f)
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            color = catColor.copy(alpha = 0.1f),
-                                            shape = RoundedCornerShape(4.dp)
-                                        ) {
-                                            Text(
-                                                text = bday.category.uppercase(),
-                                                fontSize = 8.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = catColor,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                            )
-                                        }
                                     }
                                     Text(
                                         text = buildString {
                                             append("Date: ${formatBirthdayDate(bday.date)}")
                                             if (age != null) {
-                                                append(" (Age: $age)")
+                                                if (bdayType == "Death Anniversary") {
+                                                    append(" (Years passed: $age)")
+                                                } else if (bdayType == "Marriage Anniversary") {
+                                                    append(" (Years: $age)")
+                                                } else {
+                                                    append(" (Age: $age)")
+                                                }
                                             }
                                             if (bday.giftIdea != null) {
-                                                append(" · Gift: ${bday.giftIdea}")
+                                                append(" · Note: ${bday.giftIdea}")
                                             }
                                         },
                                         fontSize = 12.sp,
@@ -1689,7 +1793,11 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 ) {
                                     Text(
                                         text = when (daysLeft) {
-                                            0 -> "TODAY! 🎂"
+                                            0 -> {
+                                                if (bdayType == "Death Anniversary") "TODAY 🕯️"
+                                                else if (bdayType == "Marriage Anniversary") "TODAY! 💖"
+                                                else "TODAY! 🎂"
+                                            }
                                             1 -> "Tomorrow"
                                             else -> "In $daysLeft days"
                                         },
@@ -1704,7 +1812,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 Spacer(modifier = Modifier.width(4.dp))
 
                                 IconButton(onClick = { editingBirthday = bday }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit Birthday", tint = BrandCyan)
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit Occasion", tint = BrandCyan)
                                 }
 
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -1733,14 +1841,17 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
             )
         }
         var editGiftIdea by remember(bday) { mutableStateOf(bday.giftIdea ?: "") }
-        var editCategory by remember(bday) { mutableStateOf(bday.category) }
+        val bdayCategoryType = remember(bday) { bday.category.split("|")[0] }
+        val bdayCategoryRelation = remember(bday) { bday.category.split("|").getOrNull(1) ?: "Others" }
+        var editCategoryType by remember(bday) { mutableStateOf(bdayCategoryType) }
+        var editCategoryRelation by remember(bday) { mutableStateOf(bdayCategoryRelation) }
         var editShowError by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = { editingBirthday = null },
             title = {
                 Text(
-                    text = "EDIT BIRTHDAY",
+                    text = "EDIT OCCASION",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = BrandCyan
@@ -1815,14 +1926,14 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                     OutlinedTextField(
                         value = editGiftIdea,
                         onValueChange = { editGiftIdea = it },
-                        label = { Text("Gift Idea") },
+                        label = { Text("Gift Idea / Note") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "SEGREGATION CATEGORY",
+                            text = "OCCASION TYPE",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1831,12 +1942,12 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            listOf("Friend", "Family", "Relative", "Others").forEach { cat ->
-                                val isSel = editCategory == cat
+                            listOf("Birthday", "Marriage Anniversary", "Death Anniversary").forEach { cat ->
+                                val isSel = editCategoryType == cat
                                 val catColor = when (cat) {
-                                    "Friend" -> BrandCyan
-                                    "Family" -> BrandRose
-                                    "Relative" -> BrandViolet
+                                    "Birthday" -> BrandCyan
+                                    "Marriage Anniversary" -> BrandPink
+                                    "Death Anniversary" -> BrandViolet
                                     else -> BrandAmber
                                 }
                                 Box(
@@ -1844,7 +1955,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(if (isSel) catColor.copy(alpha = 0.15f) else Color.Transparent)
                                         .border(1.dp, if (isSel) catColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                                        .clickable { editCategory = cat }
+                                        .clickable { editCategoryType = cat }
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Text(
@@ -1852,6 +1963,44 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (isSel) catColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "RELATIONSHIP",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("Friend", "Family", "Relative", "Others").forEach { rel ->
+                                val isSel = editCategoryRelation == rel
+                                val relColor = when (rel) {
+                                    "Friend" -> BrandCyan
+                                    "Family" -> BrandPink
+                                    "Relative" -> BrandViolet
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSel) relColor.copy(alpha = 0.15f) else Color.Transparent)
+                                        .border(1.dp, if (isSel) relColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                        .clickable { editCategoryRelation = rel }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = rel,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isSel) relColor else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -1879,7 +2028,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                     name = editName.trim(),
                                     date = parsed,
                                     giftIdea = if (editGiftIdea.isBlank()) null else editGiftIdea.trim(),
-                                    category = editCategory
+                                    category = "$editCategoryType|$editCategoryRelation"
                                 )
                             )
                             editingBirthday = null

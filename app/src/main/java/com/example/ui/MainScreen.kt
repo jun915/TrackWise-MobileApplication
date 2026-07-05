@@ -43,6 +43,13 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     var activeTab by remember { mutableStateOf("dashboard") }
+    val notificationNavTab by viewModel.notificationNavigateTab.collectAsState()
+    LaunchedEffect(notificationNavTab) {
+        notificationNavTab?.let {
+            activeTab = it
+            viewModel.setNotificationNavigateTab(null)
+        }
+    }
     val showSettings by viewModel.settingsPanelOpen.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncMessage by viewModel.syncMessage.collectAsState()
@@ -436,8 +443,8 @@ fun HeaderToolbar(
                         Triple("Task Checklist", "Manage daily to-dos & milestones", Icons.Default.Assignment),
                         Triple("Habit Runways", "Track daily routines & streaks", Icons.Default.Repeat),
                         Triple("Wishlist Items", "Plan personal purchases & products", Icons.Default.Star),
-                        Triple("Birthdays Log", "Keep track of friends & special days", Icons.Default.Cake),
-                        Triple("Alarms & Clocks", "Manage waking hours & reminders", Icons.Default.Alarm),
+                        Triple("Occasions Log", "Keep track of friends & special days", Icons.Default.Cake),
+                        Triple("Timer & Stopwatch", "Manage precise intervals & timings", Icons.Default.Timer),
                         Triple("Grocery Check List", "Surgical shopping checklist & qty", Icons.Default.ShoppingCart)
                     )
 
@@ -527,16 +534,6 @@ fun HeaderToolbar(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(
-                            onClick = {
-                                viewModel.addNotification(
-                                    "TrackWise Alert 🚀",
-                                    "Mobile push notifications are working perfectly on your real device!"
-                                )
-                            }
-                        ) {
-                            Text("Test Push", color = BrandCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
                         if (notifications.isNotEmpty()) {
                             TextButton(
                                 onClick = { viewModel.clearNotifications() }
@@ -1498,7 +1495,59 @@ fun LeftDrawerPane(
                                 }
                             }
                             
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text("AUTO LOCAL BACKUP FREQUENCY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                            
+                            val autoBackupFreq by viewModel.autoBackupFrequency.collectAsState()
+                            val lastBackupTime by viewModel.lastAutoBackupTime.collectAsState()
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                listOf("none" to "None", "hourly" to "Hourly", "daily" to "Daily", "weekly" to "Weekly").forEach { (key, label) ->
+                                    val isSelected = autoBackupFreq == key
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .background(
+                                                color = if (isSelected) BrandViolet.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                shape = RoundedCornerShape(6.dp)
+                                            )
+                                            .border(
+                                                width = 1.dp,
+                                                color = if (isSelected) BrandViolet else Color.Transparent,
+                                                shape = RoundedCornerShape(6.dp)
+                                            )
+                                            .clickable { viewModel.updateAutoBackupFrequency(key) }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            if (autoBackupFreq != "none") {
+                                Text(
+                                    text = if (lastBackupTime > 0L) {
+                                        val formatted = java.text.SimpleDateFormat("dd MMM yyyy HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(lastBackupTime))
+                                        "Last auto-backup successfully saved: $formatted"
+                                    } else {
+                                        "Auto-backup enabled. Silently saving based on frequency selection."
+                                    },
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(10.dp))
                             Button(
                                 onClick = { showClearDataConfirm = true },
                                 colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
