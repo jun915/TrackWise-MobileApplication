@@ -82,6 +82,13 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                     updateWidget(context, appWidgetManager, id)
                 }
             }
+        } else if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+                ?: appWidgetManager.getAppWidgetIds(ComponentName(context, TrackWiseWidgetProvider::class.java))
+            for (id in appWidgetIds) {
+                updateWidget(context, appWidgetManager, id)
+            }
         }
     }
 
@@ -91,9 +98,10 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                 val db = TrackWiseDatabase.getDatabase(context)
                 val dao = db.trackWiseDao()
 
-                // Fetch current user or default
-                val users = dao.getAllUsers()
-                val userId = users.firstOrNull()?.id ?: "guest"
+                // Fetch current user or default from session preferences
+                val sessionPrefs = context.getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+                val savedUserId = sessionPrefs.getString("saved_user_id", null)
+                val userId = savedUserId ?: dao.getAllUsers().firstOrNull()?.id ?: "guest"
 
                 // Get stored selection for this widget
                 val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
@@ -101,7 +109,6 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                     ?: prefs.getString("selected_category", "finance") ?: "finance"
 
                 // Fetch session theme preferences from trackwise_session SharedPrefs
-                val sessionPrefs = context.getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
                 val themeMode = sessionPrefs.getString("saved_theme_mode", "light") ?: "light"
                 val themeAccent = sessionPrefs.getString("saved_theme_accent", "Default Violet") ?: "Default Violet"
 
@@ -243,7 +250,7 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                         val completedCount = tasks.count { it.completed }
                         val totalCount = tasks.size
 
-                        val todayTasks = tasks.filter { it.deadline == todayStr }
+                        val todayTasks = tasks.filter { com.example.utils.TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) }
                         val completedToday = todayTasks.count { it.completed }
                         val totalToday = todayTasks.size
 
@@ -275,13 +282,14 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
 
                 // Query and render the live beautiful Daily Progress Pie Chart on the right
                 val allTasks = dao.getTasksForUser(userId)
-                val todayTasks = allTasks.filter { it.deadline == todayStr }
+                val todayTasks = allTasks.filter { com.example.utils.TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) }
                 val completedTasksToday = todayTasks.count { it.completed }
                 val totalTasksToday = todayTasks.size
 
                 val habits = dao.getHabitsForUser(userId)
-                val completedHabitsToday = habits.count { it.daysCompletedJson.contains(todayStr) }
-                val totalHabitsToday = habits.size
+                val filteredHabits = habits.filter { com.example.utils.TrackWiseUtils.shouldShowHabitOnDate(it, todayStr) }
+                val completedHabitsToday = filteredHabits.count { it.daysCompletedJson.contains(todayStr) }
+                val totalHabitsToday = filteredHabits.size
 
                 val totalCompleted = completedTasksToday + completedHabitsToday
                 val totalScheduled = totalTasksToday + totalHabitsToday

@@ -466,4 +466,117 @@ object TrackWiseUtils {
         AllahName(99, "As-Sabur", "الصبور", "الصبور", "The Patient One"),
         AllahName(100, "Allah", "الله", "اللہ", "The Supreme Name")
     )
+
+    fun shouldShowHabitOnDate(habit: com.example.data.HabitEntity, dateStr: String): Boolean {
+        val sDate = if (!habit.startDate.isNullOrBlank()) habit.startDate else habit.createdAt
+        if (dateStr < sDate) {
+            return false
+        }
+        if (!habit.endDate.isNullOrBlank() && dateStr > habit.endDate) {
+            return false
+        }
+
+        val date = parseDate(dateStr)
+        val created = parseDate(sDate)
+
+        val cal = Calendar.getInstance().apply { time = date }
+        val calCreated = Calendar.getInstance().apply { time = created }
+
+        val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+        val dayOfWeekStr = when (dayOfWeek) {
+            Calendar.SUNDAY -> "Sun"
+            Calendar.MONDAY -> "Mon"
+            Calendar.TUESDAY -> "Tue"
+            Calendar.WEDNESDAY -> "Wed"
+            Calendar.THURSDAY -> "Thu"
+            Calendar.FRIDAY -> "Fri"
+            Calendar.SATURDAY -> "Sat"
+            else -> ""
+        }
+
+        return when (habit.repeatType.lowercase()) {
+            "none" -> {
+                dateStr == sDate
+            }
+            "daily" -> {
+                true
+            }
+            "weekdays" -> {
+                dayOfWeek in listOf(Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY)
+            }
+            "weekly" -> {
+                cal.get(Calendar.DAY_OF_WEEK) == calCreated.get(Calendar.DAY_OF_WEEK)
+            }
+            "monthly" -> {
+                cal.get(Calendar.DAY_OF_MONTH) == calCreated.get(Calendar.DAY_OF_MONTH)
+            }
+            "yearly" -> {
+                cal.get(Calendar.DAY_OF_MONTH) == calCreated.get(Calendar.DAY_OF_MONTH) &&
+                        cal.get(Calendar.MONTH) == calCreated.get(Calendar.MONTH)
+            }
+            "custom" -> {
+                val value = habit.customRepeatValue.coerceAtLeast(1)
+                val cal1 = Calendar.getInstance().apply {
+                    time = created
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val cal2 = Calendar.getInstance().apply {
+                    time = date
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val diffMs = cal2.timeInMillis - cal1.timeInMillis
+                val diffDays = java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
+
+                when (habit.customRepeatUnit.lowercase()) {
+                    "days" -> {
+                        diffDays >= 0 && (diffDays % value == 0)
+                    }
+                    "weeks" -> {
+                        val diffWeeks = diffDays / 7
+                        val isCorrectWeek = diffWeeks >= 0 && (diffWeeks % value == 0)
+                        val days = habit.customRepeatDaysOfWeek?.split(",")?.map { it.trim() } ?: emptyList()
+                        if (days.isEmpty()) {
+                            isCorrectWeek && cal.get(Calendar.DAY_OF_WEEK) == calCreated.get(Calendar.DAY_OF_WEEK)
+                        } else {
+                            isCorrectWeek && days.contains(dayOfWeekStr)
+                        }
+                    }
+                    "months" -> {
+                        val yearDiff = cal.get(Calendar.YEAR) - calCreated.get(Calendar.YEAR)
+                        val monthDiff = cal.get(Calendar.MONTH) - calCreated.get(Calendar.MONTH) + (yearDiff * 12)
+                        val isCorrectMonth = monthDiff >= 0 && (monthDiff % value == 0)
+                        isCorrectMonth && cal.get(Calendar.DAY_OF_MONTH) == calCreated.get(Calendar.DAY_OF_MONTH)
+                    }
+                    "years" -> {
+                        val yearDiff = cal.get(Calendar.YEAR) - calCreated.get(Calendar.YEAR)
+                        val isCorrectYear = yearDiff >= 0 && (yearDiff % value == 0)
+                        isCorrectYear && cal.get(Calendar.DAY_OF_MONTH) == calCreated.get(Calendar.DAY_OF_MONTH) &&
+                                cal.get(Calendar.MONTH) == calCreated.get(Calendar.MONTH)
+                    }
+                    else -> true
+                }
+            }
+            else -> true
+        }
+    }
+
+    fun shouldShowTaskOnDate(task: com.example.data.TaskEntity, dateStr: String): Boolean {
+        if (task.repeatType == "none") {
+            return dateStr == task.deadline
+        }
+        val sDate = if (!task.startDate.isNullOrBlank()) task.startDate else task.deadline
+        if (dateStr < sDate) {
+            return false
+        }
+        if (!task.endDate.isNullOrBlank() && dateStr > task.endDate) {
+            return false
+        }
+        return true
+    }
 }

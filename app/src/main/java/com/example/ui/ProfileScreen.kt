@@ -80,6 +80,21 @@ fun ProfileScreen(
     var vitalsBloodPressure by remember { mutableStateOf("") }
     var vitalsHeartRate by remember { mutableStateOf("") }
 
+    var showErrors by remember { mutableStateOf(false) }
+
+    val firstNameError = if (firstName.isBlank()) "First Name is required" else null
+    val emailError = if (emailAddress.isBlank()) {
+        "Email Address is required"
+    } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(emailAddress).matches()) {
+        "Please enter a valid email address"
+    } else null
+
+    val mobileError = if (mobileNumber.isBlank()) {
+        "Mobile Number is required"
+    } else if (mobileNumber.filter { it.isDigit() || it == '+' }.length < 7) {
+        "Please enter a valid phone number"
+    } else null
+
     // --- Load existing data from DB ---
     LaunchedEffect(dbProfile) {
         dbProfile?.let { prof ->
@@ -195,8 +210,17 @@ fun ProfileScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = firstName,
-                            onValueChange = { firstName = it },
-                            label = { Text("First Name") },
+                            onValueChange = { 
+                                firstName = it
+                                if (it.isNotBlank()) showErrors = false
+                            },
+                            label = { Text("First Name *") },
+                            isError = showErrors && firstNameError != null,
+                            supportingText = {
+                                if (showErrors && firstNameError != null) {
+                                    Text(firstNameError, color = MaterialTheme.colorScheme.error)
+                                }
+                            },
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                         )
@@ -397,9 +421,18 @@ fun ProfileScreen(
                     Text("Contact Details", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
                     OutlinedTextField(
                         value = mobileNumber,
-                        onValueChange = { mobileNumber = it },
-                        label = { Text("Mobile Number") },
+                        onValueChange = { 
+                            mobileNumber = it 
+                            showErrors = false
+                        },
+                        label = { Text("Mobile Number *") },
                         singleLine = true,
+                        isError = showErrors && mobileError != null,
+                        supportingText = {
+                            if (showErrors && mobileError != null) {
+                                Text(mobileError, color = MaterialTheme.colorScheme.error)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -413,9 +446,18 @@ fun ProfileScreen(
                     )
                     OutlinedTextField(
                         value = emailAddress,
-                        onValueChange = { emailAddress = it },
-                        label = { Text("Email Address") },
+                        onValueChange = { 
+                            emailAddress = it 
+                            showErrors = false
+                        },
+                        label = { Text("Email Address *") },
                         singleLine = true,
+                        isError = showErrors && emailError != null,
+                        supportingText = {
+                            if (showErrors && emailError != null) {
+                                Text(emailError, color = MaterialTheme.colorScheme.error)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet)
                     )
@@ -577,52 +619,68 @@ fun ProfileScreen(
 
         // --- Save Button ---
         item {
+            if (showErrors && (firstNameError != null || emailError != null || mobileError != null)) {
+                Text(
+                    text = "Please fix required fields first (marked with *)",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+
             Button(
                 onClick = {
-                    val userId = sessionUser?.id ?: "unknown-user"
-                    val newProfile = UserProfileEntity(
-                        userId = userId,
-                        firstName = firstName,
-                        middleName = middleName,
-                        lastName = lastName,
-                        dob = dob,
-                        gender = gender,
-                        maritalStatus = maritalStatus,
-                        nationality = nationality,
-                        nationalId = nationalId,
-                        bloodGroup = bloodGroup,
-                        residentialStreet = residentialStreet,
-                        residentialCity = residentialCity,
-                        residentialState = residentialState,
-                        residentialZip = residentialZip,
-                        residentialCountry = residentialCountry,
-                        permanentStreet = permanentStreet,
-                        permanentCity = permanentCity,
-                        permanentState = permanentState,
-                        permanentZip = permanentZip,
-                        permanentCountry = permanentCountry,
-                        permanentIsSame = permanentIsSame,
-                        mobileNumber = mobileNumber,
-                        alternatePhone = alternatePhone,
-                        emailAddress = emailAddress,
-                        emergencyName = emergencyName,
-                        emergencyRelationship = emergencyRelationship,
-                        emergencyPhone = emergencyPhone,
-                        alternateEmergencyPhone = alternateEmergencyPhone,
-                        height = height,
-                        weight = weight,
-                        primaryDoctor = primaryDoctor,
-                        medicalConditions = medicalConditions,
-                        currentMedications = currentMedications,
-                        allergies = allergies,
-                        dietaryRestrictions = dietaryRestrictions,
-                        vitalsHeight = height,
-                        vitalsWeight = weight,
-                        vitalsBloodPressure = vitalsBloodPressure,
-                        vitalsHeartRate = vitalsHeartRate,
-                        vitalsBloodGroup = bloodGroup
-                    )
-                    viewModel.saveDetailedProfile(newProfile)
+                    if (firstNameError == null && emailError == null && mobileError == null) {
+                        val userId = sessionUser?.id ?: "unknown-user"
+                        val newProfile = UserProfileEntity(
+                            userId = userId,
+                            firstName = firstName,
+                            middleName = middleName,
+                            lastName = lastName,
+                            dob = dob,
+                            gender = gender,
+                            maritalStatus = maritalStatus,
+                            nationality = nationality,
+                            nationalId = nationalId,
+                            bloodGroup = bloodGroup,
+                            residentialStreet = residentialStreet,
+                            residentialCity = residentialCity,
+                            residentialState = residentialState,
+                            residentialZip = residentialZip,
+                            residentialCountry = residentialCountry,
+                            permanentStreet = permanentStreet,
+                            permanentCity = permanentCity,
+                            permanentState = permanentState,
+                            permanentZip = permanentZip,
+                            permanentCountry = permanentCountry,
+                            permanentIsSame = permanentIsSame,
+                            mobileNumber = mobileNumber,
+                            alternatePhone = alternatePhone,
+                            emailAddress = emailAddress,
+                            emergencyName = emergencyName,
+                            emergencyRelationship = emergencyRelationship,
+                            emergencyPhone = emergencyPhone,
+                            alternateEmergencyPhone = alternateEmergencyPhone,
+                            height = height,
+                            weight = weight,
+                            primaryDoctor = primaryDoctor,
+                            medicalConditions = medicalConditions,
+                            currentMedications = currentMedications,
+                            allergies = allergies,
+                            dietaryRestrictions = dietaryRestrictions,
+                            vitalsHeight = height,
+                            vitalsWeight = weight,
+                            vitalsBloodPressure = vitalsBloodPressure,
+                            vitalsHeartRate = vitalsHeartRate,
+                            vitalsBloodGroup = bloodGroup
+                        )
+                        viewModel.saveDetailedProfile(newProfile)
+                        showErrors = false
+                    } else {
+                        showErrors = true
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()

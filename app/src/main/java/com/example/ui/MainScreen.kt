@@ -1302,7 +1302,8 @@ fun LeftDrawerPane(
                                     }
                                     DropdownMenu(
                                         expanded = themeModeExpanded,
-                                        onDismissRequest = { themeModeExpanded = false }
+                                        onDismissRequest = { themeModeExpanded = false },
+                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         listOf("light" to "Light Mode ☀️", "dark" to "Dark Mode 🌙", "system" to "System Default ⚙️").forEach { (mode, label) ->
                                             DropdownMenuItem(
@@ -1349,7 +1350,8 @@ fun LeftDrawerPane(
                                     }
                                     DropdownMenu(
                                         expanded = themeAccentExpanded,
-                                        onDismissRequest = { themeAccentExpanded = false }
+                                        onDismissRequest = { themeAccentExpanded = false },
+                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         listOf("Default Violet" to "💜", "Ocean Blue" to "💙", "Forest Green" to "💚", "Sunset Orange" to "🧡", "Crimson Red" to "❤️").forEach { (accent, emoji) ->
                                             DropdownMenuItem(
@@ -1397,7 +1399,8 @@ fun LeftDrawerPane(
                                     }
                                     DropdownMenu(
                                         expanded = taskSoundExpanded,
-                                        onDismissRequest = { taskSoundExpanded = false }
+                                        onDismissRequest = { taskSoundExpanded = false },
+                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         listOf("Chime", "Ding", "Bell", "None").forEach { snd ->
                                             DropdownMenuItem(

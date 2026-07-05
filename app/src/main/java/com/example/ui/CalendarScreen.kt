@@ -381,7 +381,7 @@ fun CalendarScreen(
                 val formattedHeader = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.US).format(parsedSelected)
                 val selectedFestivals = TrackWiseUtils.getIndianFestivalsForDate(selectedDateStr)
                 val selectedBirthdays = birthdays.filter { it.date.endsWith(selectedDateStr.substring(5)) }
-                val selectedTasks = tasks.filter { it.deadline == selectedDateStr }
+                val selectedTasks = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, selectedDateStr) }
 
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -719,7 +719,7 @@ fun CalendarDayView(
     birthdays: List<BirthdayEntity>
 ) {
     val dayStr = TrackWiseUtils.formatDate(currentDate.time, "yyyy-MM-dd")
-    val todayTasks = tasks.filter { it.deadline == dayStr }
+    val todayTasks = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, dayStr) }
     val todayBirthdays = birthdays.filter { it.date.endsWith(dayStr.substring(5)) }
     val festivals = TrackWiseUtils.getIndianFestivalsForDate(dayStr)
 
@@ -1039,7 +1039,7 @@ fun CalendarWeekView(
             val dayCal = tempCal.clone() as Calendar
             dayCal.add(Calendar.DAY_OF_YEAR, i)
             val dayStr = TrackWiseUtils.formatDate(dayCal.time, "yyyy-MM-dd")
-            val dayTasks = tasks.filter { it.deadline == dayStr }
+            val dayTasks = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, dayStr) }
             val dayBirthdays = birthdays.filter { it.date.endsWith(dayStr.substring(5)) }
             val festivals = TrackWiseUtils.getIndianFestivalsForDate(dayStr)
             
@@ -1256,7 +1256,7 @@ fun CalendarGrid(
                             temp.set(Calendar.DAY_OF_MONTH, dayNumber)
                             val dayStr = TrackWiseUtils.formatDate(temp.time, "yyyy-MM-dd")
 
-                            val hasTasks = tasks.any { it.deadline == dayStr }
+                            val hasTasks = tasks.any { TrackWiseUtils.shouldShowTaskOnDate(it, dayStr) }
                             val hasBirthdays = birthdays.any { it.date.endsWith(dayStr.substring(5)) }
                             val festivals = TrackWiseUtils.getIndianFestivalsForDate(dayStr)
 

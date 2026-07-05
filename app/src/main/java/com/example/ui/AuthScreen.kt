@@ -43,6 +43,24 @@ fun AuthScreen(
     var fullName by remember { mutableStateOf("") }
     
     var showPassword by remember { mutableStateOf(false) }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val fullNameError = if (fullName.isBlank()) "Full name is required" else null
+    val emailError = if (email.isBlank()) {
+        "Email address is required"
+    } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        "Please enter a valid email address"
+    } else null
+    val passwordError = if (password.isBlank()) {
+        "Password is required"
+    } else if (password.length < 6) {
+        "Password must be at least 6 characters"
+    } else null
+    val confirmPasswordError = if (confirmPassword.isBlank()) {
+        "Please confirm your password"
+    } else if (confirmPassword != password) {
+        "Passwords do not match"
+    } else null
     
     val authError by viewModel.authError.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
@@ -153,10 +171,19 @@ fun AuthScreen(
                 // Name Field
                 OutlinedTextField(
                     value = fullName,
-                    onValueChange = { fullName = it },
-                    label = { Text("Full Name") },
+                    onValueChange = { 
+                        fullName = it 
+                        showErrors = false
+                    },
+                    label = { Text("Full Name *") },
                     leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = BrandViolet) },
                     singleLine = true,
+                    isError = showErrors && fullNameError != null,
+                    supportingText = {
+                        if (showErrors && fullNameError != null) {
+                            Text(fullNameError, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = BrandViolet,
                         unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
@@ -171,11 +198,20 @@ fun AuthScreen(
             // Email Field
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it },
-                label = { Text("Email Address") },
+                onValueChange = { 
+                    email = it 
+                    showErrors = false
+                },
+                label = { Text("Email Address *") },
                 leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = BrandViolet) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                isError = showErrors && emailError != null,
+                supportingText = {
+                    if (showErrors && emailError != null) {
+                        Text(emailError, color = MaterialTheme.colorScheme.error)
+                    }
+                },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = BrandViolet,
                     unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
@@ -189,8 +225,11 @@ fun AuthScreen(
             // Password Field
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it },
-                label = { Text(if (authMode == "forgot") "New Password" else "Password") },
+                onValueChange = { 
+                    password = it 
+                    showErrors = false
+                },
+                label = { Text(if (authMode == "forgot") "New Password *" else "Password *") },
                 leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = BrandViolet) },
                 trailingIcon = {
                     IconButton(onClick = { showPassword = !showPassword }) {
@@ -203,6 +242,12 @@ fun AuthScreen(
                 },
                 singleLine = true,
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                isError = showErrors && passwordError != null,
+                supportingText = {
+                    if (showErrors && passwordError != null) {
+                        Text(passwordError, color = MaterialTheme.colorScheme.error)
+                    }
+                },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = BrandViolet,
                     unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
@@ -210,7 +255,7 @@ fun AuthScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("password_input")
-                    .padding(bottom = if (authMode == "login") 4.dp else 12.dp)
+                    .padding(bottom = if (authMode == "login" && (!showErrors || passwordError == null)) 4.dp else 12.dp)
             )
 
             if (authMode == "login") {
@@ -230,6 +275,7 @@ fun AuthScreen(
                             .clickable {
                                 authMode = "forgot"
                                 viewModel.clearAuthError()
+                                showErrors = false
                             }
                             .testTag("forgot_password_link")
                     )
@@ -240,11 +286,20 @@ fun AuthScreen(
                 // Confirm Password Field
                 OutlinedTextField(
                     value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = { Text(if (authMode == "forgot") "Confirm New Password" else "Confirm Password") },
+                    onValueChange = { 
+                        confirmPassword = it 
+                        showErrors = false
+                    },
+                    label = { Text(if (authMode == "forgot") "Confirm New Password *" else "Confirm Password *") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = BrandViolet) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
+                    isError = showErrors && confirmPasswordError != null,
+                    supportingText = {
+                        if (showErrors && confirmPasswordError != null) {
+                            Text(confirmPasswordError, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = BrandViolet,
                         unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
@@ -267,22 +322,30 @@ fun AuthScreen(
                         viewModel.dismissSuccessMessage()
                         when (authMode) {
                             "signup" -> {
-                                if (fullName.isBlank()) {
-                                    viewModel.signUp(email, password, fullName) // will trigger error
-                                    return@clickable
+                                if (fullNameError == null && emailError == null && passwordError == null && confirmPasswordError == null) {
+                                    viewModel.signUp(email, password, fullName)
+                                    showErrors = false
+                                } else {
+                                    showErrors = true
                                 }
-                                if (password != confirmPassword) {
-                                    return@clickable
-                                }
-                                viewModel.signUp(email, password, fullName)
                             }
                             "forgot" -> {
-                                if (email.isBlank() || password.isBlank()) return@clickable
-                                if (password != confirmPassword) return@clickable
-                                viewModel.resetPassword(email, password)
+                                if (emailError == null && passwordError == null && confirmPasswordError == null) {
+                                    viewModel.resetPassword(email, password)
+                                    showErrors = false
+                                } else {
+                                    showErrors = true
+                                }
                             }
                             else -> {
-                                viewModel.login(email, password)
+                                val loginEmailError = if (email.isBlank()) "Email address is required" else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) "Please enter a valid email address" else null
+                                val loginPasswordError = if (password.isBlank()) "Password is required" else null
+                                if (loginEmailError == null && loginPasswordError == null) {
+                                    viewModel.login(email, password)
+                                    showErrors = false
+                                } else {
+                                    showErrors = true
+                                }
                             }
                         }
                     }
@@ -306,6 +369,7 @@ fun AuthScreen(
                 onClick = {
                     viewModel.clearAuthError()
                     viewModel.dismissSuccessMessage()
+                    showErrors = false
                     authMode = if (authMode == "login") "signup" else "login"
                 },
                 modifier = Modifier.padding(top = 16.dp)

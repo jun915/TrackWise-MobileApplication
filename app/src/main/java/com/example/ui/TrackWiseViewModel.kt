@@ -333,7 +333,7 @@ class TrackWiseViewModel(
         if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@combine 0
         
         // 1. Dynamic Task Points (High: 15 pts, Medium: 10 pts, Low: 5 pts)
-        val taskPoints = tasks.filter { it.deadline == todayStr && it.completed }.sumOf { 
+        val taskPoints = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && it.completed }.sumOf { 
             when (it.priority.lowercase()) {
                 "high" -> 15
                 "medium" -> 10
@@ -533,7 +533,10 @@ class TrackWiseViewModel(
         repeatType: String = "none",
         customRepeatValue: Int = 1,
         customRepeatUnit: String = "days",
-        customRepeatDaysOfWeek: String? = null
+        customRepeatDaysOfWeek: String? = null,
+        startDate: String? = null,
+        endDate: String? = null,
+        notes: String = ""
     ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
@@ -556,7 +559,10 @@ class TrackWiseViewModel(
                 repeatType = repeatType,
                 customRepeatValue = customRepeatValue,
                 customRepeatUnit = customRepeatUnit,
-                customRepeatDaysOfWeek = customRepeatDaysOfWeek
+                customRepeatDaysOfWeek = customRepeatDaysOfWeek,
+                startDate = startDate,
+                endDate = endDate,
+                notes = notes
             )
             repository.insertTask(task)
             triggerFakeSync()
@@ -635,17 +641,20 @@ class TrackWiseViewModel(
         repeatType: String = "none",
         customRepeatValue: Int = 1,
         customRepeatUnit: String = "days",
-        customRepeatDaysOfWeek: String? = null
+        customRepeatDaysOfWeek: String? = null,
+        startDate: String? = null,
+        endDate: String? = null
     ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val today = TrackWiseUtils.getTodayString()
+            val finalStart = startDate ?: today
             val habit = HabitEntity(
                 id = "habit-${System.currentTimeMillis()}",
                 userId = user.id,
                 name = name,
                 category = category,
-                createdAt = today,
+                createdAt = finalStart,
                 isMultipleTimesPerDay = isMultipleTimesPerDay,
                 multipleTimesTarget = multipleTimesTarget,
                 isTimeBound = isTimeBound,
@@ -653,7 +662,9 @@ class TrackWiseViewModel(
                 repeatType = repeatType,
                 customRepeatValue = customRepeatValue,
                 customRepeatUnit = customRepeatUnit,
-                customRepeatDaysOfWeek = customRepeatDaysOfWeek
+                customRepeatDaysOfWeek = customRepeatDaysOfWeek,
+                startDate = finalStart,
+                endDate = endDate
             )
             repository.insertHabit(habit)
             triggerFakeSync()
@@ -1842,6 +1853,7 @@ class TrackWiseViewModel(
             obj.put("points", item.points)
             obj.put("subtasksJson", item.subtasksJson)
             obj.put("reminderTime", item.reminderTime ?: "")
+            obj.put("notes", item.notes)
             tasksArray.put(obj)
         }
         rootJson.put("tasks", tasksArray)
@@ -2285,7 +2297,8 @@ class TrackWiseViewModel(
                             completed = obj.optBoolean("completed", false),
                             points = obj.optInt("points", 10),
                             subtasksJson = obj.optString("subtasksJson", "[]"),
-                            reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotEmpty()) obj.getString("reminderTime") else null
+                            reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotEmpty()) obj.getString("reminderTime") else null,
+                            notes = obj.optString("notes", "")
                         )
                         repository.insertTask(entity)
                     }

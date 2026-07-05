@@ -47,7 +47,10 @@ data class TaskEntity(
     val repeatType: String = "none", // "none", "daily", "weekdays", "weekly", "monthly", "yearly", "custom"
     val customRepeatValue: Int = 1,
     val customRepeatUnit: String = "days", // "days", "weeks", "months", "years"
-    val customRepeatDaysOfWeek: String? = null // Comma-separated list like "Sun,Mon..."
+    val customRepeatDaysOfWeek: String? = null, // Comma-separated list like "Sun,Mon..."
+    val startDate: String? = null, // YYYY-MM-DD
+    val endDate: String? = null, // YYYY-MM-DD (null/blank means "Until I stop")
+    val notes: String = ""
 )
 
 @Entity(tableName = "habits")
@@ -69,7 +72,10 @@ data class HabitEntity(
     val repeatType: String = "none", // "none", "daily", "weekdays", "weekly", "monthly", "yearly", "custom"
     val customRepeatValue: Int = 1,
     val customRepeatUnit: String = "days", // "days", "weeks", "months", "years"
-    val customRepeatDaysOfWeek: String? = null // Comma-separated list like "Sun,Mon..."
+    val customRepeatDaysOfWeek: String? = null, // Comma-separated list like "Sun,Mon..."
+    val startDate: String? = null, // YYYY-MM-DD
+    val endDate: String? = null, // YYYY-MM-DD (null/blank means "Until I stop")
+    val notes: String = ""
 )
 
 @Entity(tableName = "birthdays")

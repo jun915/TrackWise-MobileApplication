@@ -483,6 +483,12 @@ fun AddAlarmDialog(
     }
     var displayMinute by remember { mutableStateOf(String.format("%02d", minute)) }
 
+    var showErrors by remember { mutableStateOf(false) }
+    val displayHourInt = displayHour.toIntOrNull()
+    val displayMinuteInt = displayMinute.toIntOrNull()
+    val hourError = if (displayHour.isBlank()) "Required" else if (displayHourInt == null || displayHourInt !in 1..12) "Use 1-12" else null
+    val minuteError = if (displayMinute.isBlank()) "Required" else if (displayMinuteInt == null || displayMinuteInt !in 0..59) "Use 0-59" else null
+
     val convertTo24Hour = { h12: Int, amPmStr: String ->
         var h = h12 % 12
         if (amPmStr == "PM") {
@@ -535,6 +541,7 @@ fun AddAlarmDialog(
                                 val filtered = input.filter { it.isDigit() }
                                 if (filtered.length <= 2) {
                                     displayHour = filtered
+                                    showErrors = false
                                     val h = filtered.toIntOrNull() ?: 12
                                     if (h in 1..12) {
                                         hour = convertTo24Hour(h, amPm)
@@ -543,11 +550,13 @@ fun AddAlarmDialog(
                             },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
+                            isError = showErrors && hourError != null,
                             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
                             modifier = Modifier.size(width = 72.dp, height = 56.dp).testTag("alarm_hour_input"),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BrandViolet,
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                                errorBorderColor = MaterialTheme.colorScheme.error
                             )
                         )
                     }
@@ -563,6 +572,7 @@ fun AddAlarmDialog(
                                 val filtered = input.filter { it.isDigit() }
                                 if (filtered.length <= 2) {
                                     displayMinute = filtered
+                                    showErrors = false
                                     val m = filtered.toIntOrNull() ?: 0
                                     if (m in 0..59) {
                                         minute = m
@@ -571,11 +581,13 @@ fun AddAlarmDialog(
                             },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
+                            isError = showErrors && minuteError != null,
                             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
                             modifier = Modifier.size(width = 72.dp, height = 56.dp).testTag("alarm_minute_input"),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BrandViolet,
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                                errorBorderColor = MaterialTheme.colorScheme.error
                             )
                         )
                     }
@@ -661,6 +673,16 @@ fun AddAlarmDialog(
                     }
                 }
 
+                if (showErrors && (hourError != null || minuteError != null)) {
+                    Text(
+                        text = "Please correct errors: " + (hourError ?: "") + " " + (minuteError ?: ""),
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+
                 // Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -673,7 +695,15 @@ fun AddAlarmDialog(
                         Text("Cancel", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
                     }
                     Button(
-                        onClick = { onSave(hour, minute, label, selectedDays.toList()) },
+                        onClick = { 
+                            if (hourError == null && minuteError == null) {
+                                val finalHour = displayHourInt ?: 12
+                                val finalMinute = displayMinuteInt ?: 0
+                                onSave(convertTo24Hour(finalHour, amPm), finalMinute, label, selectedDays.toList()) 
+                            } else {
+                                showErrors = true
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f).testTag("save_alarm")

@@ -216,6 +216,7 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
     
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
     var project by remember { mutableStateOf("Work") }
     var priority by remember { mutableStateOf("medium") }
     var deadline by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
@@ -225,6 +226,16 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
     var customRepeatValue by remember { mutableStateOf("1") }
     var customRepeatUnit by remember { mutableStateOf("days") }
     var customRepeatDaysOfWeek by remember { mutableStateOf(emptySet<String>()) }
+    var taskStartDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var taskEndDate by remember { mutableStateOf("") }
+    var taskUntilIStop by remember { mutableStateOf(true) }
+ 
+    var showErrors by remember { mutableStateOf(false) }
+    val titleError = if (title.isBlank()) "Task Title is required" else null
+    val deadlineError = if (deadline.isNotBlank() && !deadline.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) "Use YYYY-MM-DD format" else null
+    val reminderError = if (reminderTime.isNotBlank() && !reminderTime.matches(Regex("\\d{2}:\\d{2}"))) "Use HH:MM format (24h)" else null
+    val taskStartDateError = if (repeatType != "none" && taskStartDate.isNotBlank() && !taskStartDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) "Use YYYY-MM-DD format" else null
+    val taskEndDateError = if (repeatType != "none" && !taskUntilIStop && taskEndDate.isNotBlank() && !taskEndDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) "Use YYYY-MM-DD format" else null
 
     val projects = listOf("Personal", "Work")
     val priorities = listOf("low", "medium", "high")
@@ -232,7 +243,10 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Toggle add task card
         Button(
-            onClick = { showForm = !showForm },
+            onClick = { 
+                showForm = !showForm
+                if (showForm) showErrors = false
+            },
             colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
@@ -253,9 +267,18 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
 
                     OutlinedTextField(
                         value = title,
-                        onValueChange = { title = it },
+                        onValueChange = { 
+                            title = it 
+                            if (it.isNotBlank()) showErrors = false
+                        },
                         label = { Text("Task Title *") },
                         singleLine = true,
+                        isError = showErrors && titleError != null,
+                        supportingText = {
+                            if (showErrors && titleError != null) {
+                                Text(titleError, color = MaterialTheme.colorScheme.error)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -263,6 +286,13 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                         value = description,
                         onValueChange = { description = it },
                         label = { Text("Description") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = { Text("Notes (e.g. key details, urls, logs)") },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -322,17 +352,27 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         CompactTextField(
                             value = deadline,
-                            onValueChange = { deadline = it },
+                            onValueChange = { 
+                                deadline = it 
+                                showErrors = false
+                            },
                             label = "Deadline (YYYY-MM-DD)",
                             placeholder = "2026-06-30",
+                            isError = showErrors && deadlineError != null,
+                            errorText = deadlineError,
                             modifier = Modifier.weight(1f)
                         )
 
                         CompactTextField(
                             value = reminderTime,
-                            onValueChange = { reminderTime = it },
+                            onValueChange = { 
+                                reminderTime = it 
+                                showErrors = false
+                            },
                             label = "Reminder (HH:MM)",
                             placeholder = "e.g. 08:30",
+                            isError = showErrors && reminderError != null,
+                            errorText = reminderError,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -346,12 +386,21 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                         onCustomRepeatUnitChange = { customRepeatUnit = it },
                         customRepeatDaysOfWeek = customRepeatDaysOfWeek,
                         onCustomRepeatDaysOfWeekChange = { customRepeatDaysOfWeek = it },
-                        themeColor = BrandViolet
+                        startDate = taskStartDate,
+                        onStartDateChange = { taskStartDate = it; showErrors = false },
+                        endDate = taskEndDate,
+                        onEndDateChange = { taskEndDate = it; showErrors = false },
+                        untilIStop = taskUntilIStop,
+                        onUntilIStopChange = { taskUntilIStop = it; showErrors = false },
+                        themeColor = BrandViolet,
+                        startDateError = if (showErrors) taskStartDateError else null,
+                        endDateError = if (showErrors) taskEndDateError else null,
+                        showDateRange = false
                     )
 
                     Button(
                         onClick = {
-                            if (title.isNotBlank()) {
+                            if (titleError == null && deadlineError == null && reminderError == null) {
                                 viewModel.addTask(
                                     title = title,
                                     description = description,
@@ -363,16 +412,26 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                                     repeatType = repeatType,
                                     customRepeatValue = customRepeatValue.toIntOrNull() ?: 1,
                                     customRepeatUnit = customRepeatUnit,
-                                    customRepeatDaysOfWeek = if (repeatType == "custom" && customRepeatUnit == "weeks") customRepeatDaysOfWeek.joinToString(",") else null
+                                    customRepeatDaysOfWeek = if (repeatType == "custom" && customRepeatUnit == "weeks") customRepeatDaysOfWeek.joinToString(",") else null,
+                                    startDate = null,
+                                    endDate = null,
+                                    notes = notes
                                 )
                                 // Reset
                                 title = ""
                                 description = ""
+                                notes = ""
                                 repeatType = "none"
                                 customRepeatValue = "1"
                                 customRepeatUnit = "days"
                                 customRepeatDaysOfWeek = emptySet()
+                                taskStartDate = TrackWiseUtils.getTodayString()
+                                taskEndDate = ""
+                                taskUntilIStop = true
                                 showForm = false
+                                showErrors = false
+                            } else {
+                                showErrors = true
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
@@ -450,6 +509,15 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                             text = task.description,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        )
+                    }
+                    if (task.notes.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "📝 ${task.notes}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = BrandViolet
                         )
                     }
                 }
@@ -654,13 +722,26 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
     var customRepeatValue by remember { mutableStateOf("1") }
     var customRepeatUnit by remember { mutableStateOf("days") }
     var customRepeatDaysOfWeek by remember { mutableStateOf(emptySet<String>()) }
+    var habitStartDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var habitEndDate by remember { mutableStateOf("") }
+    var habitUntilIStop by remember { mutableStateOf(true) }
+ 
+    var showErrors by remember { mutableStateOf(false) }
+    val nameError = if (name.isBlank()) "Habit Name is required" else null
+    val targetError = if (isMultipleTimes && (multipleTimesTargetInput.toIntOrNull() ?: 0) <= 0) "Target count must be at least 1" else null
+    val durationError = if (isTimeBound && timeBoundDurationInput.isBlank()) "Duration is required for time-bound habits" else null
+    val habitStartDateError = if (repeatType != "none" && habitStartDate.isNotBlank() && !habitStartDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) "Use YYYY-MM-DD format" else null
+    val habitEndDateError = if (repeatType != "none" && !habitUntilIStop && habitEndDate.isNotBlank() && !habitEndDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) "Use YYYY-MM-DD format" else null
 
     val categories = listOf("Wellness", "Fitness", "Learning", "Productivity")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Toggle add habit card
         Button(
-            onClick = { showForm = !showForm },
+            onClick = { 
+                showForm = !showForm
+                if (showForm) showErrors = false
+            },
             colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
@@ -681,9 +762,18 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
 
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { name = it },
+                        onValueChange = { 
+                            name = it
+                            if (it.isNotBlank()) showErrors = false
+                        },
                         label = { Text("Habit Name *") },
                         singleLine = true,
+                        isError = showErrors && nameError != null,
+                        supportingText = {
+                            if (showErrors && nameError != null) {
+                                Text(nameError, color = MaterialTheme.colorScheme.error)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -760,10 +850,19 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                     if (isMultipleTimes) {
                         OutlinedTextField(
                             value = multipleTimesTargetInput,
-                            onValueChange = { multipleTimesTargetInput = it },
+                            onValueChange = { 
+                                multipleTimesTargetInput = it 
+                                showErrors = false
+                            },
                             label = { Text("Target Count Per Day") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
+                            isError = showErrors && targetError != null,
+                            supportingText = {
+                                if (showErrors && targetError != null) {
+                                    Text(targetError, color = MaterialTheme.colorScheme.error)
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -771,10 +870,19 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                     if (isTimeBound) {
                         OutlinedTextField(
                             value = timeBoundDurationInput,
-                            onValueChange = { timeBoundDurationInput = it },
+                            onValueChange = { 
+                                timeBoundDurationInput = it 
+                                showErrors = false
+                            },
                             label = { Text("Duration / Time Constraint") },
                             placeholder = { Text("e.g. 30 mins, or 18:00") },
                             singleLine = true,
+                            isError = showErrors && durationError != null,
+                            supportingText = {
+                                if (showErrors && durationError != null) {
+                                    Text(durationError, color = MaterialTheme.colorScheme.error)
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -788,12 +896,20 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                         onCustomRepeatUnitChange = { customRepeatUnit = it },
                         customRepeatDaysOfWeek = customRepeatDaysOfWeek,
                         onCustomRepeatDaysOfWeekChange = { customRepeatDaysOfWeek = it },
-                        themeColor = BrandOrange
+                        startDate = habitStartDate,
+                        onStartDateChange = { habitStartDate = it; showErrors = false },
+                        endDate = habitEndDate,
+                        onEndDateChange = { habitEndDate = it; showErrors = false },
+                        untilIStop = habitUntilIStop,
+                        onUntilIStopChange = { habitUntilIStop = it; showErrors = false },
+                        themeColor = BrandOrange,
+                        startDateError = if (showErrors) habitStartDateError else null,
+                        endDateError = if (showErrors) habitEndDateError else null
                     )
 
                     Button(
                         onClick = {
-                            if (name.isNotBlank()) {
+                            if (nameError == null && targetError == null && durationError == null && habitStartDateError == null && habitEndDateError == null) {
                                 viewModel.addHabit(
                                     name = name,
                                     category = category,
@@ -804,7 +920,9 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                                     repeatType = repeatType,
                                     customRepeatValue = customRepeatValue.toIntOrNull() ?: 1,
                                     customRepeatUnit = customRepeatUnit,
-                                    customRepeatDaysOfWeek = if (repeatType == "custom" && customRepeatUnit == "weeks") customRepeatDaysOfWeek.joinToString(",") else null
+                                    customRepeatDaysOfWeek = if (repeatType == "custom" && customRepeatUnit == "weeks") customRepeatDaysOfWeek.joinToString(",") else null,
+                                    startDate = if (repeatType == "none") null else habitStartDate,
+                                    endDate = if (repeatType == "none" || habitUntilIStop) null else habitEndDate
                                 )
                                 name = ""
                                 isMultipleTimes = false
@@ -815,7 +933,13 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                                 customRepeatValue = "1"
                                 customRepeatUnit = "days"
                                 customRepeatDaysOfWeek = emptySet()
+                                habitStartDate = TrackWiseUtils.getTodayString()
+                                habitEndDate = ""
+                                habitUntilIStop = true
                                 showForm = false
+                                showErrors = false
+                            } else {
+                                showErrors = true
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
@@ -828,10 +952,13 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
             }
         }
 
-        if (habits.isEmpty()) {
-            Text("No habit runways launched yet. Create one above!")
+        val today = com.example.utils.TrackWiseUtils.getTodayString()
+        val filteredHabits = habits.filter { com.example.utils.TrackWiseUtils.shouldShowHabitOnDate(it, today) }
+
+        if (filteredHabits.isEmpty()) {
+            Text("No habit runways active for today. Create or schedule one above!")
         } else {
-            habits.forEach { habit ->
+            filteredHabits.forEach { habit ->
                 HabitCard(habit = habit, viewModel = viewModel)
             }
         }
@@ -1074,10 +1201,18 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
     var link by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("medium") }
 
+    var showErrors by remember { mutableStateOf(false) }
+    val titleError = if (title.isBlank()) "Item Title is required" else null
+    val priceError = if (price.isNotBlank() && (price.toDoubleOrNull() ?: -1.0) < 0.0) "Enter a valid positive price" else null
+    val linkError = if (link.isNotBlank() && !link.startsWith("http://") && !link.startsWith("https://")) "Must start with http:// or https://" else null
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Toggle add wishlist item form
         Button(
-            onClick = { showForm = !showForm },
+            onClick = { 
+                showForm = !showForm
+                if (showForm) showErrors = false
+            },
             colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
@@ -1098,27 +1233,46 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
 
                     OutlinedTextField(
                         value = title,
-                        onValueChange = { title = it },
+                        onValueChange = { 
+                            title = it 
+                            if (it.isNotBlank()) showErrors = false
+                        },
                         label = { Text("Item Title *") },
                         singleLine = true,
+                        isError = showErrors && titleError != null,
+                        supportingText = {
+                            if (showErrors && titleError != null) {
+                                Text(titleError, color = MaterialTheme.colorScheme.error)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         CompactTextField(
                             value = price,
-                            onValueChange = { price = it },
+                            onValueChange = { 
+                                price = it 
+                                showErrors = false
+                            },
                             label = "Price (₹)",
                             placeholder = "e.g. 1500",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            isError = showErrors && priceError != null,
+                            errorText = priceError,
                             modifier = Modifier.weight(1f)
                         )
 
                         CompactTextField(
                             value = link,
-                            onValueChange = { link = it },
+                            onValueChange = { 
+                                link = it 
+                                showErrors = false
+                            },
                             label = "Product URL Link",
                             placeholder = "https://...",
+                            isError = showErrors && linkError != null,
+                            errorText = linkError,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -1141,7 +1295,7 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
 
                     Button(
                         onClick = {
-                            if (title.isNotBlank()) {
+                            if (titleError == null && priceError == null && linkError == null) {
                                 viewModel.addWishItem(
                                     title = title,
                                     price = price.toDoubleOrNull() ?: 0.0,
@@ -1152,6 +1306,9 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                                 price = ""
                                 link = ""
                                 showForm = false
+                                showErrors = false
+                            } else {
+                                showErrors = true
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
@@ -1371,6 +1528,11 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
     var showError by remember { mutableStateOf(false) }
     var editingBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
 
+    var showErrors by remember { mutableStateOf(false) }
+    val nameError = if (name.isBlank()) "Name of Person is required" else null
+    val parsedDate = parseInputDate(dateText, isYearSelected)
+    val dateError = if (dateText.isBlank()) "Date is required" else if (parsedDate == null) (if (isYearSelected) "Use DD/MM/YYYY format (e.g. 15/10/1995)" else "Use DD/MM format (e.g. 15/10)") else null
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Toggle add birthday form & Seed custom list row
         Row(
@@ -1378,24 +1540,16 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { showForm = !showForm },
+                onClick = { 
+                    showForm = !showForm
+                    if (showForm) showErrors = false
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1.1f)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
                 Text(if (showForm) "Close Form" else "Add Occasion", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp), maxLines = 1)
-            }
-
-            OutlinedButton(
-                onClick = { viewModel.loadCustomUserBirthdays() },
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BrandPink),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandPink),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, tint = BrandPink)
-                Text("Seed Custom List", fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp), maxLines = 1)
             }
         }
 
@@ -1411,9 +1565,18 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
 
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { name = it },
+                        onValueChange = { 
+                            name = it 
+                            if (it.isNotBlank()) showErrors = false
+                        },
                         label = { Text("Name of Person * (e.g. Syed)") },
                         singleLine = true,
+                        isError = showErrors && nameError != null,
+                        supportingText = {
+                            if (showErrors && nameError != null) {
+                                Text(nameError, color = MaterialTheme.colorScheme.error)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -1432,7 +1595,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 .padding(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            listOf(false to "DD/MM (No Year)", true to "DD/MM/YYYY (With Year)").forEach { (hasYearOption, labelText) ->
+                            listOf(false to "DD/MM", true to "DD/MM/YYYY").forEach { (hasYearOption, labelText) ->
                                 val isSel = isYearSelected == hasYearOption
                                 Box(
                                     modifier = Modifier
@@ -1462,10 +1625,13 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                             value = dateText,
                             onValueChange = { 
                                 dateText = it
+                                showErrors = false
                                 showError = false
                             },
                             label = if (isYearSelected) "Date (DD/MM/YYYY) *" else "Date (DD/MM) *",
                             placeholder = if (isYearSelected) "15/10/1995" else "15/10",
+                            isError = showErrors && dateError != null,
+                            errorText = dateError,
                             modifier = Modifier.weight(1f)
                         )
 
@@ -1487,7 +1653,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             listOf("Birthday", "Marriage Anniversary", "Death Anniversary").forEach { cat ->
@@ -1505,7 +1673,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                         .border(1.dp, if (isSel) catColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
                                         .clickable { selectedCategory = cat }
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
+                                  ) {
                                     Text(
                                         text = cat,
                                         fontSize = 12.sp,
@@ -1556,33 +1724,30 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         }
                     }
 
-                    if (showError) {
-                        Text(
-                            text = if (isYearSelected) "Please enter a valid date in DD/MM/YYYY format (e.g. 15/10/1995)" 
-                                   else "Please enter a valid date in DD/MM format (e.g. 15/10)",
-                            color = BrandRose,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
                     Button(
                         onClick = {
-                            val parsed = parseInputDate(dateText, isYearSelected)
-                            if (name.isNotBlank() && parsed != null) {
-                                viewModel.addBirthday(
-                                    name = name.trim(),
-                                    date = parsed,
-                                    giftIdea = if (giftIdea.isBlank()) null else giftIdea.trim(),
-                                    category = "$selectedCategory|$selectedRelationship"
-                                )
-                                name = ""
-                                dateText = ""
-                                giftIdea = ""
-                                selectedRelationship = "Others"
-                                showError = false
-                                showForm = false
+                            if (nameError == null && dateError == null) {
+                                val parsed = parsedDate ?: parseInputDate(dateText, isYearSelected)
+                                if (parsed != null) {
+                                    viewModel.addBirthday(
+                                        name = name.trim(),
+                                        date = parsed,
+                                        giftIdea = if (giftIdea.isBlank()) null else giftIdea.trim(),
+                                        category = "$selectedCategory|$selectedRelationship"
+                                    )
+                                    name = ""
+                                    dateText = ""
+                                    giftIdea = ""
+                                    selectedRelationship = "Others"
+                                    showError = false
+                                    showErrors = false
+                                    showForm = false
+                                } else {
+                                    showErrors = true
+                                    showError = true
+                                }
                             } else {
+                                showErrors = true
                                 showError = true
                             }
                         },
@@ -1886,7 +2051,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 .padding(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            listOf(false to "DD/MM (No Year)", true to "DD/MM/YYYY (With Year)").forEach { (hasYearOption, labelText) ->
+                            listOf(false to "DD/MM", true to "DD/MM/YYYY").forEach { (hasYearOption, labelText) ->
                                 val isSel = editIsYearSelected == hasYearOption
                                 Box(
                                     modifier = Modifier
@@ -1939,7 +2104,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             listOf("Birthday", "Marriage Anniversary", "Death Anniversary").forEach { cat ->
@@ -2059,14 +2226,16 @@ fun CompactTextField(
     placeholder: String = "",
     modifier: Modifier = Modifier,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    isError: Boolean = false,
+    errorText: String? = null
 ) {
     Column(modifier = modifier) {
         Text(
             text = label,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
         )
         Spacer(modifier = Modifier.height(4.dp))
         BasicTextField(
@@ -2087,7 +2256,7 @@ fun CompactTextField(
                 )
                 .border(
                     width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                    color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(10.dp)
                 ),
             decorationBox = { innerTextField ->
@@ -2111,6 +2280,15 @@ fun CompactTextField(
                 }
             }
         )
+        if (isError && !errorText.isNullOrEmpty()) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = errorText,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
     }
 }
 
@@ -2129,6 +2307,11 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
     var priceInput by remember { mutableStateOf("") }
     var priceUnit by remember { mutableStateOf("single item") }
     var numericQuantityInput by remember { mutableStateOf("") }
+
+    var showErrors by remember { mutableStateOf(false) }
+    val nameError = if (name.isBlank()) "Item Name is required" else null
+    val priceError = if (enablePricing && (priceInput.toDoubleOrNull() ?: -1.0) <= 0.0) "Enter a valid positive price" else null
+    val qtyError = if (enablePricing && numericQuantityInput.isNotBlank() && (numericQuantityInput.toDoubleOrNull() ?: -1.0) <= 0.0) "Enter a valid positive quantity" else null
 
     val categories = listOf("Produce", "Dairy", "Bakery", "Pantry", "Meat & Seafood", "Beverages", "Other")
 
@@ -2226,9 +2409,14 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
 
                     CompactTextField(
                         value = name,
-                        onValueChange = { name = it },
+                        onValueChange = { 
+                            name = it 
+                            if (it.isNotBlank()) showErrors = false
+                        },
                         label = "Item Name *",
-                        placeholder = "e.g., Organic Bananas 🍌"
+                        placeholder = "e.g., Organic Bananas 🍌",
+                        isError = showErrors && nameError != null,
+                        errorText = nameError
                     )
 
                     CompactTextField(
@@ -2242,13 +2430,19 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { enablePricing = !enablePricing }
+                            .clickable { 
+                                enablePricing = !enablePricing 
+                                showErrors = false
+                            }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
                             checked = enablePricing,
-                            onCheckedChange = { enablePricing = it },
+                            onCheckedChange = { 
+                                enablePricing = it 
+                                showErrors = false
+                            },
                             colors = CheckboxDefaults.colors(checkedColor = BrandViolet)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -2268,19 +2462,29 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                             ) {
                                 CompactTextField(
                                     value = priceInput,
-                                    onValueChange = { priceInput = it },
+                                    onValueChange = { 
+                                        priceInput = it 
+                                        showErrors = false
+                                    },
                                     label = "Price ($) *",
                                     placeholder = "e.g., 2.50",
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    isError = showErrors && priceError != null,
+                                    errorText = priceError,
                                     modifier = Modifier.weight(1f)
                                 )
 
                                 CompactTextField(
                                     value = numericQuantityInput,
-                                    onValueChange = { numericQuantityInput = it },
+                                    onValueChange = { 
+                                        numericQuantityInput = it 
+                                        showErrors = false
+                                    },
                                     label = "Quantity Value",
                                     placeholder = "e.g., 3, 1.5 (Defaults to 1)",
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    isError = showErrors && qtyError != null,
+                                    errorText = qtyError,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -2403,7 +2607,7 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
 
                     Button(
                         onClick = {
-                            if (name.isNotBlank()) {
+                            if (nameError == null && priceError == null && qtyError == null) {
                                 val parsedPrice = if (enablePricing) priceInput.toDoubleOrNull() else null
                                 val parsedNumericQty = if (enablePricing) numericQuantityInput.toDoubleOrNull() ?: 1.0 else null
                                 viewModel.addGroceryItem(
@@ -2421,6 +2625,9 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                 numericQuantityInput = ""
                                 enablePricing = false
                                 showForm = false
+                                showErrors = false
+                            } else {
+                                showErrors = true
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BrandGreen),
@@ -2700,7 +2907,16 @@ fun RecurrenceSelector(
     onCustomRepeatUnitChange: (String) -> Unit,
     customRepeatDaysOfWeek: Set<String>,
     onCustomRepeatDaysOfWeekChange: (Set<String>) -> Unit,
-    themeColor: Color = BrandViolet
+    startDate: String,
+    onStartDateChange: (String) -> Unit,
+    endDate: String,
+    onEndDateChange: (String) -> Unit,
+    untilIStop: Boolean,
+    onUntilIStopChange: (Boolean) -> Unit,
+    themeColor: Color = BrandViolet,
+    startDateError: String? = null,
+    endDateError: String? = null,
+    showDateRange: Boolean = true
 ) {
     var repeatDropdownExpanded by remember { mutableStateOf(false) }
     var unitDropdownExpanded by remember { mutableStateOf(false) }
@@ -2755,7 +2971,7 @@ fun RecurrenceSelector(
             DropdownMenu(
                 expanded = repeatDropdownExpanded,
                 onDismissRequest = { repeatDropdownExpanded = false },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
             ) {
                 repeatOptions.forEach { (optionType, label) ->
                     DropdownMenuItem(
@@ -2824,7 +3040,8 @@ fun RecurrenceSelector(
 
                             DropdownMenu(
                                 expanded = unitDropdownExpanded,
-                                onDismissRequest = { unitDropdownExpanded = false }
+                                onDismissRequest = { unitDropdownExpanded = false },
+                                modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                             ) {
                                 listOf("days", "weeks", "months", "years").forEach { unit ->
                                     DropdownMenuItem(
@@ -2886,6 +3103,91 @@ fun RecurrenceSelector(
                         }
                     }
                 }
+            }
+        }
+
+        if (repeatType != "none" && showDateRange) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Active Range (Start & End Dates) 📅",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = themeColor
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Start Date Input
+                CompactTextField(
+                    value = startDate,
+                    onValueChange = { onStartDateChange(it) },
+                    label = "Start Date (YYYY-MM-DD)",
+                    placeholder = "e.g. 2026-07-05",
+                    isError = startDateError != null,
+                    errorText = startDateError,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // End Date Choice
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(themeColor.copy(alpha = 0.08f))
+                    .clickable { 
+                        onUntilIStopChange(!untilIStop)
+                        if (!untilIStop) {
+                            onEndDateChange("")
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Until I Stop (Endless Repeat)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Checkbox(
+                    checked = untilIStop,
+                    onCheckedChange = { 
+                        onUntilIStopChange(it)
+                        if (it) {
+                            onEndDateChange("")
+                        }
+                    },
+                    colors = CheckboxDefaults.colors(checkedColor = themeColor)
+                )
+            }
+
+            if (!untilIStop) {
+                Spacer(modifier = Modifier.height(8.dp))
+                CompactTextField(
+                    value = endDate,
+                    onValueChange = { onEndDateChange(it) },
+                    label = "End Date (YYYY-MM-DD)",
+                    placeholder = "e.g. 2026-08-30",
+                    isError = endDateError != null,
+                    errorText = endDateError,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

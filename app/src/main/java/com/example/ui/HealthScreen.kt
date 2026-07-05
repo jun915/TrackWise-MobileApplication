@@ -503,6 +503,16 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
     var notesInput by remember { mutableStateOf("") }
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
 
+    var showErrors by remember { mutableStateOf(false) }
+    val weightError = if (weightInput.isBlank()) {
+        "Weight is required"
+    } else {
+        val w = weightInput.toDoubleOrNull()
+        if (w == null) "Must be a valid number"
+        else if (w <= 0.0) "Weight must be greater than 0 kg"
+        else null
+    }
+
     val context = LocalContext.current
     val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
     val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
@@ -536,8 +546,17 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = weightInput,
-                    onValueChange = { weightInput = it },
-                    label = { Text("Weight (kg)") },
+                    onValueChange = { 
+                        weightInput = it 
+                        showErrors = false
+                    },
+                    label = { Text("Weight (kg) *") },
+                    isError = showErrors && weightError != null,
+                    supportingText = {
+                        if (showErrors && weightError != null) {
+                            Text(weightError, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.weight(1f)
@@ -573,11 +592,16 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
 
             Button(
                 onClick = {
-                    val w = weightInput.toDoubleOrNull()
-                    if (w != null) {
-                        viewModel.logWeight(w, if (notesInput.isBlank()) null else notesInput, selectedDate)
-                        weightInput = ""
-                        notesInput = ""
+                    if (weightError == null) {
+                        val w = weightInput.toDoubleOrNull()
+                        if (w != null) {
+                            viewModel.logWeight(w, if (notesInput.isBlank()) null else notesInput, selectedDate)
+                            weightInput = ""
+                            notesInput = ""
+                            showErrors = false
+                        }
+                    } else {
+                        showErrors = true
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
@@ -621,6 +645,40 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
     // Condition/Meal context dropdown
     var contextInput by remember { mutableStateOf("fasting") } // "fasting", "post_meal", "random"
     var contextExpanded by remember { mutableStateOf(false) }
+
+    var showVitalsErrors by remember { mutableStateOf(false) }
+
+    val sugarError = if (sugarInput.isBlank()) {
+        "Blood sugar is required"
+    } else {
+        val s = sugarInput.toDoubleOrNull()
+        if (s == null) {
+            "Must be a valid positive number"
+        } else if (s <= 0) {
+            "Must be greater than 0 mg/dL"
+        } else {
+            null
+        }
+    }
+
+    val bpError = if (bpInput.isBlank()) {
+        "Blood pressure is required"
+    } else {
+        val parts = bpInput.split("/")
+        if (parts.size != 2) {
+            "Must be in Systolic/Diastolic format (e.g. 120/80)"
+        } else {
+            val sys = parts[0].trim().toIntOrNull()
+            val dia = parts[1].trim().toIntOrNull()
+            if (sys == null || dia == null) {
+                "Must be valid numbers"
+            } else if (sys <= 0 || dia <= 0) {
+                "Pressure values must be positive"
+            } else {
+                null
+            }
+        }
+    }
 
     // Date & Time pickers
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
@@ -717,10 +775,20 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
             if (vitalType == "blood_sugar") {
                 OutlinedTextField(
                     value = sugarInput,
-                    onValueChange = { sugarInput = it },
-                    label = { Text("Blood Sugar (e.g. 120/1)") },
-                    placeholder = { Text("mg/dL") },
+                    onValueChange = { 
+                        sugarInput = it 
+                        showVitalsErrors = false
+                    },
+                    label = { Text("Blood Sugar (mg/dL) *") },
+                    placeholder = { Text("e.g. 120") },
+                    isError = showVitalsErrors && sugarError != null,
+                    supportingText = {
+                        if (showVitalsErrors && sugarError != null) {
+                            Text(sugarError, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -755,7 +823,7 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                     DropdownMenu(
                         expanded = contextExpanded,
                         onDismissRequest = { contextExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.9f)
+                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
                     ) {
                         DropdownMenuItem(
                             text = { Text("Fasting") },
@@ -783,8 +851,18 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
             } else {
                 OutlinedTextField(
                     value = bpInput,
-                    onValueChange = { bpInput = it },
-                    label = { Text("BP (e.g. 120/80)") },
+                    onValueChange = { 
+                        bpInput = it 
+                        showVitalsErrors = false
+                    },
+                    label = { Text("BP (Systolic/Diastolic) *") },
+                    placeholder = { Text("e.g. 120/80") },
+                    isError = showVitalsErrors && bpError != null,
+                    supportingText = {
+                        if (showVitalsErrors && bpError != null) {
+                            Text(bpError, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -828,22 +906,28 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
 
             Button(
                 onClick = {
-                    val finalValue = if (vitalType == "blood_sugar") {
-                        sugarInput
+                    val hasError = if (vitalType == "blood_sugar") sugarError != null else bpError != null
+                    if (!hasError) {
+                        val finalValue = if (vitalType == "blood_sugar") {
+                            sugarInput
+                        } else {
+                            bpInput
+                        }
+                        if (finalValue.isNotBlank()) {
+                            viewModel.logVital(
+                                type = vitalType,
+                                value = finalValue,
+                                context = if (vitalType == "blood_sugar") contextInput else "resting",
+                                notes = null,
+                                date = selectedDate,
+                                time = selectedTime
+                            )
+                            sugarInput = ""
+                            bpInput = ""
+                            showVitalsErrors = false
+                        }
                     } else {
-                        bpInput
-                    }
-                    if (finalValue.isNotBlank()) {
-                        viewModel.logVital(
-                            type = vitalType,
-                            value = finalValue,
-                            context = if (vitalType == "blood_sugar") contextInput else "resting",
-                            notes = null,
-                            date = selectedDate,
-                            time = selectedTime
-                        )
-                        sugarInput = ""
-                        bpInput = ""
+                        showVitalsErrors = true
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
@@ -883,6 +967,17 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
     var durationInput by remember { mutableStateOf("") }
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
     var dropdownExpanded by remember { mutableStateOf(false) }
+
+    var showExerciseErrors by remember { mutableStateOf(false) }
+    val durationError = if (durationInput.isBlank()) {
+        "Duration is required"
+    } else if (durationInput.toIntOrNull() == null || durationInput.toInt() <= 0) {
+        "Enter a valid positive number"
+    } else null
+
+    val customTypeError = if (selectedType == "Others" && customTypeInput.isBlank()) {
+        "Exercise name is required"
+    } else null
 
     val exerciseOptions = listOf("Walking", "Running", "Gym/Weights", "Yoga", "Cycling", "Others")
 
@@ -935,7 +1030,7 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                     DropdownMenu(
                         expanded = dropdownExpanded,
                         onDismissRequest = { dropdownExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.45f)
+                        modifier = Modifier.fillMaxWidth(0.45f).background(MaterialTheme.colorScheme.surface)
                     ) {
                         exerciseOptions.forEach { opt ->
                             DropdownMenuItem(
@@ -952,8 +1047,17 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                 // Duration input box (weight 1f)
                 OutlinedTextField(
                     value = durationInput,
-                    onValueChange = { durationInput = it },
-                    label = { Text("Duration (mins)") },
+                    onValueChange = { 
+                        durationInput = it 
+                        showExerciseErrors = false
+                    },
+                    label = { Text("Duration (mins) *") },
+                    isError = showExerciseErrors && durationError != null,
+                    supportingText = {
+                        if (showExerciseErrors && durationError != null) {
+                            Text(durationError, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
@@ -965,8 +1069,17 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
             if (selectedType == "Others") {
                 OutlinedTextField(
                     value = customTypeInput,
-                    onValueChange = { customTypeInput = it },
-                    label = { Text("Enter Custom Exercise Name") },
+                    onValueChange = { 
+                        customTypeInput = it 
+                        showExerciseErrors = false
+                    },
+                    label = { Text("Enter Custom Exercise Name *") },
+                    isError = showExerciseErrors && customTypeError != null,
+                    supportingText = {
+                        if (showExerciseErrors && customTypeError != null) {
+                            Text(customTypeError, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -996,12 +1109,18 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
 
             Button(
                 onClick = {
-                    val d = durationInput.toIntOrNull() ?: 0
-                    val finalType = if (selectedType == "Others") customTypeInput else selectedType
-                    if (finalType.isNotBlank()) {
-                        viewModel.logExercise(finalType, d, true, null, selectedDate)
-                        durationInput = ""
-                        customTypeInput = ""
+                    val hasError = durationError != null || (selectedType == "Others" && customTypeError != null)
+                    if (!hasError) {
+                        val d = durationInput.toIntOrNull() ?: 0
+                        val finalType = if (selectedType == "Others") customTypeInput else selectedType
+                        if (finalType.isNotBlank()) {
+                            viewModel.logExercise(finalType, d, true, null, selectedDate)
+                            durationInput = ""
+                            customTypeInput = ""
+                            showExerciseErrors = false
+                        }
+                    } else {
+                        showExerciseErrors = true
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
@@ -1161,6 +1280,20 @@ fun SleepLogSection(
     var notes by remember { mutableStateOf("") }
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
 
+    var showSleepErrors by remember { mutableStateOf(false) }
+
+    fun isValidSleepTime(time: String): Boolean {
+        val trimmed = time.trim()
+        val parts = trimmed.split(":")
+        if (parts.size != 2) return false
+        val hour = parts[0].toIntOrNull() ?: return false
+        val min = parts[1].toIntOrNull() ?: return false
+        return hour in 0..23 && min in 0..59
+    }
+
+    val startError = if (!isValidSleepTime(sleepStart)) "Use HH:MM format (00:00 to 23:59)" else null
+    val endError = if (!isValidSleepTime(sleepEnd)) "Use HH:MM format (00:00 to 23:59)" else null
+
     val context = LocalContext.current
     val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
     val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
@@ -1250,17 +1383,27 @@ fun SleepLogSection(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CompactTextField(
                     value = sleepStart,
-                    onValueChange = { sleepStart = it },
-                    label = "Sleep Start (HH:MM)",
+                    onValueChange = { 
+                        sleepStart = it 
+                        showSleepErrors = false
+                    },
+                    label = "Sleep Start (HH:MM) *",
                     placeholder = "22:30",
+                    isError = showSleepErrors && startError != null,
+                    errorText = startError,
                     modifier = Modifier.weight(1f)
                 )
 
                 CompactTextField(
                     value = sleepEnd,
-                    onValueChange = { sleepEnd = it },
-                    label = "Wake Up (HH:MM)",
+                    onValueChange = { 
+                        sleepEnd = it 
+                        showSleepErrors = false
+                    },
+                    label = "Wake Up (HH:MM) *",
                     placeholder = "06:30",
+                    isError = showSleepErrors && endError != null,
+                    errorText = endError,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1275,14 +1418,20 @@ fun SleepLogSection(
 
             Button(
                 onClick = {
-                    viewModel.addSleepLog(
-                        hoursSlept = calculatedHours,
-                        startTime = sleepStart,
-                        endTime = sleepEnd,
-                        notes = notes.ifBlank { "Logged sleep" },
-                        date = selectedDate
-                    )
-                    notes = ""
+                    val hasError = startError != null || endError != null
+                    if (!hasError) {
+                        viewModel.addSleepLog(
+                            hoursSlept = calculatedHours,
+                            startTime = sleepStart,
+                            endTime = sleepEnd,
+                            notes = notes.ifBlank { "Logged sleep" },
+                            date = selectedDate
+                        )
+                        notes = ""
+                        showSleepErrors = false
+                    } else {
+                        showSleepErrors = true
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
                 shape = RoundedCornerShape(10.dp),

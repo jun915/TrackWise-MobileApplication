@@ -179,6 +179,27 @@ fun FinanceScreen(
         "Others"
     )
 
+    var showExpenseErrors by remember { mutableStateOf(false) }
+    val expenseAmountError = if (expenseAmount.isBlank()) {
+        "Expense amount is required"
+    } else if (expenseAmount.toDoubleOrNull() == null || expenseAmount.toDouble() <= 0) {
+        "Please enter a valid positive number"
+    } else null
+
+    var showSavingsErrors by remember { mutableStateOf(false) }
+    val savingsAmountError = if (savingsAmount.isBlank()) {
+        "Savings amount is required"
+    } else if (savingsAmount.toDoubleOrNull() == null || savingsAmount.toDouble() <= 0) {
+        "Please enter a valid positive number"
+    } else null
+
+    var showIncomeErrors by remember { mutableStateOf(false) }
+    val incomeAmountError = if (incomeAmount.isBlank()) {
+        "Income amount is required"
+    } else if (incomeAmount.toDoubleOrNull() == null || incomeAmount.toDouble() <= 0) {
+        "Please enter a valid positive number"
+    } else null
+
     // Sync selected title when category changes
     LaunchedEffect(selectedExpenseCategory) {
         val titles = expenseCategoryTitles[selectedExpenseCategory] ?: listOf("Others")
@@ -404,18 +425,30 @@ fun FinanceScreen(
 
                 if (showEditTargetDialog) {
                     var inputLimit by remember { mutableStateOf(monthlyTarget.toInt().toString()) }
+                    var limitError by remember { mutableStateOf<String?>(null) }
                     AlertDialog(
                         onDismissRequest = { showEditTargetDialog = false },
                         title = { Text("Update Monthly Limit") },
                         text = {
-                            OutlinedTextField(
-                                value = inputLimit,
-                                onValueChange = { inputLimit = it },
-                                label = { Text("Monthly Budget Target (₹)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = inputLimit,
+                                    onValueChange = { 
+                                        inputLimit = it 
+                                        limitError = if (it.toDoubleOrNull() == null || it.toDouble() <= 0) "Please enter a valid positive amount" else null
+                                    },
+                                    label = { Text("Monthly Budget Target (₹)") },
+                                    isError = limitError != null,
+                                    supportingText = {
+                                        if (limitError != null) {
+                                            Text(limitError!!, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         },
                         confirmButton = {
                             Button(
@@ -423,8 +456,10 @@ fun FinanceScreen(
                                     val lim = inputLimit.toDoubleOrNull()
                                     if (lim != null && lim > 0) {
                                         viewModel.updateFinanceDailyTarget(lim)
+                                        showEditTargetDialog = false
+                                    } else {
+                                        limitError = "Please enter a valid positive amount"
                                     }
-                                    showEditTargetDialog = false
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = BrandRose)
                             ) {
@@ -502,8 +537,17 @@ fun FinanceScreen(
                                 // Amount
                                 OutlinedTextField(
                                     value = expenseAmount,
-                                    onValueChange = { expenseAmount = it },
-                                    label = { Text("Expense Amount (₹)") },
+                                    onValueChange = { 
+                                        expenseAmount = it 
+                                        showExpenseErrors = false
+                                    },
+                                    label = { Text("Expense Amount (₹) *") },
+                                    isError = showExpenseErrors && expenseAmountError != null,
+                                    supportingText = {
+                                        if (showExpenseErrors && expenseAmountError != null) {
+                                            Text(expenseAmountError, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    },
                                     leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = BrandRose) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -532,7 +576,7 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showExpenseCategoryDropdown,
                                         onDismissRequest = { showExpenseCategoryDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f)
+                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         expenseCategories.forEach { category ->
                                             DropdownMenuItem(
@@ -568,7 +612,7 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showExpenseTitleDropdown,
                                         onDismissRequest = { showExpenseTitleDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f)
+                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         availableTitles.forEach { title ->
                                             DropdownMenuItem(
@@ -604,7 +648,7 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showSpendSourceDropdown,
                                         onDismissRequest = { showSpendSourceDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f)
+                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         spendSourceOptions.forEach { source ->
                                             DropdownMenuItem(
@@ -636,42 +680,46 @@ fun FinanceScreen(
 
                                 Button(
                                     onClick = {
-                                        val amt = expenseAmount.toDoubleOrNull()
-                                        if (amt != null && amt > 0) {
-                                            val sourceArg = if (selectedSpendSource == "Cash / Current Income") null else selectedSpendSource
-                                            if (overallBalance - amt < 0) {
-                                                deficitAmountNeeded = amt - overallBalance
-                                                pendingExpenseAmount = amt
-                                                pendingExpenseCategory = selectedExpenseCategory
-                                                pendingExpenseTitle = selectedExpenseTitle
-                                                pendingExpenseNotes = expenseNotes.trim().ifEmpty { "" }
-                                                pendingTransactionDate = transactionDate
-                                                pendingSpendSource = sourceArg
-                                                showDeficitWarningDialog = true
-                                            } else {
-                                                if (transactionDate.startsWith(currentMonthStr) && monthlyExpenses + amt > monthlyTarget) {
-                                                    viewModel.addNotification(
-                                                        title = "⚠️ Monthly Spending Limit Breached!",
-                                                        message = "You spent ₹${String.format("%.1f", monthlyExpenses + amt)} this month, exceeding your monthly target limit of ₹${monthlyTarget}."
-                                                    )
-                                                }
+                                        if (expenseAmountError == null) {
+                                            val amt = expenseAmount.toDoubleOrNull()
+                                            if (amt != null && amt > 0) {
+                                                val sourceArg = if (selectedSpendSource == "Cash / Current Income") null else selectedSpendSource
+                                                if (overallBalance - amt < 0) {
+                                                    deficitAmountNeeded = amt - overallBalance
+                                                    pendingExpenseAmount = amt
+                                                    pendingExpenseCategory = selectedExpenseCategory
+                                                    pendingExpenseTitle = selectedExpenseTitle
+                                                    pendingExpenseNotes = expenseNotes.trim().ifEmpty { "" }
+                                                    pendingTransactionDate = transactionDate
+                                                    pendingSpendSource = sourceArg
+                                                    showDeficitWarningDialog = true
+                                                } else {
+                                                    if (transactionDate.startsWith(currentMonthStr) && monthlyExpenses + amt > monthlyTarget) {
+                                                        viewModel.addNotification(
+                                                            title = "⚠️ Monthly Spending Limit Breached!",
+                                                            message = "You spent ₹${String.format("%.1f", monthlyExpenses + amt)} this month, exceeding your monthly target limit of ₹${monthlyTarget}."
+                                                        )
+                                                    }
 
-                                                viewModel.addFinanceLog(
-                                                    type = "expense",
-                                                    category = selectedExpenseCategory,
-                                                    title = selectedExpenseTitle,
-                                                    amount = amt,
-                                                    notes = expenseNotes.trim().ifEmpty { null },
-                                                    date = transactionDate,
-                                                    spendSource = sourceArg
-                                                )
-                                                expenseAmount = ""
-                                                expenseNotes = ""
-                                                focusManager.clearFocus()
+                                                    viewModel.addFinanceLog(
+                                                        type = "expense",
+                                                        category = selectedExpenseCategory,
+                                                        title = selectedExpenseTitle,
+                                                        amount = amt,
+                                                        notes = expenseNotes.trim().ifEmpty { null },
+                                                        date = transactionDate,
+                                                        spendSource = sourceArg
+                                                    )
+                                                    expenseAmount = ""
+                                                    expenseNotes = ""
+                                                    showExpenseErrors = false
+                                                    focusManager.clearFocus()
+                                                }
                                             }
+                                        } else {
+                                            showExpenseErrors = true
                                         }
                                     },
-                                    enabled = expenseAmount.isNotBlank(),
                                     colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.fillMaxWidth()
@@ -684,8 +732,17 @@ fun FinanceScreen(
                                 // Amount
                                 OutlinedTextField(
                                     value = savingsAmount,
-                                    onValueChange = { savingsAmount = it },
-                                    label = { Text("Savings Amount (₹)") },
+                                    onValueChange = { 
+                                        savingsAmount = it 
+                                        showSavingsErrors = false
+                                    },
+                                    label = { Text("Savings Amount (₹) *") },
+                                    isError = showSavingsErrors && savingsAmountError != null,
+                                    supportingText = {
+                                        if (showSavingsErrors && savingsAmountError != null) {
+                                            Text(savingsAmountError, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    },
                                     leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = BrandGreen) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -714,7 +771,7 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showSavingsCategoryDropdown,
                                         onDismissRequest = { showSavingsCategoryDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f)
+                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         savingsCategories.forEach { category ->
                                             DropdownMenuItem(
@@ -746,22 +803,26 @@ fun FinanceScreen(
 
                                 Button(
                                     onClick = {
-                                        val amt = savingsAmount.toDoubleOrNull()
-                                        if (amt != null && amt > 0) {
-                                            viewModel.addFinanceLog(
-                                                type = "savings",
-                                                category = selectedSavingsCategory,
-                                                title = "Monthly Savings Plan",
-                                                amount = amt,
-                                                notes = savingsNotes.trim().ifEmpty { null },
-                                                date = transactionDate
-                                            )
-                                            savingsAmount = ""
-                                            savingsNotes = ""
-                                            focusManager.clearFocus()
+                                        if (savingsAmountError == null) {
+                                            val amt = savingsAmount.toDoubleOrNull()
+                                            if (amt != null && amt > 0) {
+                                                viewModel.addFinanceLog(
+                                                    type = "savings",
+                                                    category = selectedSavingsCategory,
+                                                    title = "Monthly Savings Plan",
+                                                    amount = amt,
+                                                    notes = savingsNotes.trim().ifEmpty { null },
+                                                    date = transactionDate
+                                                )
+                                                savingsAmount = ""
+                                                savingsNotes = ""
+                                                showSavingsErrors = false
+                                                focusManager.clearFocus()
+                                            }
+                                        } else {
+                                            showSavingsErrors = true
                                         }
                                     },
-                                    enabled = savingsAmount.isNotBlank(),
                                     colors = ButtonDefaults.buttonColors(containerColor = BrandGreen),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.fillMaxWidth()
@@ -774,8 +835,17 @@ fun FinanceScreen(
                                 // Amount
                                 OutlinedTextField(
                                     value = incomeAmount,
-                                    onValueChange = { incomeAmount = it },
-                                    label = { Text("Income Amount (₹)") },
+                                    onValueChange = { 
+                                        incomeAmount = it 
+                                        showIncomeErrors = false
+                                    },
+                                    label = { Text("Income Amount (₹) *") },
+                                    isError = showIncomeErrors && incomeAmountError != null,
+                                    supportingText = {
+                                        if (showIncomeErrors && incomeAmountError != null) {
+                                            Text(incomeAmountError, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    },
                                     leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null, tint = BrandViolet) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
@@ -804,7 +874,7 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showIncomeSourceDropdown,
                                         onDismissRequest = { showIncomeSourceDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f)
+                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         incomeSources.forEach { src ->
                                             DropdownMenuItem(
@@ -836,22 +906,26 @@ fun FinanceScreen(
 
                                 Button(
                                     onClick = {
-                                        val amt = incomeAmount.toDoubleOrNull()
-                                        if (amt != null && amt > 0) {
-                                            viewModel.addFinanceLog(
-                                                type = "income",
-                                                category = "Income",
-                                                title = incomeSource,
-                                                amount = amt,
-                                                notes = incomeNotes.trim().ifEmpty { null },
-                                                date = transactionDate
-                                            )
-                                            incomeAmount = ""
-                                            incomeNotes = ""
-                                            focusManager.clearFocus()
+                                        if (incomeAmountError == null) {
+                                            val amt = incomeAmount.toDoubleOrNull()
+                                            if (amt != null && amt > 0) {
+                                                viewModel.addFinanceLog(
+                                                    type = "income",
+                                                    category = "Income",
+                                                    title = incomeSource,
+                                                    amount = amt,
+                                                    notes = incomeNotes.trim().ifEmpty { null },
+                                                    date = transactionDate
+                                                )
+                                                incomeAmount = ""
+                                                incomeNotes = ""
+                                                showIncomeErrors = false
+                                                focusManager.clearFocus()
+                                            }
+                                        } else {
+                                            showIncomeErrors = true
                                         }
                                     },
-                                    enabled = incomeAmount.isNotBlank(),
                                     colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier.fillMaxWidth()
@@ -1146,6 +1220,14 @@ fun FinanceScreen(
                 var itemType by remember { mutableStateOf("asset") }
                 var showSavingsDropdownInAddNw by remember { mutableStateOf(false) }
 
+                var showNwErrors by remember { mutableStateOf(false) }
+                val nwNameError = if (itemName.isBlank()) "Name is required" else null
+                val nwAmountError = if (itemAmount.isBlank()) {
+                    "Initial balance is required"
+                } else if (itemAmount.toDoubleOrNull() == null || itemAmount.toDouble() < 0) {
+                    "Please enter a valid positive balance"
+                } else null
+
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
@@ -1196,7 +1278,7 @@ fun FinanceScreen(
                                 DropdownMenu(
                                     expanded = showSavingsDropdownInAddNw,
                                     onDismissRequest = { showSavingsDropdownInAddNw = false },
-                                    modifier = Modifier.fillMaxWidth(0.9f)
+                                    modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("Custom/None (Type name below)", fontSize = 13.sp) },
@@ -1219,8 +1301,17 @@ fun FinanceScreen(
 
                             OutlinedTextField(
                                 value = itemName,
-                                onValueChange = { itemName = it },
-                                label = { Text("Name (e.g. SBI Account, Car Loan)") },
+                                onValueChange = { 
+                                    itemName = it 
+                                    showNwErrors = false
+                                },
+                                label = { Text("Name (e.g. SBI Account, Car Loan) *") },
+                                isError = showNwErrors && nwNameError != null,
+                                supportingText = {
+                                    if (showNwErrors && nwNameError != null) {
+                                        Text(nwNameError, color = MaterialTheme.colorScheme.error)
+                                    }
+                                },
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -1228,8 +1319,17 @@ fun FinanceScreen(
 
                             OutlinedTextField(
                                 value = itemAmount,
-                                onValueChange = { itemAmount = it },
-                                label = { Text("Initial Balance (₹)") },
+                                onValueChange = { 
+                                    itemAmount = it 
+                                    showNwErrors = false
+                                },
+                                label = { Text("Initial Balance (₹) *") },
+                                isError = showNwErrors && nwAmountError != null,
+                                supportingText = {
+                                    if (showNwErrors && nwAmountError != null) {
+                                        Text(nwAmountError, color = MaterialTheme.colorScheme.error)
+                                    }
+                                },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 shape = RoundedCornerShape(8.dp),
@@ -1267,15 +1367,17 @@ fun FinanceScreen(
 
                             Button(
                                 onClick = {
-                                    val amt = itemAmount.toDoubleOrNull() ?: 0.0
-                                    if (itemName.isNotBlank()) {
+                                    if (nwNameError == null && nwAmountError == null) {
+                                        val amt = itemAmount.toDoubleOrNull() ?: 0.0
                                         viewModel.addNetWorthItem(itemName, itemType, amt)
                                         itemName = ""
                                         itemAmount = ""
+                                        showNwErrors = false
                                         showAddForm = false
+                                    } else {
+                                        showNwErrors = true
                                     }
                                 },
-                                enabled = itemName.isNotBlank() && itemAmount.isNotBlank(),
                                 colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.fillMaxWidth()

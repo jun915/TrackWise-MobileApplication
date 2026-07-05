@@ -178,7 +178,7 @@ fun AnalyticsScreen(
                 DropdownMenu(
                     expanded = dropdownExpanded,
                     onDismissRequest = { dropdownExpanded = false },
-                    modifier = Modifier.fillMaxWidth(0.9f)
+                    modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
                 ) {
                     categories.forEach { category ->
                         DropdownMenuItem(
@@ -268,7 +268,8 @@ fun AnalyticsScreen(
                                     
                                     DropdownMenu(
                                         expanded = showMonthMenu,
-                                        onDismissRequest = { showMonthMenu = false }
+                                        onDismissRequest = { showMonthMenu = false },
+                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         monthNames.forEachIndexed { idx, name ->
                                             DropdownMenuItem(
@@ -307,7 +308,8 @@ fun AnalyticsScreen(
                                     
                                     DropdownMenu(
                                         expanded = showYearMenu,
-                                        onDismissRequest = { showYearMenu = false }
+                                        onDismissRequest = { showYearMenu = false },
+                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                                     ) {
                                         listOf(2025, 2026, 2027, 2028).forEach { yr ->
                                             DropdownMenuItem(

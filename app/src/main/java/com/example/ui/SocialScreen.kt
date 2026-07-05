@@ -49,6 +49,13 @@ fun SocialScreen(
     val alarms by viewModel.allAlarms.collectAsState()
 
     var friendEmailInput by remember { mutableStateOf("") }
+    var showFriendErrors by remember { mutableStateOf(false) }
+    val friendEmailError = if (friendEmailInput.isBlank()) {
+        "Email is required"
+    } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(friendEmailInput).matches()) {
+        "Please enter a valid email address"
+    } else null
+
     val focusManager = LocalFocusManager.current
 
     Column(
@@ -269,10 +276,19 @@ fun SocialScreen(
                             ) {
                                 OutlinedTextField(
                                     value = friendEmailInput,
-                                    onValueChange = { friendEmailInput = it },
-                                    label = { Text("Friend's Email Address") },
+                                    onValueChange = { 
+                                        friendEmailInput = it 
+                                        showFriendErrors = false
+                                    },
+                                    label = { Text("Friend's Email Address *") },
                                     placeholder = { Text("friend@trackwise.com") },
                                     singleLine = true,
+                                    isError = showFriendErrors && friendEmailError != null,
+                                    supportingText = {
+                                        if (showFriendErrors && friendEmailError != null) {
+                                            Text(friendEmailError, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    },
                                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = BrandViolet) },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = BrandViolet,
@@ -285,10 +301,13 @@ fun SocialScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
                                     onClick = {
-                                        if (friendEmailInput.isNotBlank()) {
+                                        if (friendEmailError == null) {
                                             viewModel.addFriend(friendEmailInput.trim())
                                             friendEmailInput = ""
+                                            showFriendErrors = false
                                             focusManager.clearFocus()
+                                        } else {
+                                            showFriendErrors = true
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),

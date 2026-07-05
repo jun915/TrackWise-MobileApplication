@@ -56,7 +56,7 @@ fun DashboardScreen(
     val isPreLaunch = TrackWiseUtils.isBeforeLaunch(todayStr)
 
     val todayFocusItems = remember(allTasks, todayStr) {
-        allTasks.filter { it.deadline == todayStr && !it.completed }
+        allTasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && !it.completed }
             .sortedWith(compareBy<TaskEntity> { it.reminderTime == null }
                 .thenBy { it.reminderTime ?: "" }
                 .thenBy { it.title }
@@ -897,6 +897,16 @@ fun PriorityItemsWidget(
                                         )
                                     }
                                 }
+                                if (task.notes.isNotBlank()) {
+                                    Text(
+                                        text = "📝 ${task.notes}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = BrandViolet,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
@@ -913,7 +923,10 @@ fun DailyHabitsWidget(
     modifier: Modifier = Modifier
 ) {
     val today = TrackWiseUtils.getTodayString()
-    val completedToday = habits.count {
+    val filteredHabits = remember(habits, today) {
+        habits.filter { TrackWiseUtils.shouldShowHabitOnDate(it, today) }
+    }
+    val completedToday = filteredHabits.count {
         TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
     }
 
@@ -950,7 +963,7 @@ fun DailyHabitsWidget(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "$completedToday/${habits.size} done",
+                        text = "$completedToday/${filteredHabits.size} done",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = BrandOrange,
@@ -961,15 +974,15 @@ fun DailyHabitsWidget(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (habits.isEmpty()) {
+            if (filteredHabits.isEmpty()) {
                 Text(
-                    text = "Configure Habit Runways in the Workspace tab to launch daily streak multipliers.",
+                    text = if (habits.isEmpty()) "Configure Habit Runways in the Workspace tab to launch daily streak multipliers." else "No active habit runways scheduled for today.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                 )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    habits.sortedBy {
+                    filteredHabits.sortedBy {
                         TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
                     }.take(5).forEach { habit ->
                         val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
