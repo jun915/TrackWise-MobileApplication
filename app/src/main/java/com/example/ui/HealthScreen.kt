@@ -34,6 +34,8 @@ import kotlin.math.pow
 
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @Composable
 fun HealthScreen(
@@ -499,11 +501,81 @@ fun HealthTipsPanel(tips: List<HealthTip>) {
 // --- Weight Logger (Section 10.4) ---
 @Composable
 fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEntity>) {
+    val focusManager = LocalFocusManager.current
     var weightInput by remember { mutableStateOf("") }
     var notesInput by remember { mutableStateOf("") }
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
 
     var showErrors by remember { mutableStateOf(false) }
+
+    var editingWeightEntry by remember { mutableStateOf<WeightEntryEntity?>(null) }
+    if (editingWeightEntry != null) {
+        val entry = editingWeightEntry!!
+        var editWeight by remember(entry) { mutableStateOf(entry.weightKg.toString()) }
+        var editNotes by remember(entry) { mutableStateOf(entry.notes ?: "") }
+        var editDate by remember(entry) { mutableStateOf(entry.date) }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingWeightEntry = null },
+            title = { Text("Edit Weight Entry ⚖️", fontWeight = FontWeight.Bold, color = BrandPink) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editWeight,
+                        onValueChange = { editWeight = it },
+                        label = { Text("Weight (kg) *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val w = editWeight.toDoubleOrNull()
+                        if (w != null && w > 0) {
+                            val updatedEntry = entry.copy(
+                                weightKg = w,
+                                notes = editNotes.ifBlank { null },
+                                date = editDate
+                            )
+                            viewModel.updateWeightEntry(updatedEntry)
+                            editingWeightEntry = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandPink, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingWeightEntry = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
     val weightError = if (weightInput.isBlank()) {
         "Weight is required"
     } else {
@@ -616,7 +688,9 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 entries.take(3).forEach { entry ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { editingWeightEntry = entry },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -634,6 +708,7 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
 // --- Vitals Logger (Blood Sugar & Blood Pressure) (Section 10.5 & 10.6) ---
 @Composable
 fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingEntity>) {
+    val focusManager = LocalFocusManager.current
     var vitalType by remember { mutableStateOf("blood_sugar") } // "blood_sugar", "blood_pressure"
     
     // Single sugar input box separated by /
@@ -647,6 +722,72 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
     var contextExpanded by remember { mutableStateOf(false) }
 
     var showVitalsErrors by remember { mutableStateOf(false) }
+
+    var editingVitalReading by remember { mutableStateOf<VitalReadingEntity?>(null) }
+    if (editingVitalReading != null) {
+        val read = editingVitalReading!!
+        var editValue by remember(read) { mutableStateOf(read.value) }
+        var editContext by remember(read) { mutableStateOf(read.context ?: "fasting") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingVitalReading = null },
+            title = { Text(if (read.type == "blood_sugar") "Edit Blood Sugar Entry 🩸" else "Edit Blood Pressure Entry 🫀", fontWeight = FontWeight.Bold, color = BrandCyan) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editValue,
+                        onValueChange = { editValue = it },
+                        label = { Text(if (read.type == "blood_sugar") "Value (mg/dL)" else "Value (Systolic/Diastolic)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editContext,
+                        onValueChange = { editContext = it },
+                        label = { Text("Context") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editValue.isNotBlank()) {
+                            val updatedReading = read.copy(
+                                value = editValue,
+                                context = editContext.ifBlank { null }
+                            )
+                            viewModel.updateVitalReading(updatedReading)
+                            editingVitalReading = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandCyan, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingVitalReading = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
 
     val sugarError = if (sugarInput.isBlank()) {
         "Blood sugar is required"
@@ -823,7 +964,10 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                     DropdownMenu(
                         expanded = contextExpanded,
                         onDismissRequest = { contextExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
+                        modifier = Modifier
+                            .widthIn(min = 180.dp, max = 280.dp)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, BrandRose.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                     ) {
                         DropdownMenuItem(
                             text = { Text("Fasting") },
@@ -943,7 +1087,9 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 filteredReadings.take(3).forEach { read ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { editingVitalReading = read },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -962,6 +1108,7 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
 // --- Exercise Log (Section 10.7) ---
 @Composable
 fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEntity>) {
+    val focusManager = LocalFocusManager.current
     var selectedType by remember { mutableStateOf("Walking") }
     var customTypeInput by remember { mutableStateOf("") }
     var durationInput by remember { mutableStateOf("") }
@@ -969,6 +1116,81 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
     var dropdownExpanded by remember { mutableStateOf(false) }
 
     var showExerciseErrors by remember { mutableStateOf(false) }
+
+    var editingExerciseLog by remember { mutableStateOf<ExerciseLogEntity?>(null) }
+    if (editingExerciseLog != null) {
+        val log = editingExerciseLog!!
+        var editType by remember(log) { mutableStateOf(log.exerciseType) }
+        var editDuration by remember(log) { mutableStateOf(log.durationMinutes.toString()) }
+        var editNotes by remember(log) { mutableStateOf(log.notes ?: "") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingExerciseLog = null },
+            title = { Text("Edit Exercise Log 🏃‍♂️", fontWeight = FontWeight.Bold, color = BrandViolet) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editType,
+                        onValueChange = { editType = it },
+                        label = { Text("Activity Type *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editDuration,
+                        onValueChange = { editDuration = it },
+                        label = { Text("Duration (minutes) *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val dur = editDuration.toIntOrNull()
+                        if (editType.isNotBlank() && dur != null && dur > 0) {
+                            val updatedLog = log.copy(
+                                exerciseType = editType,
+                                durationMinutes = dur,
+                                notes = editNotes.ifBlank { null }
+                            )
+                            viewModel.updateExerciseLog(updatedLog)
+                            editingExerciseLog = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingExerciseLog = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
     val durationError = if (durationInput.isBlank()) {
         "Duration is required"
     } else if (durationInput.toIntOrNull() == null || durationInput.toInt() <= 0) {
@@ -1134,7 +1356,9 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 logs.take(3).forEach { log ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { editingExerciseLog = log },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1152,9 +1376,97 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
 // --- Health Issue Logs (Symptoms) (Section 10.8) ---
 @Composable
 fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEntity>) {
+    val focusManager = LocalFocusManager.current
     var issueName by remember { mutableStateOf("") }
     var severity by remember { mutableStateOf("mild") } // "mild", "moderate", "severe"
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+
+    var editingHealthIssueLog by remember { mutableStateOf<HealthIssueLogEntity?>(null) }
+    if (editingHealthIssueLog != null) {
+        val log = editingHealthIssueLog!!
+        var editName by remember(log) { mutableStateOf(log.issueName) }
+        var editSeverity by remember(log) { mutableStateOf(log.severity) }
+        var editNotes by remember(log) { mutableStateOf(log.notes ?: "") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingHealthIssueLog = null },
+            title = { Text("Edit Symptom Log 🩹", fontWeight = FontWeight.Bold, color = BrandRose) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Symptom/Issue Name *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Column {
+                        Text("Severity", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("mild", "moderate", "severe").forEach { s ->
+                                val selected = editSeverity == s
+                                Button(
+                                    onClick = { editSeverity = s },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selected) BrandRose else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(s.replaceFirstChar { it.uppercase() }, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editName.isNotBlank()) {
+                            val updatedLog = log.copy(
+                                issueName = editName,
+                                severity = editSeverity,
+                                notes = editNotes.ifBlank { null }
+                            )
+                            viewModel.updateHealthIssueLog(updatedLog)
+                            editingHealthIssueLog = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingHealthIssueLog = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
 
     val context = LocalContext.current
     val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
@@ -1255,7 +1567,9 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 logs.take(3).forEach { log ->
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { editingHealthIssueLog = log },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1275,13 +1589,7 @@ fun SleepLogSection(
     viewModel: TrackWiseViewModel,
     sleepLogs: List<SleepLogEntity>
 ) {
-    var sleepStart by remember { mutableStateOf("22:30") }
-    var sleepEnd by remember { mutableStateOf("06:30") }
-    var notes by remember { mutableStateOf("") }
-    var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
-
-    var showSleepErrors by remember { mutableStateOf(false) }
-
+    val focusManager = LocalFocusManager.current
     fun isValidSleepTime(time: String): Boolean {
         val trimmed = time.trim()
         val parts = trimmed.split(":")
@@ -1289,6 +1597,91 @@ fun SleepLogSection(
         val hour = parts[0].toIntOrNull() ?: return false
         val min = parts[1].toIntOrNull() ?: return false
         return hour in 0..23 && min in 0..59
+    }
+
+    var sleepStart by remember { mutableStateOf("22:30") }
+    var sleepEnd by remember { mutableStateOf("06:30") }
+    var notes by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+
+    var showSleepErrors by remember { mutableStateOf(false) }
+
+    var editingSleepLog by remember { mutableStateOf<SleepLogEntity?>(null) }
+    if (editingSleepLog != null) {
+        val log = editingSleepLog!!
+        var editStart by remember(log) { mutableStateOf(log.startTime) }
+        var editEnd by remember(log) { mutableStateOf(log.endTime) }
+        var editNotes by remember(log) { mutableStateOf(log.notes ?: "") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingSleepLog = null },
+            title = { Text("Edit Sleep Log 🛌", fontWeight = FontWeight.Bold, color = BrandViolet) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    HealthTimePickerField(
+                        timeStr = editStart,
+                        onTimeSelected = { editStart = it },
+                        label = "Sleep Start",
+                        tintColor = BrandViolet,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    HealthTimePickerField(
+                        timeStr = editEnd,
+                        onTimeSelected = { editEnd = it },
+                        label = "Sleep End",
+                        tintColor = BrandViolet,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (isValidSleepTime(editStart) && isValidSleepTime(editEnd)) {
+                            val hours = calculateHoursDifference(editStart, editEnd)
+                            val updatedLog = log.copy(
+                                startTime = editStart,
+                                endTime = editEnd,
+                                hoursSlept = hours,
+                                notes = editNotes.ifBlank { null }
+                            )
+                            viewModel.updateSleepLog(updatedLog)
+                            editingSleepLog = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingSleepLog = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
     }
 
     val startError = if (!isValidSleepTime(sleepStart)) "Use HH:MM format (00:00 to 23:59)" else null
@@ -1381,29 +1774,25 @@ fun SleepLogSection(
             }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CompactTextField(
-                    value = sleepStart,
-                    onValueChange = { 
+                HealthTimePickerField(
+                    timeStr = sleepStart,
+                    onTimeSelected = { 
                         sleepStart = it 
                         showSleepErrors = false
                     },
-                    label = "Sleep Start (HH:MM) *",
-                    placeholder = "22:30",
-                    isError = showSleepErrors && startError != null,
-                    errorText = startError,
+                    label = "Sleep Start *",
+                    tintColor = BrandViolet,
                     modifier = Modifier.weight(1f)
                 )
 
-                CompactTextField(
-                    value = sleepEnd,
-                    onValueChange = { 
+                HealthTimePickerField(
+                    timeStr = sleepEnd,
+                    onTimeSelected = { 
                         sleepEnd = it 
                         showSleepErrors = false
                     },
-                    label = "Wake Up (HH:MM) *",
-                    placeholder = "06:30",
-                    isError = showSleepErrors && endError != null,
-                    errorText = endError,
+                    label = "Wake Up *",
+                    tintColor = BrandViolet,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1459,7 +1848,11 @@ fun SleepLogSection(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { editingSleepLog = log }
+                        ) {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -1602,6 +1995,7 @@ data class HealthTip(
 // --- Tablet Tracker Section ---
 @Composable
 fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
+    val focusManager = LocalFocusManager.current
     val tabletReminders by viewModel.tabletReminders.collectAsState()
 
     var showForm by remember { mutableStateOf(false) }
@@ -1610,6 +2004,88 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
     var timeOfDay by remember { mutableStateOf("08:00 AM") }
     var scheduleType by remember { mutableStateOf("Daily") }
     var notes by remember { mutableStateOf("") }
+
+    var editingTabletReminder by remember { mutableStateOf<TabletReminderEntity?>(null) }
+    if (editingTabletReminder != null) {
+        val rem = editingTabletReminder!!
+        var editName by remember(rem) { mutableStateOf(rem.tabletName) }
+        var editDosage by remember(rem) { mutableStateOf(rem.dosage) }
+        var editTime by remember(rem) { mutableStateOf(rem.timeOfDay) }
+        var editNotes by remember(rem) { mutableStateOf(rem.notes ?: "") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingTabletReminder = null },
+            title = { Text("Edit Medication Reminder 💊", fontWeight = FontWeight.Bold, color = BrandViolet) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Medication Name *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editDosage,
+                        onValueChange = { editDosage = it },
+                        label = { Text("Dosage (e.g., 1 pill) *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editTime,
+                        onValueChange = { editTime = it },
+                        label = { Text("Time of Day *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editName.isNotBlank() && editDosage.isNotBlank()) {
+                            val updatedReminder = rem.copy(
+                                tabletName = editName,
+                                dosage = editDosage,
+                                timeOfDay = editTime,
+                                notes = editNotes.ifBlank { null }
+                            )
+                            viewModel.updateTabletReminder(updatedReminder)
+                            editingTabletReminder = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingTabletReminder = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
 
     val today = TrackWiseUtils.getTodayString()
 
@@ -1779,7 +2255,11 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.Top
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { editingTabletReminder = reminder }
+                                ) {
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text(reminder.tabletName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                         Box(
@@ -2240,7 +2720,22 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        editingCycleId = cycle.id
+                                        startDate = cycle.startDate
+                                        durationDays = cycle.durationDays.toString()
+                                        cycleLengthDays = cycle.cycleLengthDays.toString()
+                                        notes = cycle.notes ?: ""
+                                        selectedSymptoms.clear()
+                                        if (cycle.symptoms.isNotBlank()) {
+                                            selectedSymptoms.addAll(cycle.symptoms.split(","))
+                                        }
+                                        showForm = true
+                                    }
+                            ) {
                                 Text("Period Start: ${cycle.startDate}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                 Text(
                                     text = "Bleeding: ${cycle.durationDays} days · Cycle: ${cycle.cycleLengthDays} days",
@@ -2272,23 +2767,6 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
                                     )
                                 }
                             }
-                            IconButton(
-                                onClick = {
-                                    editingCycleId = cycle.id
-                                    startDate = cycle.startDate
-                                    durationDays = cycle.durationDays.toString()
-                                    cycleLengthDays = cycle.cycleLengthDays.toString()
-                                    notes = cycle.notes ?: ""
-                                    selectedSymptoms.clear()
-                                    if (cycle.symptoms.isNotBlank()) {
-                                        selectedSymptoms.addAll(cycle.symptoms.split(","))
-                                    }
-                                    showForm = true
-                                },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit cycle", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                            }
                             IconButton(onClick = { viewModel.deletePeriodCycle(cycle.id) }, modifier = Modifier.size(28.dp)) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete cycle", tint = BrandRose, modifier = Modifier.size(16.dp))
                             }
@@ -2299,3 +2777,49 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
         }
     }
 }
+
+@Composable
+fun HealthTimePickerField(
+    timeStr: String, // HH:MM
+    label: String,
+    onTimeSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    tintColor: Color = MaterialTheme.colorScheme.primary
+) {
+    val context = LocalContext.current
+    val parts = remember(timeStr) { timeStr.split(":") }
+    val hour = remember(parts) { parts.getOrNull(0)?.toIntOrNull() ?: 8 }
+    val minute = remember(parts) { parts.getOrNull(1)?.toIntOrNull() ?: 0 }
+
+    val timePickerDialog = remember(hour, minute) {
+        android.app.TimePickerDialog(
+            context,
+            { _, selectedHour, selectedMinute ->
+                val formattedTime = String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute)
+                onTimeSelected(formattedTime)
+            },
+            hour,
+            minute,
+            true // 24 hour view
+        )
+    }
+
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = timeStr,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = tintColor, modifier = Modifier.size(16.dp)) },
+            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Time", tint = tintColor, modifier = Modifier.size(16.dp)) },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { timePickerDialog.show() }
+        )
+    }
+}
+

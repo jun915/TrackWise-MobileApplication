@@ -394,8 +394,6 @@ class TrackWiseViewModel(
                 // Persist session
                 val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
                 prefs.edit().putString("saved_user_id", user.id).apply()
-                
-                addNotification("User Logged In", "Successfully logged in as ${user.fullName}.")
             } catch (e: Exception) {
                 _authError.value = e.message ?: "Authentication failed."
             }
@@ -521,6 +519,45 @@ class TrackWiseViewModel(
         }
     }
 
+    fun completeOnboarding(
+        firstName: String,
+        lastName: String,
+        phone: String,
+        gender: String,
+        religion: String,
+        dob: String
+    ) {
+        val user = _sessionUser.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val fullNameStr = "$firstName $lastName".trim()
+            val updatedUser = user.copy(
+                fullName = fullNameStr,
+                dob = dob,
+                gender = gender,
+                phone = phone,
+                religion = religion
+            )
+            repository.updateUserProfile(updatedUser)
+            _sessionUser.value = updatedUser
+
+            // Detailed form update (UserProfileEntity)
+            val existingProfile = repository.getUserProfile(user.id) ?: UserProfileEntity(userId = user.id)
+            val updatedProfile = existingProfile.copy(
+                firstName = firstName,
+                lastName = lastName,
+                dob = dob,
+                gender = gender,
+                mobileNumber = phone,
+                emailAddress = user.email,
+                religion = religion
+            )
+            repository.insertUserProfile(updatedProfile)
+
+            _successMessage.value = "Onboarding completed successfully!"
+            triggerFakeSync()
+        }
+    }
+
     // --- Tasks Actions ---
     fun addTask(
         title: String,
@@ -536,7 +573,8 @@ class TrackWiseViewModel(
         customRepeatDaysOfWeek: String? = null,
         startDate: String? = null,
         endDate: String? = null,
-        notes: String = ""
+        notes: String = "",
+        dueTime: String? = null
     ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
@@ -562,7 +600,8 @@ class TrackWiseViewModel(
                 customRepeatDaysOfWeek = customRepeatDaysOfWeek,
                 startDate = startDate,
                 endDate = endDate,
-                notes = notes
+                notes = notes,
+                dueTime = dueTime
             )
             repository.insertTask(task)
             triggerFakeSync()
@@ -587,13 +626,15 @@ class TrackWiseViewModel(
         }
     }
 
-    fun addSubTask(task: TaskEntity, subTitle: String) {
+    fun addSubTask(task: TaskEntity, subTitle: String, dueDate: String? = null, dueTime: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val currentSubTasks = TrackWiseUtils.deserializeSubTasks(task.subtasksJson).toMutableList()
             val newSub = SubTask(
                 id = "sub-${System.currentTimeMillis()}",
                 title = subTitle,
-                completed = false
+                completed = false,
+                dueDate = dueDate,
+                dueTime = dueTime
             )
             currentSubTasks.add(newSub)
             val updatedTask = task.copy(subtasksJson = TrackWiseUtils.serializeSubTasks(currentSubTasks))
@@ -643,7 +684,11 @@ class TrackWiseViewModel(
         customRepeatUnit: String = "days",
         customRepeatDaysOfWeek: String? = null,
         startDate: String? = null,
-        endDate: String? = null
+        endDate: String? = null,
+        remindMe: Boolean = false,
+        reminderDate: String? = null,
+        reminderTime: String? = null,
+        dueTime: String? = null
     ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
@@ -664,7 +709,11 @@ class TrackWiseViewModel(
                 customRepeatUnit = customRepeatUnit,
                 customRepeatDaysOfWeek = customRepeatDaysOfWeek,
                 startDate = finalStart,
-                endDate = endDate
+                endDate = endDate,
+                remindMe = remindMe,
+                reminderDate = reminderDate,
+                reminderTime = reminderTime,
+                dueTime = dueTime
             )
             repository.insertHabit(habit)
             triggerFakeSync()
@@ -866,7 +915,15 @@ class TrackWiseViewModel(
         }
     }
 
-    fun addBirthday(name: String, date: String, giftIdea: String?, category: String = "Others") {
+    fun addBirthday(
+        name: String,
+        date: String,
+        giftIdea: String?,
+        category: String = "Others",
+        remindMe: Boolean = false,
+        reminderDate: String? = null,
+        reminderTime: String? = null
+    ) {
         val user = _sessionUser.value ?: return
         val finalName = formatOccasionName(name, category)
         viewModelScope.launch(Dispatchers.IO) {
@@ -876,7 +933,10 @@ class TrackWiseViewModel(
                 name = finalName,
                 date = date,
                 giftIdea = giftIdea,
-                category = category
+                category = category,
+                remindMe = remindMe,
+                reminderDate = reminderDate,
+                reminderTime = reminderTime
             )
             repository.insertBirthday(birthday)
             triggerFakeSync()
@@ -974,7 +1034,15 @@ class TrackWiseViewModel(
     }
 
     // --- Wishlist Actions ---
-    fun addWishItem(title: String, price: Double, link: String?, priority: String) {
+    fun addWishItem(
+        title: String,
+        price: Double,
+        link: String?,
+        priority: String,
+        remindMe: Boolean = false,
+        reminderDate: String? = null,
+        reminderTime: String? = null
+    ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val item = WishItemEntity(
@@ -984,7 +1052,10 @@ class TrackWiseViewModel(
                 price = price,
                 link = link,
                 priority = priority,
-                purchased = false
+                purchased = false,
+                remindMe = remindMe,
+                reminderDate = reminderDate,
+                reminderTime = reminderTime
             )
             repository.insertWishItem(item)
             triggerFakeSync()
@@ -1805,6 +1876,90 @@ class TrackWiseViewModel(
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    fun updateTask(task: TaskEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertTask(task)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateHabit(habit: HabitEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertHabit(habit)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateWishItem(item: WishItemEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertWishItem(item)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateGroceryItem(item: GroceryItemEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertGroceryItem(item)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateTabletReminder(reminder: TabletReminderEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertTabletReminder(reminder)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateWeightEntry(entry: WeightEntryEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertWeightEntry(entry)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateVitalReading(reading: VitalReadingEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertVitalReading(reading)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateExerciseLog(log: ExerciseLogEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertExerciseLog(log)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateHealthIssueLog(log: HealthIssueLogEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertHealthIssueLog(log)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateSleepLog(log: SleepLogEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertSleepLog(log)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateFinanceLog(log: FinanceLogEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertFinanceLog(log)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateNetWorthItem(item: NetWorthItemEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertNetWorthItem(item)
+            triggerFakeSync()
         }
     }
 
@@ -2749,7 +2904,6 @@ class TrackWiseViewModel(
                     val user = repository.findUserById(savedUserId)
                     if (user != null) {
                         _sessionUser.value = user
-                        addNotification("Welcome Back!", "Automated secure login successful.")
                         delay(2000)
                         checkAndPerformAutoBackup()
                     }
@@ -2765,6 +2919,96 @@ class TrackWiseViewModel(
                     checkAndPerformAutoBackup()
                 }
                 delay(60000) // check every minute
+            }
+        }
+
+        // Triggered reminders tracking set
+        val triggeredReminders = mutableSetOf<String>()
+
+        // Background reminder checking loop
+        viewModelScope.launch(Dispatchers.IO) {
+            delay(20000) // Initial warm-up delay
+            while (true) {
+                try {
+                    val todayStr = TrackWiseUtils.getTodayString().take(10)
+                    val currentTimeStr = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+                    
+                    // Check Tasks
+                    allTasks.value.forEach { task ->
+                        if (task.remindMe && !task.completed) {
+                            val rDate = task.reminderDate?.take(10) ?: task.deadline.take(10)
+                            val rTime = task.reminderTime?.trim()
+                            if (rDate == todayStr && rTime == currentTimeStr) {
+                                val key = "task-${task.id}-$rDate-$rTime"
+                                if (!triggeredReminders.contains(key)) {
+                                    triggeredReminders.add(key)
+                                    addNotification(
+                                        title = "Task Reminder: ${task.title}",
+                                        message = "Deadline: ${task.deadline}. Don't forget to complete it!"
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Check Habits
+                    allHabits.value.forEach { habit ->
+                        if (habit.remindMe) {
+                            val rDate = habit.reminderDate?.take(10) ?: todayStr
+                            val rTime = habit.reminderTime?.trim()
+                            if (rDate == todayStr && rTime == currentTimeStr) {
+                                val key = "habit-${habit.id}-$rDate-$rTime"
+                                if (!triggeredReminders.contains(key)) {
+                                    triggeredReminders.add(key)
+                                    addNotification(
+                                        title = "Habit Runway: ${habit.name}",
+                                        message = "It's time for your habit: ${habit.category}!"
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Check Wishlist
+                    allWishlist.value.forEach { item ->
+                        if (item.remindMe && !item.purchased) {
+                            val rDate = item.reminderDate?.take(10)
+                            val rTime = item.reminderTime?.trim()
+                            if (rDate == todayStr && rTime == currentTimeStr) {
+                                val key = "wish-${item.id}-$rDate-$rTime"
+                                if (!triggeredReminders.contains(key)) {
+                                    triggeredReminders.add(key)
+                                    addNotification(
+                                        title = "Wishlist Reminder: ${item.title}",
+                                        message = "Check out your item: ${item.title} (₹${item.price})"
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Check Occasions
+                    allBirthdays.value.forEach { bday ->
+                        if (bday.remindMe) {
+                            val rDate = bday.reminderDate?.take(10) ?: bday.date.take(10)
+                            val rTime = bday.reminderTime?.trim()
+                            if (rDate == todayStr && rTime == currentTimeStr) {
+                                val key = "bday-${bday.id}-$rDate-$rTime"
+                                if (!triggeredReminders.contains(key)) {
+                                    triggeredReminders.add(key)
+                                    addNotification(
+                                        title = "Occasion Reminder: ${bday.name}",
+                                        message = "Event: ${bday.name} is scheduled for today!"
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                delay(30000) // check every 30 seconds
             }
         }
 

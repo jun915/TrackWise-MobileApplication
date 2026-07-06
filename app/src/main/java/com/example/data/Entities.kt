@@ -22,13 +22,16 @@ data class UserEntity(
     val bloodType: String? = null,
     val waterGoalGlasses: Int = 8,
     // Comma-separated list of enabled condition IDs (e.g. "diabetes,hypertension")
-    val enabledConditions: String = ""
+    val enabledConditions: String = "",
+    val religion: String? = null
 )
 
 data class SubTask(
     val id: String,
     val title: String,
-    val completed: Boolean
+    val completed: Boolean,
+    val dueDate: String? = null, // YYYY-MM-DD
+    val dueTime: String? = null  // HH:MM
 )
 
 @Entity(tableName = "tasks")
@@ -50,7 +53,10 @@ data class TaskEntity(
     val customRepeatDaysOfWeek: String? = null, // Comma-separated list like "Sun,Mon..."
     val startDate: String? = null, // YYYY-MM-DD
     val endDate: String? = null, // YYYY-MM-DD (null/blank means "Until I stop")
-    val notes: String = ""
+    val notes: String = "",
+    val remindMe: Boolean = false,
+    val reminderDate: String? = null,
+    val dueTime: String? = null // Optional due time
 )
 
 @Entity(tableName = "habits")
@@ -75,7 +81,11 @@ data class HabitEntity(
     val customRepeatDaysOfWeek: String? = null, // Comma-separated list like "Sun,Mon..."
     val startDate: String? = null, // YYYY-MM-DD
     val endDate: String? = null, // YYYY-MM-DD (null/blank means "Until I stop")
-    val notes: String = ""
+    val notes: String = "",
+    val remindMe: Boolean = false,
+    val reminderDate: String? = null,
+    val reminderTime: String? = null,
+    val dueTime: String? = null // Optional due time
 )
 
 @Entity(tableName = "birthdays")
@@ -85,7 +95,10 @@ data class BirthdayEntity(
     val name: String,
     val date: String, // YYYY-MM-DD or MM-DD
     val giftIdea: String? = null,
-    val category: String = "Others"
+    val category: String = "Others",
+    val remindMe: Boolean = false,
+    val reminderDate: String? = null,
+    val reminderTime: String? = null
 )
 
 @Entity(tableName = "wishlist")
@@ -96,7 +109,10 @@ data class WishItemEntity(
     val price: Double,
     val link: String? = null,
     val priority: String, // "low", "medium", "high"
-    val purchased: Boolean
+    val purchased: Boolean,
+    val remindMe: Boolean = false,
+    val reminderDate: String? = null,
+    val reminderTime: String? = null
 )
 
 @Entity(tableName = "streak_history")
@@ -239,6 +255,7 @@ data class UserProfileEntity(
     val vitalsBloodPressure: String = "",
     val vitalsHeartRate: String = "",
     val vitalsBloodGroup: String = "",
+    val religion: String = "",
     val financeDailyTarget: Double = 0.0
 )
 

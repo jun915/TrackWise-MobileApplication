@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -145,8 +146,9 @@ fun WorkspaceScreen(
                     expanded = workspaceDropdownExpanded,
                     onDismissRequest = { workspaceDropdownExpanded = false },
                     modifier = Modifier
-                        .fillMaxWidth(0.9f)
+                        .widthIn(min = 200.dp, max = 300.dp)
                         .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, BrandViolet.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                 ) {
                     subTabs.forEachIndexed { index, label ->
                         DropdownMenuItem(
@@ -210,6 +212,7 @@ fun WorkspaceScreen(
 // ==================== 1. TASKS SECTION ====================
 @Composable
 fun TaskSection(viewModel: TrackWiseViewModel) {
+    val focusManager = LocalFocusManager.current
     val tasks by viewModel.allTasks.collectAsState()
     
     var showForm by remember { mutableStateOf(false) }
@@ -220,22 +223,15 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
     var project by remember { mutableStateOf("Work") }
     var priority by remember { mutableStateOf("medium") }
     var deadline by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
-    var reminderTime by remember { mutableStateOf("") }
-
-    var repeatType by remember { mutableStateOf("none") }
-    var customRepeatValue by remember { mutableStateOf("1") }
-    var customRepeatUnit by remember { mutableStateOf("days") }
-    var customRepeatDaysOfWeek by remember { mutableStateOf(emptySet<String>()) }
-    var taskStartDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
-    var taskEndDate by remember { mutableStateOf("") }
-    var taskUntilIStop by remember { mutableStateOf(true) }
+    var reminderTime by remember { mutableStateOf("08:00") }
+    var remindMe by remember { mutableStateOf(false) }
+    var reminderDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var dueTime by remember { mutableStateOf("") }
  
     var showErrors by remember { mutableStateOf(false) }
     val titleError = if (title.isBlank()) "Task Title is required" else null
     val deadlineError = if (deadline.isNotBlank() && !deadline.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) "Use YYYY-MM-DD format" else null
     val reminderError = if (reminderTime.isNotBlank() && !reminderTime.matches(Regex("\\d{2}:\\d{2}"))) "Use HH:MM format (24h)" else null
-    val taskStartDateError = if (repeatType != "none" && taskStartDate.isNotBlank() && !taskStartDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) "Use YYYY-MM-DD format" else null
-    val taskEndDateError = if (repeatType != "none" && !taskUntilIStop && taskEndDate.isNotBlank() && !taskEndDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) "Use YYYY-MM-DD format" else null
 
     val projects = listOf("Personal", "Work")
     val priorities = listOf("low", "medium", "high")
@@ -349,58 +345,66 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
 
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CompactTextField(
-                            value = deadline,
-                            onValueChange = { 
-                                deadline = it 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DatePickerField(
+                            dateStr = deadline,
+                            label = "Deadline Date",
+                            onDateSelected = {
+                                deadline = it
                                 showErrors = false
                             },
-                            label = "Deadline (YYYY-MM-DD)",
-                            placeholder = "2026-06-30",
-                            isError = showErrors && deadlineError != null,
-                            errorText = deadlineError,
+                            tintColor = BrandViolet,
                             modifier = Modifier.weight(1f)
                         )
-
-                        CompactTextField(
-                            value = reminderTime,
-                            onValueChange = { 
-                                reminderTime = it 
-                                showErrors = false
-                            },
-                            label = "Reminder (HH:MM)",
-                            placeholder = "e.g. 08:30",
-                            isError = showErrors && reminderError != null,
-                            errorText = reminderError,
-                            modifier = Modifier.weight(1f)
+                        TimePickerField(
+                            timeStr = dueTime,
+                            label = "Due Time (Optional)",
+                            onTimeSelected = { dueTime = it },
+                            modifier = Modifier.weight(1f),
+                            tintColor = BrandViolet
                         )
                     }
 
-                    RecurrenceSelector(
-                        repeatType = repeatType,
-                        onRepeatTypeChange = { repeatType = it },
-                        customRepeatValue = customRepeatValue,
-                        onCustomRepeatValueChange = { customRepeatValue = it },
-                        customRepeatUnit = customRepeatUnit,
-                        onCustomRepeatUnitChange = { customRepeatUnit = it },
-                        customRepeatDaysOfWeek = customRepeatDaysOfWeek,
-                        onCustomRepeatDaysOfWeekChange = { customRepeatDaysOfWeek = it },
-                        startDate = taskStartDate,
-                        onStartDateChange = { taskStartDate = it; showErrors = false },
-                        endDate = taskEndDate,
-                        onEndDateChange = { taskEndDate = it; showErrors = false },
-                        untilIStop = taskUntilIStop,
-                        onUntilIStopChange = { taskUntilIStop = it; showErrors = false },
-                        themeColor = BrandViolet,
-                        startDateError = if (showErrors) taskStartDateError else null,
-                        endDateError = if (showErrors) taskEndDateError else null,
-                        showDateRange = false
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = remindMe,
+                            onCheckedChange = { remindMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandViolet)
+                        )
+                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    }
+
+                    if (remindMe) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DatePickerField(
+                                dateStr = reminderDate,
+                                label = "Reminder Date",
+                                onDateSelected = { reminderDate = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandViolet
+                            )
+                            TimePickerField(
+                                timeStr = reminderTime,
+                                label = "Reminder Time",
+                                onTimeSelected = { reminderTime = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandViolet
+                            )
+                        }
+                    }
 
                     Button(
                         onClick = {
-                            if (titleError == null && deadlineError == null && reminderError == null) {
+                            if (titleError == null && deadlineError == null) {
                                 viewModel.addTask(
                                     title = title,
                                     description = description,
@@ -408,26 +412,25 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                                     priority = priority,
                                     points = 0,
                                     deadline = deadline,
-                                    reminderTime = if (reminderTime.isBlank()) null else reminderTime,
-                                    repeatType = repeatType,
-                                    customRepeatValue = customRepeatValue.toIntOrNull() ?: 1,
-                                    customRepeatUnit = customRepeatUnit,
-                                    customRepeatDaysOfWeek = if (repeatType == "custom" && customRepeatUnit == "weeks") customRepeatDaysOfWeek.joinToString(",") else null,
-                                    startDate = null,
-                                    endDate = null,
-                                    notes = notes
+                                    reminderTime = if (remindMe) reminderTime else null,
+                                    notes = notes,
+                                    dueTime = if (dueTime.isBlank()) null else dueTime
                                 )
+                                // Add notification/log reminder setting if checked
+                                if (remindMe) {
+                                    viewModel.addNotification(
+                                        title = "Reminder Configured",
+                                        message = "You will be reminded for \"$title\" on $reminderDate at $reminderTime."
+                                    )
+                                }
                                 // Reset
                                 title = ""
                                 description = ""
                                 notes = ""
-                                repeatType = "none"
-                                customRepeatValue = "1"
-                                customRepeatUnit = "days"
-                                customRepeatDaysOfWeek = emptySet()
-                                taskStartDate = TrackWiseUtils.getTodayString()
-                                taskEndDate = ""
-                                taskUntilIStop = true
+                                dueTime = ""
+                                remindMe = false
+                                reminderDate = TrackWiseUtils.getTodayString()
+                                reminderTime = "08:00"
                                 showForm = false
                                 showErrors = false
                             } else {
@@ -459,7 +462,180 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
 fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
     var showSubtaskInput by remember { mutableStateOf(false) }
     var newSubtaskTitle by remember { mutableStateOf("") }
+    var newSubtaskDueDate by remember { mutableStateOf("") }
+    var newSubtaskDueTime by remember { mutableStateOf("") }
     val subtasks = TrackWiseUtils.deserializeSubTasks(task.subtasksJson)
+
+    var showEditDialog by remember { mutableStateOf(false) }
+    if (showEditDialog) {
+        var editTitle by remember { mutableStateOf(task.title) }
+        var editDesc by remember { mutableStateOf(task.description) }
+        var editNotes by remember { mutableStateOf(task.notes) }
+        var editProject by remember { mutableStateOf(task.project) }
+        var editPriority by remember { mutableStateOf(task.priority) }
+        var editDeadline by remember { mutableStateOf(task.deadline) }
+        var editReminder by remember { mutableStateOf(task.reminderTime ?: "08:00") }
+        var editRemindMe by remember { mutableStateOf(task.remindMe) }
+        var editReminderDate by remember { mutableStateOf(task.reminderDate ?: task.deadline) }
+        var editDueTime by remember { mutableStateOf(task.dueTime ?: "") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Task Runway 📝", fontWeight = FontWeight.Bold, color = BrandViolet) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editTitle,
+                        onValueChange = { editTitle = it },
+                        label = { Text("Task Title *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editDesc,
+                        onValueChange = { editDesc = it },
+                        label = { Text("Description") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editProject,
+                        onValueChange = { editProject = it },
+                        label = { Text("Project / Category") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Column {
+                        Text("Priority Level", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("low", "medium", "high").forEach { p ->
+                                val selected = editPriority == p
+                                Button(
+                                    onClick = { editPriority = p },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = p.replaceFirstChar { it.uppercase() },
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DatePickerField(
+                            dateStr = editDeadline,
+                            label = "Deadline Date",
+                            onDateSelected = { editDeadline = it },
+                            tintColor = BrandViolet,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TimePickerField(
+                            timeStr = editDueTime,
+                            label = "Due Time (Optional)",
+                            onTimeSelected = { editDueTime = it },
+                            modifier = Modifier.weight(1f),
+                            tintColor = BrandViolet
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = editRemindMe,
+                            onCheckedChange = { editRemindMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandViolet)
+                        )
+                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    }
+
+                    if (editRemindMe) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DatePickerField(
+                                dateStr = editReminderDate,
+                                label = "Reminder Date",
+                                onDateSelected = { editReminderDate = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandViolet
+                            )
+                            TimePickerField(
+                                timeStr = editReminder,
+                                label = "Reminder Time",
+                                onTimeSelected = { editReminder = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandViolet
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editTitle.isNotBlank()) {
+                            val updatedTask = task.copy(
+                                title = editTitle,
+                                description = editDesc,
+                                notes = editNotes,
+                                project = editProject,
+                                priority = editPriority,
+                                deadline = editDeadline,
+                                dueTime = if (editDueTime.isBlank()) null else editDueTime,
+                                reminderTime = if (editRemindMe) editReminder else null,
+                                remindMe = editRemindMe,
+                                reminderDate = if (editRemindMe) editReminderDate else null
+                            )
+                            viewModel.updateTask(updatedTask)
+                            showEditDialog = false
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -467,6 +643,7 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .clickable { showEditDialog = true }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -496,7 +673,9 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = task.title,
                         fontSize = 15.sp,
@@ -645,13 +824,25 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                             }
 
                             Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = sub.title,
-                                fontSize = 12.sp,
-                                textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                color = if (sub.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground,
-                                modifier = Modifier.weight(1f)
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = sub.title,
+                                    fontSize = 12.sp,
+                                    textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                    color = if (sub.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
+                                )
+                                if (!sub.dueDate.isNullOrBlank() || !sub.dueTime.isNullOrBlank()) {
+                                    val datePart = if (!sub.dueDate.isNullOrBlank()) "📅 ${sub.dueDate}" else ""
+                                    val timePart = if (!sub.dueTime.isNullOrBlank()) "⏰ ${sub.dueTime}" else ""
+                                    val spacer = if (datePart.isNotEmpty() && timePart.isNotEmpty()) " " else ""
+                                    Text(
+                                        text = "$datePart$spacer$timePart",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandViolet.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
                             IconButton(
                                 onClick = { viewModel.deleteSubTask(task, sub.id) },
                                 modifier = Modifier.size(24.dp)
@@ -662,28 +853,59 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                     }
 
                     if (showSubtaskInput) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedTextField(
-                                value = newSubtaskTitle,
-                                onValueChange = { newSubtaskTitle = it },
-                                placeholder = { Text("Enter subtask title") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(onClick = {
-                                if (newSubtaskTitle.isNotBlank()) {
-                                    viewModel.addSubTask(task, newSubtaskTitle)
-                                    newSubtaskTitle = ""
-                                    showSubtaskInput = false
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = newSubtaskTitle,
+                                    onValueChange = { newSubtaskTitle = it },
+                                    placeholder = { Text("Enter subtask title") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                IconButton(onClick = {
+                                    if (newSubtaskTitle.isNotBlank()) {
+                                        viewModel.addSubTask(
+                                            task = task,
+                                            subTitle = newSubtaskTitle,
+                                            dueDate = if (newSubtaskDueDate.isBlank()) null else newSubtaskDueDate,
+                                            dueTime = if (newSubtaskDueTime.isBlank()) null else newSubtaskDueTime
+                                        )
+                                        newSubtaskTitle = ""
+                                        newSubtaskDueDate = ""
+                                        newSubtaskDueTime = ""
+                                        showSubtaskInput = false
+                                    }
+                                }) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = BrandGreen)
                                 }
-                            }) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = BrandGreen)
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                DatePickerField(
+                                    dateStr = newSubtaskDueDate,
+                                    label = "Due Date (Opt)",
+                                    onDateSelected = { newSubtaskDueDate = it },
+                                    modifier = Modifier.weight(1f),
+                                    tintColor = BrandViolet
+                                )
+                                TimePickerField(
+                                    timeStr = newSubtaskDueTime,
+                                    label = "Due Time (Opt)",
+                                    onTimeSelected = { newSubtaskDueTime = it },
+                                    modifier = Modifier.weight(1f),
+                                    tintColor = BrandViolet
+                                )
                             }
                         }
                     }
@@ -707,6 +929,7 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
 // ==================== 2. HABITS SECTION ====================
 @Composable
 fun HabitSection(viewModel: TrackWiseViewModel) {
+    val focusManager = LocalFocusManager.current
     val habits by viewModel.allHabits.collectAsState()
     var showForm by remember { mutableStateOf(false) }
 
@@ -718,13 +941,17 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
     var isTimeBound by remember { mutableStateOf(false) }
     var timeBoundDurationInput by remember { mutableStateOf("") }
 
-    var repeatType by remember { mutableStateOf("none") }
+    var repeatType by remember { mutableStateOf("daily") }
     var customRepeatValue by remember { mutableStateOf("1") }
     var customRepeatUnit by remember { mutableStateOf("days") }
     var customRepeatDaysOfWeek by remember { mutableStateOf(emptySet<String>()) }
     var habitStartDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
     var habitEndDate by remember { mutableStateOf("") }
     var habitUntilIStop by remember { mutableStateOf(true) }
+    var remindMe by remember { mutableStateOf(false) }
+    var reminderDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var reminderTime by remember { mutableStateOf("08:00") }
+    var dueTime by remember { mutableStateOf("") }
  
     var showErrors by remember { mutableStateOf(false) }
     val nameError = if (name.isBlank()) "Habit Name is required" else null
@@ -775,6 +1002,14 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
+                    )
+
+                    TimePickerField(
+                        timeStr = dueTime,
+                        label = "Due Time",
+                        onTimeSelected = { dueTime = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        tintColor = BrandOrange
                     )
 
                     Column {
@@ -907,6 +1142,40 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                         endDateError = if (showErrors) habitEndDateError else null
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = remindMe,
+                            onCheckedChange = { remindMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandOrange)
+                        )
+                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    }
+
+                    if (remindMe) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DatePickerField(
+                                dateStr = reminderDate,
+                                label = "Reminder Date",
+                                onDateSelected = { reminderDate = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandOrange
+                            )
+                            TimePickerField(
+                                timeStr = reminderTime,
+                                label = "Reminder Time",
+                                onTimeSelected = { reminderTime = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandOrange
+                            )
+                        }
+                    }
+
                     Button(
                         onClick = {
                             if (nameError == null && targetError == null && durationError == null && habitStartDateError == null && habitEndDateError == null) {
@@ -922,9 +1191,15 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                                     customRepeatUnit = customRepeatUnit,
                                     customRepeatDaysOfWeek = if (repeatType == "custom" && customRepeatUnit == "weeks") customRepeatDaysOfWeek.joinToString(",") else null,
                                     startDate = if (repeatType == "none") null else habitStartDate,
-                                    endDate = if (repeatType == "none" || habitUntilIStop) null else habitEndDate
+                                    endDate = if (repeatType == "none" || habitUntilIStop) null else habitEndDate,
+                                    remindMe = remindMe,
+                                    reminderDate = if (remindMe) reminderDate else null,
+                                    reminderTime = if (remindMe) reminderTime else null,
+                                    dueTime = if (dueTime.isBlank()) null else dueTime
                                 )
+                                // Reset
                                 name = ""
+                                dueTime = ""
                                 isMultipleTimes = false
                                 multipleTimesTargetInput = "1"
                                 isTimeBound = false
@@ -936,6 +1211,9 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                                 habitStartDate = TrackWiseUtils.getTodayString()
                                 habitEndDate = ""
                                 habitUntilIStop = true
+                                remindMe = false
+                                reminderDate = TrackWiseUtils.getTodayString()
+                                reminderTime = "08:00"
                                 showForm = false
                                 showErrors = false
                             } else {
@@ -952,13 +1230,11 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
             }
         }
 
-        val today = com.example.utils.TrackWiseUtils.getTodayString()
-        val filteredHabits = habits.filter { com.example.utils.TrackWiseUtils.shouldShowHabitOnDate(it, today) }
-
-        if (filteredHabits.isEmpty()) {
-            Text("No habit runways active for today. Create or schedule one above!")
+        // Display all habits in Workspace so they are always visible, manageable, editable, and deletable
+        if (habits.isEmpty()) {
+            Text("No habit runways configured yet. Create one above!")
         } else {
-            filteredHabits.forEach { habit ->
+            habits.forEach { habit ->
                 HabitCard(habit = habit, viewModel = viewModel)
             }
         }
@@ -976,12 +1252,264 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
         completedCountToday >= 1
     }
 
+    var showEditDialog by remember { mutableStateOf(false) }
+    if (showEditDialog) {
+        var editName by remember { mutableStateOf(habit.name) }
+        var editCategory by remember { mutableStateOf(habit.category) }
+        var editNotes by remember { mutableStateOf(habit.notes) }
+        var editMultipleTimes by remember { mutableStateOf(habit.isMultipleTimesPerDay) }
+        var editMultipleTimesTarget by remember { mutableStateOf(habit.multipleTimesTarget.toString()) }
+        var editTimeBound by remember { mutableStateOf(habit.isTimeBound) }
+        var editTimeBoundDuration by remember { mutableStateOf(habit.timeBoundDuration ?: "") }
+        var editRemindMe by remember { mutableStateOf(habit.remindMe) }
+        var editReminderDate by remember { mutableStateOf(habit.reminderDate ?: TrackWiseUtils.getTodayString()) }
+        var editReminderTime by remember { mutableStateOf(habit.reminderTime ?: "08:00") }
+        var editDueTime by remember { mutableStateOf(habit.dueTime ?: "") }
+
+        var editRepeatType by remember { mutableStateOf(habit.repeatType) }
+        var editCustomRepeatValue by remember { mutableStateOf(habit.customRepeatValue.toString()) }
+        var editCustomRepeatUnit by remember { mutableStateOf(habit.customRepeatUnit) }
+        var editCustomRepeatDaysOfWeek by remember {
+            mutableStateOf(
+                if (habit.customRepeatDaysOfWeek.isNullOrBlank()) emptySet<String>()
+                else habit.customRepeatDaysOfWeek.split(",").toSet()
+            )
+        }
+        var editHabitStartDate by remember { mutableStateOf(habit.startDate ?: TrackWiseUtils.getTodayString()) }
+        var editHabitEndDate by remember { mutableStateOf(habit.endDate ?: "") }
+        var editHabitUntilIStop by remember { mutableStateOf(habit.endDate.isNullOrBlank()) }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Habit Runway ⚙️", fontWeight = FontWeight.Bold, color = BrandOrange) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        }
+                ) {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Habit Name *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    TimePickerField(
+                        timeStr = editDueTime,
+                        label = "Due Time",
+                        onTimeSelected = { editDueTime = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        tintColor = BrandOrange
+                    )
+
+                    Column {
+                        Text("Category", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("Wellness", "Fitness", "Learning", "Productivity").forEach { cat ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = if (editCategory == cat) BrandOrange else MaterialTheme.colorScheme.surfaceVariant),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { editCategory = cat }
+                                ) {
+                                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        Text(cat, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (editCategory == cat) Color.White else MaterialTheme.colorScheme.onBackground)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (editMultipleTimes) BrandOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { 
+                                    editMultipleTimes = !editMultipleTimes
+                                    if (editMultipleTimes) editTimeBound = false
+                                },
+                            border = BorderStroke(1.dp, if (editMultipleTimes) BrandOrange else Color.Transparent),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text("Multiple Times", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (editMultipleTimes) BrandOrange else MaterialTheme.colorScheme.onSurface)
+                                Text("Per Day", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (editTimeBound) BrandOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { 
+                                    editTimeBound = !editTimeBound
+                                    if (editTimeBound) editMultipleTimes = false
+                                },
+                            border = BorderStroke(1.dp, if (editTimeBound) BrandOrange else Color.Transparent),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text("Time Bound", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (editTimeBound) BrandOrange else MaterialTheme.colorScheme.onSurface)
+                                Text("e.g. 30 mins", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    if (editMultipleTimes) {
+                        OutlinedTextField(
+                            value = editMultipleTimesTarget,
+                            onValueChange = { editMultipleTimesTarget = it },
+                            label = { Text("Daily Target Times") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    if (editTimeBound) {
+                        OutlinedTextField(
+                            value = editTimeBoundDuration,
+                            onValueChange = { editTimeBoundDuration = it },
+                            label = { Text("Duration (e.g. 30 mins)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    RecurrenceSelector(
+                        repeatType = editRepeatType,
+                        onRepeatTypeChange = { editRepeatType = it },
+                        customRepeatValue = editCustomRepeatValue,
+                        onCustomRepeatValueChange = { editCustomRepeatValue = it },
+                        customRepeatUnit = editCustomRepeatUnit,
+                        onCustomRepeatUnitChange = { editCustomRepeatUnit = it },
+                        customRepeatDaysOfWeek = editCustomRepeatDaysOfWeek,
+                        onCustomRepeatDaysOfWeekChange = { editCustomRepeatDaysOfWeek = it },
+                        startDate = editHabitStartDate,
+                        onStartDateChange = { editHabitStartDate = it },
+                        endDate = editHabitEndDate,
+                        onEndDateChange = { editHabitEndDate = it },
+                        untilIStop = editHabitUntilIStop,
+                        onUntilIStopChange = { editHabitUntilIStop = it },
+                        themeColor = BrandOrange,
+                        startDateError = null,
+                        endDateError = null
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = editRemindMe,
+                            onCheckedChange = { editRemindMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandOrange)
+                        )
+                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    }
+
+                    if (editRemindMe) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DatePickerField(
+                                dateStr = editReminderDate,
+                                label = "Reminder Date",
+                                onDateSelected = { editReminderDate = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandOrange
+                            )
+                            TimePickerField(
+                                timeStr = editReminderTime,
+                                label = "Reminder Time",
+                                onTimeSelected = { editReminderTime = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandOrange
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editName.isNotBlank()) {
+                            val updatedHabit = habit.copy(
+                                name = editName,
+                                category = editCategory,
+                                notes = editNotes,
+                                isMultipleTimesPerDay = editMultipleTimes,
+                                multipleTimesTarget = editMultipleTimesTarget.toIntOrNull() ?: 1,
+                                isTimeBound = editTimeBound,
+                                timeBoundDuration = if (editTimeBound) editTimeBoundDuration.ifBlank { null } else null,
+                                repeatType = editRepeatType,
+                                customRepeatValue = editCustomRepeatValue.toIntOrNull() ?: 1,
+                                customRepeatUnit = editCustomRepeatUnit,
+                                customRepeatDaysOfWeek = if (editCustomRepeatDaysOfWeek.isEmpty()) null else editCustomRepeatDaysOfWeek.joinToString(","),
+                                startDate = editHabitStartDate,
+                                endDate = if (editHabitUntilIStop) null else editHabitEndDate.ifBlank { null },
+                                remindMe = editRemindMe,
+                                reminderDate = if (editRemindMe) editReminderDate else null,
+                                reminderTime = if (editRemindMe) editReminderTime else null,
+                                dueTime = if (editDueTime.isBlank()) null else editDueTime
+                            )
+                            viewModel.updateHabit(updatedHabit)
+                            showEditDialog = false
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandOrange, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .clickable { showEditDialog = true }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1047,7 +1575,9 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = habit.name,
                         fontSize = 15.sp,
@@ -1193,6 +1723,7 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
 // ==================== 3. WISHLIST SECTION ====================
 @Composable
 fun WishlistSection(viewModel: TrackWiseViewModel) {
+    val focusManager = LocalFocusManager.current
     val items by viewModel.allWishlist.collectAsState()
     var showForm by remember { mutableStateOf(false) }
 
@@ -1200,11 +1731,155 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
     var price by remember { mutableStateOf("") }
     var link by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("medium") }
+    var remindMe by remember { mutableStateOf(false) }
+    var reminderDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var reminderTime by remember { mutableStateOf("08:00") }
 
     var showErrors by remember { mutableStateOf(false) }
     val titleError = if (title.isBlank()) "Item Title is required" else null
     val priceError = if (price.isNotBlank() && (price.toDoubleOrNull() ?: -1.0) < 0.0) "Enter a valid positive price" else null
     val linkError = if (link.isNotBlank() && !link.startsWith("http://") && !link.startsWith("https://")) "Must start with http:// or https://" else null
+
+    var editingWishItem by remember { mutableStateOf<com.example.data.WishItemEntity?>(null) }
+
+    if (editingWishItem != null) {
+        val wish = editingWishItem!!
+        var editTitle by remember(wish) { mutableStateOf(wish.title) }
+        var editPrice by remember(wish) { mutableStateOf(wish.price.toString()) }
+        var editLink by remember(wish) { mutableStateOf(wish.link ?: "") }
+        var editPriority by remember(wish) { mutableStateOf(wish.priority) }
+        var editRemindMe by remember(wish) { mutableStateOf(wish.remindMe) }
+        var editReminderDate by remember(wish) { mutableStateOf(wish.reminderDate ?: TrackWiseUtils.getTodayString()) }
+        var editReminderTime by remember(wish) { mutableStateOf(wish.reminderTime ?: "08:00") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingWishItem = null },
+            title = { Text("Edit Wishlist Item 🎁", fontWeight = FontWeight.Bold, color = BrandPink) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        }
+                ) {
+                    OutlinedTextField(
+                        value = editTitle,
+                        onValueChange = { editTitle = it },
+                        label = { Text("Title *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editPrice,
+                        onValueChange = { editPrice = it },
+                        label = { Text("Price (INR)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editLink,
+                        onValueChange = { editLink = it },
+                        label = { Text("Link") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Priority Level", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("low", "medium", "high").forEach { p ->
+                                val selected = editPriority == p
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (selected) BrandPink else MaterialTheme.colorScheme.surfaceVariant)
+                                        .clickable { editPriority = p }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = p.replaceFirstChar { it.uppercase() },
+                                        color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = editRemindMe,
+                            onCheckedChange = { editRemindMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandPink)
+                        )
+                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    }
+
+                    if (editRemindMe) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DatePickerField(
+                                dateStr = editReminderDate,
+                                label = "Reminder Date",
+                                onDateSelected = { editReminderDate = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandPink
+                            )
+                            TimePickerField(
+                                timeStr = editReminderTime,
+                                label = "Reminder Time",
+                                onTimeSelected = { editReminderTime = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandPink
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editTitle.isNotBlank()) {
+                            val updatedItem = wish.copy(
+                                title = editTitle,
+                                price = editPrice.toDoubleOrNull() ?: 0.0,
+                                link = editLink.ifBlank { null },
+                                priority = editPriority,
+                                remindMe = editRemindMe,
+                                reminderDate = if (editRemindMe) editReminderDate else null,
+                                reminderTime = if (editRemindMe) editReminderTime else null
+                            )
+                            viewModel.updateWishItem(updatedItem)
+                            editingWishItem = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandPink, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingWishItem = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Toggle add wishlist item form
@@ -1278,18 +1953,60 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                     }
 
                     // Priority Selection
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("low", "medium", "high").forEach { prio ->
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = if (priority == prio) BrandPink else MaterialTheme.colorScheme.surfaceVariant),
+                            val selected = priority == prio
+                            Box(
                                 modifier = Modifier
                                     .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (selected) BrandPink else MaterialTheme.colorScheme.surfaceVariant)
                                     .clickable { priority = prio }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    Text(prio.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (priority == prio) Color.White else MaterialTheme.colorScheme.onBackground)
-                                }
+                                Text(
+                                    text = prio.replaceFirstChar { it.uppercase() },
+                                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
                             }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = remindMe,
+                            onCheckedChange = { remindMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandPink)
+                        )
+                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    }
+
+                    if (remindMe) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DatePickerField(
+                                dateStr = reminderDate,
+                                label = "Reminder Date",
+                                onDateSelected = { reminderDate = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandPink
+                            )
+                            TimePickerField(
+                                timeStr = reminderTime,
+                                label = "Reminder Time",
+                                onTimeSelected = { reminderTime = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandPink
+                            )
                         }
                     }
 
@@ -1300,11 +2017,17 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                                     title = title,
                                     price = price.toDoubleOrNull() ?: 0.0,
                                     link = if (link.isBlank()) null else link,
-                                    priority = priority
+                                    priority = priority,
+                                    remindMe = remindMe,
+                                    reminderDate = if (remindMe) reminderDate else null,
+                                    reminderTime = if (remindMe) reminderTime else null
                                 )
                                 title = ""
                                 price = ""
                                 link = ""
+                                remindMe = false
+                                reminderDate = TrackWiseUtils.getTodayString()
+                                reminderTime = "08:00"
                                 showForm = false
                                 showErrors = false
                             } else {
@@ -1330,6 +2053,7 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                        .clickable { editingWishItem = item }
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -1357,7 +2081,9 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
 
                         Spacer(modifier = Modifier.width(12.dp))
 
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text(
                                 text = item.title,
                                 fontSize = 15.sp,
@@ -1514,6 +2240,7 @@ private fun parseInputDate(input: String, hasYear: Boolean): String? {
 
 @Composable
 fun BirthdaySection(viewModel: TrackWiseViewModel) {
+    val focusManager = LocalFocusManager.current
     val birthdays by viewModel.allBirthdays.collectAsState()
     var showForm by remember { mutableStateOf(false) }
 
@@ -1527,6 +2254,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
     var relationFilter by remember { mutableStateOf("All") }
     var showError by remember { mutableStateOf(false) }
     var editingBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
+    var remindMe by remember { mutableStateOf(false) }
+    var reminderDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+    var reminderTime by remember { mutableStateOf("08:00") }
 
     var showErrors by remember { mutableStateOf(false) }
     val nameError = if (name.isBlank()) "Name of Person is required" else null
@@ -1621,17 +2351,21 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                     }
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CompactTextField(
-                            value = dateText,
-                            onValueChange = { 
-                                dateText = it
-                                showErrors = false
-                                showError = false
-                            },
+                        DatePickerField(
+                            dateStr = dateText,
                             label = if (isYearSelected) "Date (DD/MM/YYYY) *" else "Date (DD/MM) *",
-                            placeholder = if (isYearSelected) "15/10/1995" else "15/10",
-                            isError = showErrors && dateError != null,
-                            errorText = dateError,
+                            onDateSelected = { selectedDate ->
+                                val parts = selectedDate.split("-")
+                                if (parts.size == 3) {
+                                    val y = parts[0]
+                                    val m = parts[1]
+                                    val d = parts[2]
+                                    dateText = if (isYearSelected) "$d/$m/$y" else "$d/$m"
+                                    showErrors = false
+                                    showError = false
+                                }
+                            },
+                            tintColor = BrandCyan,
                             modifier = Modifier.weight(1f)
                         )
 
@@ -1724,6 +2458,40 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = remindMe,
+                            onCheckedChange = { remindMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandCyan)
+                        )
+                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    }
+
+                    if (remindMe) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DatePickerField(
+                                dateStr = reminderDate,
+                                label = "Reminder Date",
+                                onDateSelected = { reminderDate = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandCyan
+                            )
+                            TimePickerField(
+                                timeStr = reminderTime,
+                                label = "Reminder Time",
+                                onTimeSelected = { reminderTime = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandCyan
+                            )
+                        }
+                    }
+
                     Button(
                         onClick = {
                             if (nameError == null && dateError == null) {
@@ -1733,12 +2501,18 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                         name = name.trim(),
                                         date = parsed,
                                         giftIdea = if (giftIdea.isBlank()) null else giftIdea.trim(),
-                                        category = "$selectedCategory|$selectedRelationship"
+                                        category = "$selectedCategory|$selectedRelationship",
+                                        remindMe = remindMe,
+                                        reminderDate = if (remindMe) reminderDate else null,
+                                        reminderTime = if (remindMe) reminderTime else null
                                     )
                                     name = ""
                                     dateText = ""
                                     giftIdea = ""
                                     selectedRelationship = "Others"
+                                    remindMe = false
+                                    reminderDate = TrackWiseUtils.getTodayString()
+                                    reminderTime = "08:00"
                                     showError = false
                                     showErrors = false
                                     showForm = false
@@ -1901,6 +2675,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                     color = if (daysLeft == 0) BrandAmber else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
                                     shape = RoundedCornerShape(16.dp)
                                 )
+                                .clickable { editingBirthday = bday }
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
@@ -1910,7 +2685,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 
                                 Spacer(modifier = Modifier.width(12.dp))
 
-                                Column(modifier = Modifier.weight(1f)) {
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.fillMaxWidth()
@@ -1976,12 +2753,6 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
-                                IconButton(onClick = { editingBirthday = bday }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit Occasion", tint = BrandCyan)
-                                }
-
-                                Spacer(modifier = Modifier.width(4.dp))
-
                                 IconButton(onClick = { viewModel.deleteBirthday(bday.id) }) {
                                     Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose)
                                 }
@@ -2011,6 +2782,16 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
         var editCategoryType by remember(bday) { mutableStateOf(bdayCategoryType) }
         var editCategoryRelation by remember(bday) { mutableStateOf(bdayCategoryRelation) }
         var editShowError by remember { mutableStateOf(false) }
+        var editRemindMe by remember(bday) { mutableStateOf(bday.remindMe) }
+        var editReminderDate by remember(bday) { mutableStateOf(bday.reminderDate ?: TrackWiseUtils.getTodayString()) }
+        var editReminderTime by remember(bday) { mutableStateOf(bday.reminderTime ?: "08:00") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
 
         AlertDialog(
             onDismissRequest = { editingBirthday = null },
@@ -2027,7 +2808,13 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        }
                 ) {
                     OutlinedTextField(
                         value = editName,
@@ -2076,15 +2863,20 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         }
                     }
 
-                    OutlinedTextField(
-                        value = editDateText,
-                        onValueChange = { 
-                            editDateText = it
-                            editShowError = false
+                    DatePickerField(
+                        dateStr = editDateText,
+                        label = if (editIsYearSelected) "Date (DD/MM/YYYY) *" else "Date (DD/MM) *",
+                        onDateSelected = { selectedDate ->
+                            val pParts = selectedDate.split("-")
+                            if (pParts.size == 3) {
+                                val y = pParts[0]
+                                val m = pParts[1]
+                                val d = pParts[2]
+                                editDateText = if (editIsYearSelected) "$d/$m/$y" else "$d/$m"
+                                editShowError = false
+                            }
                         },
-                        label = { Text(if (editIsYearSelected) "Date (DD/MM/YYYY) *" else "Date (DD/MM) *") },
-                        placeholder = { Text(if (editIsYearSelected) "15/10/1995" else "15/10") },
-                        singleLine = true,
+                        tintColor = BrandCyan,
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -2174,10 +2966,42 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         }
                     }
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = editRemindMe,
+                            onCheckedChange = { editRemindMe = it },
+                            colors = CheckboxDefaults.colors(checkedColor = BrandCyan)
+                        )
+                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    }
+
+                    if (editRemindMe) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DatePickerField(
+                                dateStr = editReminderDate,
+                                label = "Reminder Date",
+                                onDateSelected = { editReminderDate = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandCyan
+                            )
+                            TimePickerField(
+                                timeStr = editReminderTime,
+                                label = "Reminder Time",
+                                onTimeSelected = { editReminderTime = it },
+                                modifier = Modifier.weight(1f),
+                                tintColor = BrandCyan
+                            )
+                        }
+                    }
+
                     if (editShowError) {
                         Text(
                             text = if (editIsYearSelected) "Please enter a valid date in DD/MM/YYYY format" 
-                                   else "Please enter a valid date in DD/MM format",
+                                   else "Please enter a date in DD/MM format",
                             color = BrandRose,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -2195,7 +3019,10 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                     name = editName.trim(),
                                     date = parsed,
                                     giftIdea = if (editGiftIdea.isBlank()) null else editGiftIdea.trim(),
-                                    category = "$editCategoryType|$editCategoryRelation"
+                                    category = "$editCategoryType|$editCategoryRelation",
+                                    remindMe = editRemindMe,
+                                    reminderDate = if (editRemindMe) editReminderDate else null,
+                                    reminderTime = if (editRemindMe) editReminderTime else null
                                 )
                             )
                             editingBirthday = null
@@ -2294,7 +3121,92 @@ fun CompactTextField(
 
 @Composable
 fun GrocerySection(viewModel: TrackWiseViewModel) {
+    val focusManager = LocalFocusManager.current
     val groceryItems by viewModel.allGroceryItems.collectAsState()
+
+    var editingGroceryItem by remember { mutableStateOf<com.example.data.GroceryItemEntity?>(null) }
+    if (editingGroceryItem != null) {
+        val gItem = editingGroceryItem!!
+        var editName by remember(gItem) { mutableStateOf(gItem.name) }
+        var editQuantity by remember(gItem) { mutableStateOf(gItem.quantity) }
+        var editCategory by remember(gItem) { mutableStateOf(gItem.category) }
+        var editPriceInput by remember(gItem) { mutableStateOf(gItem.price?.toString() ?: "") }
+        var editNumericQuantity by remember(gItem) { mutableStateOf(gItem.numericQuantity?.toString() ?: "") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingGroceryItem = null },
+            title = { Text("Edit Grocery Item 🛒", fontWeight = FontWeight.Bold, color = BrandViolet) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Item Name *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editQuantity,
+                        onValueChange = { editQuantity = it },
+                        label = { Text("Quantity Description") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editPriceInput,
+                        onValueChange = { editPriceInput = it },
+                        label = { Text("Price (INR)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editNumericQuantity,
+                        onValueChange = { editNumericQuantity = it },
+                        label = { Text("Numeric Quantity") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editName.isNotBlank()) {
+                            val updatedItem = gItem.copy(
+                                name = editName,
+                                quantity = editQuantity,
+                                category = editCategory,
+                                price = editPriceInput.toDoubleOrNull(),
+                                numericQuantity = editNumericQuantity.toDoubleOrNull()
+                            )
+                            viewModel.updateGroceryItem(updatedItem)
+                            editingGroceryItem = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingGroceryItem = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
 
     var showForm by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
@@ -2733,7 +3645,9 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                             if (item.completed) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                         ),
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { editingGroceryItem = item }
                     ) {
                         Row(
                             modifier = Modifier
@@ -2763,7 +3677,9 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                     )
                                 }
 
-                                Column(modifier = Modifier.weight(1f)) {
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
                                     Text(
                                         text = item.name,
                                         fontSize = 14.sp,
@@ -2924,7 +3840,6 @@ fun RecurrenceSelector(
     val repeatOptions = listOf(
         "none" to "No Repeat",
         "daily" to "Daily",
-        "weekdays" to "Weekdays (Mon-Fri)",
         "weekly" to "Weekly",
         "monthly" to "Monthly",
         "yearly" to "Yearly",
@@ -2971,7 +3886,10 @@ fun RecurrenceSelector(
             DropdownMenu(
                 expanded = repeatDropdownExpanded,
                 onDismissRequest = { repeatDropdownExpanded = false },
-                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
+                modifier = Modifier
+                    .widthIn(min = 200.dp, max = 300.dp)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, themeColor.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
             ) {
                 repeatOptions.forEach { (optionType, label) ->
                     DropdownMenuItem(
@@ -3190,6 +4108,116 @@ fun RecurrenceSelector(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun DatePickerField(
+    dateStr: String,
+    label: String,
+    onDateSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    tintColor: Color = MaterialTheme.colorScheme.primary
+) {
+    val context = LocalContext.current
+    val parsedDate = remember(dateStr) {
+        try {
+            if (dateStr.length == 5) { // MM-DD or DD/MM
+                val parts = dateStr.split("/", "-")
+                val cal = Calendar.getInstance()
+                cal.set(Calendar.MONTH, (parts.getOrNull(1)?.toIntOrNull() ?: 1) - 1)
+                cal.set(Calendar.DAY_OF_MONTH, parts.getOrNull(0)?.toIntOrNull() ?: 1)
+                cal.time
+            } else {
+                TrackWiseUtils.parseDate(dateStr)
+            }
+        } catch (e: Exception) {
+            Date()
+        }
+    }
+    val calendar = remember(parsedDate) {
+        Calendar.getInstance().apply { time = parsedDate }
+    }
+
+    val datePickerDialog = remember(calendar) {
+        android.app.DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth)
+                    set(Calendar.DAY_OF_MONTH, selectedDay)
+                }
+                onDateSelected(TrackWiseUtils.formatDate(selectedCal.time, "yyyy-MM-dd"))
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = dateStr,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = tintColor) },
+            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Date", tint = tintColor, modifier = Modifier.size(16.dp)) },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { datePickerDialog.show() }
+        )
+    }
+}
+
+@Composable
+fun TimePickerField(
+    timeStr: String?, // HH:MM or null/blank
+    label: String,
+    onTimeSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    tintColor: Color = MaterialTheme.colorScheme.primary
+) {
+    val context = LocalContext.current
+    val displayValue = if (timeStr.isNullOrBlank()) "Not Set" else timeStr
+    val parts = remember(timeStr) { (timeStr ?: "12:00").split(":") }
+    val hour = remember(parts) { parts.getOrNull(0)?.toIntOrNull() ?: 12 }
+    val minute = remember(parts) { parts.getOrNull(1)?.toIntOrNull() ?: 0 }
+
+    val timePickerDialog = remember(hour, minute) {
+        android.app.TimePickerDialog(
+            context,
+            { _, selectedHour, selectedMinute ->
+                val formattedTime = String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute)
+                onTimeSelected(formattedTime)
+            },
+            hour,
+            minute,
+            true // 24 hour view
+        )
+    }
+
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = displayValue,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = tintColor) },
+            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Time", tint = tintColor, modifier = Modifier.size(16.dp)) },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { timePickerDialog.show() }
+        )
     }
 }
 

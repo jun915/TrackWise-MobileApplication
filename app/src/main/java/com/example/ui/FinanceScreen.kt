@@ -19,6 +19,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -38,6 +41,197 @@ fun FinanceScreen(
     val financeLogs by viewModel.allFinanceLogs.collectAsState()
     val netWorthItems by viewModel.allNetWorthItems.collectAsState()
     val focusManager = LocalFocusManager.current
+
+    var editingFinanceLog by remember { mutableStateOf<com.example.data.FinanceLogEntity?>(null) }
+    var editingNetWorthItem by remember { mutableStateOf<com.example.data.NetWorthItemEntity?>(null) }
+
+    if (editingFinanceLog != null) {
+        val log = editingFinanceLog!!
+        var editTitle by remember(log) { mutableStateOf(log.title) }
+        var editAmount by remember(log) { mutableStateOf(log.amount.toString()) }
+        var editType by remember(log) { mutableStateOf(log.type) }
+        var editCategory by remember(log) { mutableStateOf(log.category) }
+        var editNotes by remember(log) { mutableStateOf(log.notes ?: "") }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingFinanceLog = null },
+            title = { Text("Edit Finance Entry 💰", fontWeight = FontWeight.Bold, color = BrandViolet) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editTitle,
+                        onValueChange = { editTitle = it },
+                        label = { Text("Title *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editAmount,
+                        onValueChange = { editAmount = it },
+                        label = { Text("Amount (INR)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editCategory,
+                        onValueChange = { editCategory = it },
+                        label = { Text("Category") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editNotes,
+                        onValueChange = { editNotes = it },
+                        label = { Text("Notes") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("income", "expense", "borrowed").forEach { t ->
+                            val selected = editType == t
+                            val color = when (t) {
+                                "income" -> BrandViolet
+                                "expense" -> BrandRose
+                                else -> BrandGreen
+                            }
+                            Button(
+                                onClick = { editType = t },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selected) color else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(t.replaceFirstChar { it.uppercase() }, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editTitle.isNotBlank()) {
+                            val updatedLog = log.copy(
+                                title = editTitle,
+                                amount = editAmount.toDoubleOrNull() ?: 0.0,
+                                type = editType,
+                                category = editCategory,
+                                notes = editNotes.ifBlank { null }
+                            )
+                            viewModel.updateFinanceLog(updatedLog)
+                            editingFinanceLog = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingFinanceLog = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
+
+    if (editingNetWorthItem != null) {
+        val item = editingNetWorthItem!!
+        var editName by remember(item) { mutableStateOf(item.name) }
+        var editAmount by remember(item) { mutableStateOf(item.amount.toString()) }
+        var editType by remember(item) { mutableStateOf(item.type) }
+
+        val scrollState = rememberScrollState()
+        LaunchedEffect(scrollState.isScrollInProgress) {
+            if (scrollState.isScrollInProgress) {
+                focusManager.clearFocus()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { editingNetWorthItem = null },
+            title = { Text("Edit Net Worth Item 💳", fontWeight = FontWeight.Bold, color = BrandViolet) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .verticalScroll(scrollState)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        },
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Item Name *") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editAmount,
+                        onValueChange = { editAmount = it },
+                        label = { Text("Value (INR)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("asset", "loan").forEach { t ->
+                            val selected = editType == t
+                            Button(
+                                onClick = { editType = t },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(t.replaceFirstChar { it.uppercase() }, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editName.isNotBlank()) {
+                            val updatedItem = item.copy(
+                                name = editName,
+                                amount = editAmount.toDoubleOrNull() ?: 0.0,
+                                type = editType
+                            )
+                            viewModel.updateNetWorthItem(updatedItem)
+                            editingNetWorthItem = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes", color = BrandViolet, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingNetWorthItem = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            }
+        )
+    }
 
     // Date State
     var selectedCalendar by remember { mutableStateOf(Calendar.getInstance()) }
@@ -576,7 +770,10 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showExpenseCategoryDropdown,
                                         onDismissRequest = { showExpenseCategoryDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
+                                        modifier = Modifier
+                                            .widthIn(min = 180.dp, max = 280.dp)
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, BrandRose.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                                     ) {
                                         expenseCategories.forEach { category ->
                                             DropdownMenuItem(
@@ -612,7 +809,10 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showExpenseTitleDropdown,
                                         onDismissRequest = { showExpenseTitleDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
+                                        modifier = Modifier
+                                            .widthIn(min = 180.dp, max = 280.dp)
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, BrandRose.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                                     ) {
                                         availableTitles.forEach { title ->
                                             DropdownMenuItem(
@@ -648,7 +848,10 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showSpendSourceDropdown,
                                         onDismissRequest = { showSpendSourceDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
+                                        modifier = Modifier
+                                            .widthIn(min = 180.dp, max = 280.dp)
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, BrandRose.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                                     ) {
                                         spendSourceOptions.forEach { source ->
                                             DropdownMenuItem(
@@ -771,7 +974,10 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showSavingsCategoryDropdown,
                                         onDismissRequest = { showSavingsCategoryDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
+                                        modifier = Modifier
+                                            .widthIn(min = 180.dp, max = 280.dp)
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, BrandViolet.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                                     ) {
                                         savingsCategories.forEach { category ->
                                             DropdownMenuItem(
@@ -874,7 +1080,10 @@ fun FinanceScreen(
                                     DropdownMenu(
                                         expanded = showIncomeSourceDropdown,
                                         onDismissRequest = { showIncomeSourceDropdown = false },
-                                        modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
+                                        modifier = Modifier
+                                            .widthIn(min = 180.dp, max = 280.dp)
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, BrandGreen.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                                     ) {
                                         incomeSources.forEach { src ->
                                             DropdownMenuItem(
@@ -982,6 +1191,7 @@ fun FinanceScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f), RoundedCornerShape(16.dp))
+                            .clickable { editingFinanceLog = log }
                     ) {
                         Row(
                             modifier = Modifier
@@ -1278,7 +1488,10 @@ fun FinanceScreen(
                                 DropdownMenu(
                                     expanded = showSavingsDropdownInAddNw,
                                     onDismissRequest = { showSavingsDropdownInAddNw = false },
-                                    modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
+                                    modifier = Modifier
+                                        .widthIn(min = 180.dp, max = 280.dp)
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .border(1.dp, BrandViolet.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("Custom/None (Type name below)", fontSize = 13.sp) },
@@ -1412,7 +1625,7 @@ fun FinanceScreen(
                 }
             } else {
                 items(assetItems, key = { it.id }) { item ->
-                    NetWorthItemRow(item, BrandGreen, viewModel)
+                    NetWorthItemRow(item, BrandGreen, viewModel) { editingNetWorthItem = item }
                 }
             }
 
@@ -1439,7 +1652,7 @@ fun FinanceScreen(
                 }
             } else {
                 items(loanItems, key = { it.id }) { item ->
-                    NetWorthItemRow(item, BrandViolet, viewModel)
+                    NetWorthItemRow(item, BrandViolet, viewModel) { editingNetWorthItem = item }
                 }
             }
 
@@ -1466,7 +1679,7 @@ fun FinanceScreen(
                 }
             } else {
                 items(liabilityItems, key = { it.id }) { item ->
-                    NetWorthItemRow(item, BrandRose, viewModel)
+                    NetWorthItemRow(item, BrandRose, viewModel) { editingNetWorthItem = item }
                 }
             }
         }
@@ -1558,7 +1771,8 @@ fun FinanceScreen(
 fun NetWorthItemRow(
     item: com.example.data.NetWorthItemEntity,
     color: Color,
-    viewModel: TrackWiseViewModel
+    viewModel: TrackWiseViewModel,
+    onClick: () -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)),
@@ -1566,6 +1780,7 @@ fun NetWorthItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+            .clickable { onClick() }
     ) {
         Row(
             modifier = Modifier

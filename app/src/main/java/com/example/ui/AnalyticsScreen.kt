@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,6 +50,7 @@ fun AnalyticsScreen(
     val financeLogs by viewModel.allFinanceLogs.collectAsState()
     val netWorthItems by viewModel.allNetWorthItems.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
+    val periodCycles by viewModel.periodCycles.collectAsState()
 
     // Interactive category selector
     val categories = listOf("Finance Tracker", "Habits & Tasks", "Health & Fitness")
@@ -410,6 +412,16 @@ fun AnalyticsScreen(
                 // --- 9. Symptom Tracker Chart (Date vs Symptom stacked timeline with Mild/Mod/Severe Toggle) ---
                 item {
                     SymptomTimelineCard(healthIssues = healthIssues)
+                }
+
+                // --- 10. Period Analytics (Hormonal Phase Overlay and Symptom Peak Chart) ---
+                if (currentUser?.gender?.equals("female", ignoreCase = true) == true) {
+                    item {
+                        HormonalPhaseOverlayCard(periodCycles = periodCycles)
+                    }
+                    item {
+                        PeriodSymptomPeakChartCard(periodCycles = periodCycles)
+                    }
                 }
             }
         }
@@ -3481,5 +3493,451 @@ fun TrackWiseHelpDialog(onDismiss: () -> Unit) {
             }
         }
     )
+}
+
+// ==========================================
+// Menstrual Cycle Analytics Composables
+// ==========================================
+
+private fun getEstrogenLevel(day: Float, totalDays: Float): Float {
+    val normDay = (day - 1f) / (totalDays - 1f) // 0.0 to 1.0
+    return if (normDay < 0.5f) {
+        val t = normDay / 0.5f
+        0.1f + 0.9f * t * t
+    } else {
+        val t = (normDay - 0.5f) / 0.5f
+        if (t < 0.2f) {
+            val subt = t / 0.2f
+            1.0f - 0.7f * subt
+        } else {
+            val lutealNorm = (t - 0.2f) / 0.8f
+            val peakFactor = (1.0f - Math.abs(lutealNorm - 0.5f) / 0.5f)
+            0.3f + 0.25f * peakFactor * peakFactor
+        }
+    }
+}
+
+private fun getProgesteroneLevel(day: Float, totalDays: Float): Float {
+    val normDay = (day - 1f) / (totalDays - 1f) // 0.0 to 1.0
+    return if (normDay < 0.5f) {
+        0.05f
+    } else {
+        val t = (normDay - 0.5f) / 0.5f
+        val bell = Math.exp(-Math.pow((t - 0.5).toDouble(), 2.0) / 0.08).toFloat()
+        0.05f + 0.95f * bell
+    }
+}
+
+@Composable
+fun HormonalPhaseOverlayCard(periodCycles: List<PeriodCycleEntity>) {
+    val latestCycle = remember(periodCycles) {
+        periodCycles.sortedByDescending { it.startDate }.firstOrNull()
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 6.dp)
+            ) {
+                Icon(Icons.Default.Favorite, contentDescription = null, tint = BrandPink, modifier = Modifier.size(20.dp))
+                Text("HORMONAL PHASE OVERLAY 🌸", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+            }
+            Text(
+                "Estrogen vs Progesterone fluctuation throughout your cycle",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            if (latestCycle == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("No period cycles logged.", fontSize = 12.sp, color = Color.Gray)
+                        Text("Log your period start in Health to view overlay.", fontSize = 11.sp, color = Color.Gray)
+                    }
+                }
+            } else {
+                val totalDays = latestCycle.cycleLengthDays.coerceAtLeast(1)
+                val durationDays = latestCycle.durationDays.coerceIn(1, totalDays)
+
+                // Calculate current day
+                val cycleDay = remember(latestCycle) {
+                    try {
+                        val todayStr = TrackWiseUtils.getTodayString()
+                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                        val todayDate = sdf.parse(todayStr)
+                        val startDate = sdf.parse(latestCycle.startDate)
+                        val diffMillis = todayDate.time - startDate.time
+                        val diffDays = (diffMillis / (1000 * 60 * 60 * 24)).toInt() + 1
+                        if (diffDays <= 0) {
+                            1
+                        } else {
+                            ((diffDays - 1) % totalDays) + 1
+                        }
+                    } catch (e: Exception) {
+                        1
+                    }
+                }
+
+                // Determine phase
+                val phaseName = when {
+                    cycleDay <= durationDays -> "Menstrual Phase (Bleeding)"
+                    cycleDay < totalDays / 2f -> "Follicular Phase (Estrogen Peak)"
+                    cycleDay.toFloat() in (totalDays / 2f - 1f)..(totalDays / 2f + 1f) -> "Ovulatory Phase (Fertile Window)"
+                    else -> "Luteal Phase (Progesterone Peak)"
+                }
+
+                val phaseColor = when {
+                    cycleDay <= durationDays -> Color(0xFFEF5350)
+                    cycleDay < totalDays / 2f -> Color(0xFF42A5F5)
+                    cycleDay.toFloat() in (totalDays / 2f - 1f)..(totalDays / 2f + 1f) -> Color(0xFF66BB6A)
+                    else -> Color(0xFFFFA726)
+                }
+
+                val phaseInsight = when {
+                    cycleDay <= durationDays -> "Energy levels may be lower. Rest, light stretching, and self-care are recommended. Estrogen and progesterone are at baseline levels."
+                    cycleDay < totalDays / 2f -> "Estrogen is rising, which boosts energy, focus, and social mood. Great phase for productivity, complex tasks, and intense training."
+                    cycleDay.toFloat() in (totalDays / 2f - 1f)..(totalDays / 2f + 1f) -> "Estrogen and LH are at their peak. High fertility window, high confidence, and peak physical strength."
+                    else -> "Progesterone is high, making you feel more relaxed or nesting. PMS symptoms may appear as hormones drop towards the end of this phase."
+                }
+
+                // Legend
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(modifier = Modifier.size(10.dp, 3.dp).background(BrandPink, RoundedCornerShape(2.dp)))
+                        Text("Estrogen", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(modifier = Modifier.size(10.dp, 3.dp).background(BrandViolet, RoundedCornerShape(2.dp)))
+                        Text("Progesterone", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(modifier = Modifier.size(10.dp, 3.dp).background(phaseColor, RoundedCornerShape(2.dp)))
+                        Text("Active: Day $cycleDay", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = phaseColor)
+                    }
+                }
+
+                // Interactive Chart Canvas
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val width = size.width
+                        val height = size.height
+                        val totalD = totalDays.toFloat()
+
+                        val menstrualEnd = durationDays.toFloat()
+                        val follicularEnd = (totalD / 2f) - 1f
+                        val ovulatoryEnd = (totalD / 2f) + 1f
+
+                        val xMenstrualEnd = (menstrualEnd / totalD) * width
+                        val xFollicularEnd = (follicularEnd / totalD) * width
+                        val xOvulatoryEnd = (ovulatoryEnd / totalD) * width
+
+                        // Draw shaded phase backgrounds
+                        drawRect(
+                            color = Color(0xFFEF5350).copy(alpha = 0.08f),
+                            topLeft = Offset(0f, 0f),
+                            size = Size(xMenstrualEnd, height)
+                        )
+                        drawRect(
+                            color = Color(0xFF42A5F5).copy(alpha = 0.05f),
+                            topLeft = Offset(xMenstrualEnd, 0f),
+                            size = Size(xFollicularEnd - xMenstrualEnd, height)
+                        )
+                        drawRect(
+                            color = Color(0xFF66BB6A).copy(alpha = 0.08f),
+                            topLeft = Offset(xFollicularEnd, 0f),
+                            size = Size(xOvulatoryEnd - xFollicularEnd, height)
+                        )
+                        drawRect(
+                            color = Color(0xFFFFA726).copy(alpha = 0.05f),
+                            topLeft = Offset(xOvulatoryEnd, 0f),
+                            size = Size(width - xOvulatoryEnd, height)
+                        )
+
+                        // Draw phase boundaries
+                        val gridPathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                        drawLine(
+                            color = Color.Gray.copy(alpha = 0.2f),
+                            start = Offset(xMenstrualEnd, 0f),
+                            end = Offset(xMenstrualEnd, height),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = gridPathEffect
+                        )
+                        drawLine(
+                            color = Color.Gray.copy(alpha = 0.2f),
+                            start = Offset(xFollicularEnd, 0f),
+                            end = Offset(xFollicularEnd, height),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = gridPathEffect
+                        )
+                        drawLine(
+                            color = Color.Gray.copy(alpha = 0.2f),
+                            start = Offset(xOvulatoryEnd, 0f),
+                            end = Offset(xOvulatoryEnd, height),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = gridPathEffect
+                        )
+
+                        // Compute curves
+                        val pathEstrogen = Path()
+                        val pathProgesterone = Path()
+
+                        for (i in 0..100) {
+                            val progress = i / 100f
+                            val dVal = 1f + progress * (totalD - 1f)
+                            val est = getEstrogenLevel(dVal, totalD)
+                            val prog = getProgesteroneLevel(dVal, totalD)
+
+                            val cx = progress * width
+                            val cyEst = height - (est * (height - 40.dp.toPx()) + 20.dp.toPx())
+                            val cyProg = height - (prog * (height - 40.dp.toPx()) + 20.dp.toPx())
+
+                            if (i == 0) {
+                                pathEstrogen.moveTo(cx, cyEst)
+                                pathProgesterone.moveTo(cx, cyProg)
+                            } else {
+                                pathEstrogen.lineTo(cx, cyEst)
+                                pathProgesterone.lineTo(cx, cyProg)
+                            }
+                        }
+
+                        // Draw paths
+                        drawPath(
+                            path = pathEstrogen,
+                            color = BrandPink,
+                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                        drawPath(
+                            path = pathProgesterone,
+                            color = BrandViolet,
+                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                        )
+
+                        // Draw current day line marker
+                        val currentX = ((cycleDay - 1f) / (totalD - 1f)) * width
+                        drawLine(
+                            color = phaseColor,
+                            start = Offset(currentX, 0f),
+                            end = Offset(currentX, height),
+                            strokeWidth = 2.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
+                        )
+
+                        // Draw active dots
+                        val currentEstY = height - (getEstrogenLevel(cycleDay.toFloat(), totalD) * (height - 40.dp.toPx()) + 20.dp.toPx())
+                        val currentProgY = height - (getProgesteroneLevel(cycleDay.toFloat(), totalD) * (height - 40.dp.toPx()) + 20.dp.toPx())
+
+                        drawCircle(
+                            color = BrandPink,
+                            radius = 6.dp.toPx(),
+                            center = Offset(currentX, currentEstY)
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 3.dp.toPx(),
+                            center = Offset(currentX, currentEstY)
+                        )
+
+                        drawCircle(
+                            color = BrandViolet,
+                            radius = 6.dp.toPx(),
+                            center = Offset(currentX, currentProgY)
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 3.dp.toPx(),
+                            center = Offset(currentX, currentProgY)
+                        )
+                    }
+                }
+
+                // Phase labeling under Canvas
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Day 1", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                    Text("Day ${totalDays/2}", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                    Text("Day $totalDays", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                }
+
+                // Phase Detailed Insight
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(phaseColor.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                        .border(1.dp, phaseColor.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(phaseColor))
+                        Text(
+                            text = "Phase Insight: $phaseName",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = phaseColor
+                        )
+                    }
+                    Text(
+                        text = phaseInsight,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PeriodSymptomPeakChartCard(periodCycles: List<PeriodCycleEntity>) {
+    val symptomCounts = remember(periodCycles) {
+        val counts = mutableMapOf<String, Int>()
+        periodCycles.forEach { cycle ->
+            if (cycle.symptoms.isNotBlank()) {
+                cycle.symptoms.split(",").forEach { s ->
+                    val cleanSym = s.trim()
+                    if (cleanSym.isNotEmpty()) {
+                        counts[cleanSym] = (counts[cleanSym] ?: 0) + 1
+                    }
+                }
+            }
+        }
+        counts.entries.sortedByDescending { it.value }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 6.dp)
+            ) {
+                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                Text("PERIOD SYMPTOM PEAKS 🩹", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+            }
+            Text(
+                "Aggregated frequency of symptoms logged during your cycles",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.padding(bottom = 14.dp)
+            )
+
+            if (symptomCounts.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No cycle symptoms logged yet.", fontSize = 12.sp, color = Color.Gray)
+                }
+            } else {
+                val maxCount = symptomCounts.firstOrNull()?.value ?: 1
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    symptomCounts.take(5).forEach { entry ->
+                        val progress = entry.value.toFloat() / maxCount.toFloat()
+                        
+                        // Select a suitable emoji for common symptoms
+                        val emoji = when (entry.key.lowercase(Locale.US)) {
+                            "cramps" -> "⚡"
+                            "headache" -> "🧠"
+                            "bloating" -> "🎈"
+                            "mood swings" -> "🎭"
+                            "fatigue" -> "💤"
+                            "nausea" -> "🤢"
+                            "acne" -> "🧼"
+                            "cravings" -> "🍫"
+                            else -> "🩹"
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(emoji, fontSize = 14.sp)
+                                    Text(
+                                        text = entry.key,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = "${entry.value} logs",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandRose
+                                )
+                            }
+
+                            // Custom Peak/Hill Bar design
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(14.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(7.dp))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(progress)
+                                        .fillMaxHeight()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                colors = listOf(BrandPink, BrandRose)
+                                            ),
+                                            RoundedCornerShape(7.dp)
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 

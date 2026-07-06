@@ -167,19 +167,25 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
 
                         val profile = dao.getUserProfile(userId)
                         val dailyTarget = profile?.financeDailyTarget ?: 1000.0
+                        val leftToSpend = dailyTarget - spentToday
 
-                        views.setTextViewText(R.id.txt_analytics_title, "Finance Summary 💰")
+                        views.setTextViewText(R.id.txt_analytics_title, "Finance Insights 💰")
                         views.setTextColor(R.id.txt_analytics_title, accentColor)
 
-                        views.setTextViewText(R.id.txt_metric1_label, "Cumulative Balance:")
+                        views.setTextViewText(R.id.txt_metric1_label, "Available Balance:")
                         views.setTextColor(R.id.txt_metric1_label, textSecondaryColor)
-                        views.setTextViewText(R.id.txt_metric1_value, "₹${String.format("%.2f", balance)}")
+                        views.setTextViewText(R.id.txt_metric1_value, "₹${String.format("%.1f", balance)}")
                         views.setTextColor(R.id.txt_metric1_value, textPrimaryColor)
 
-                        views.setTextViewText(R.id.txt_metric2_label, "Spent Today:")
+                        views.setTextViewText(R.id.txt_metric2_label, "Limit Buffer:")
                         views.setTextColor(R.id.txt_metric2_label, textSecondaryColor)
-                        views.setTextViewText(R.id.txt_metric2_value, "₹${String.format("%.2f", spentToday)}")
-                        views.setTextColor(R.id.txt_metric2_value, if (spentToday > dailyTarget) Color.parseColor("#EF4444") else textPrimaryColor)
+                        val budgetStatusText = if (leftToSpend >= 0) {
+                            "₹${String.format("%.1f", leftToSpend)} left"
+                        } else {
+                            "₹${String.format("%.1f", -leftToSpend)} over!"
+                        }
+                        views.setTextViewText(R.id.txt_metric2_value, budgetStatusText)
+                        views.setTextColor(R.id.txt_metric2_value, if (leftToSpend < 0) Color.parseColor("#EF4444") else textPrimaryColor)
 
                         // Progress indicator for finance spending
                         val progress = if (dailyTarget > 0) {
@@ -211,18 +217,19 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                         val exerciseLogs = dao.getExerciseLogsForUser(userId)
                         val todayExercise = exerciseLogs.filter { it.date == todayStr }.sumOf { it.durationMinutes }
 
-                        views.setTextViewText(R.id.txt_analytics_title, "Health Tracker 💧")
+                        views.setTextViewText(R.id.txt_analytics_title, "Health Insights 💧")
                         views.setTextColor(R.id.txt_analytics_title, accentColor)
 
-                        views.setTextViewText(R.id.txt_metric1_label, "Water Hydration:")
+                        views.setTextViewText(R.id.txt_metric1_label, "Water Drunk Today:")
                         views.setTextColor(R.id.txt_metric1_label, textSecondaryColor)
-                        views.setTextViewText(R.id.txt_metric1_value, "$todayGlasses of $targetGlasses glasses")
+                        views.setTextViewText(R.id.txt_metric1_value, "$todayGlasses / $targetGlasses Glasses")
                         views.setTextColor(R.id.txt_metric1_value, textPrimaryColor)
 
-                        views.setTextViewText(R.id.txt_metric2_label, "Exercise Duration:")
+                        views.setTextViewText(R.id.txt_metric2_label, "Active Exercise:")
                         views.setTextColor(R.id.txt_metric2_label, textSecondaryColor)
-                        views.setTextViewText(R.id.txt_metric2_value, "$todayExercise mins")
-                        views.setTextColor(R.id.txt_metric2_value, textPrimaryColor)
+                        val excText = if (todayExercise > 0) "$todayExercise mins logged" else "None logged yet"
+                        views.setTextViewText(R.id.txt_metric2_value, excText)
+                        views.setTextColor(R.id.txt_metric2_value, if (todayExercise > 0) Color.parseColor("#10B981") else textPrimaryColor)
 
                         // Progress based on water target glasses
                         val progress = if (targetGlasses > 0) {
@@ -247,29 +254,28 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
 
                         // Get task stats
                         val tasks = dao.getTasksForUser(userId)
-                        val completedCount = tasks.count { it.completed }
-                        val totalCount = tasks.size
-
                         val todayTasks = tasks.filter { com.example.utils.TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) }
                         val completedToday = todayTasks.count { it.completed }
                         val totalToday = todayTasks.size
+                        val pendingToday = totalToday - completedToday
 
-                        views.setTextViewText(R.id.txt_analytics_title, "Task Deadlines ✅")
+                        views.setTextViewText(R.id.txt_analytics_title, "Task Insights ✅")
                         views.setTextColor(R.id.txt_analytics_title, accentColor)
 
-                        views.setTextViewText(R.id.txt_metric1_label, "All-time Completion:")
+                        views.setTextViewText(R.id.txt_metric1_label, "Today's Progress:")
                         views.setTextColor(R.id.txt_metric1_label, textSecondaryColor)
-                        views.setTextViewText(R.id.txt_metric1_value, "$completedCount of $totalCount done")
+                        views.setTextViewText(R.id.txt_metric1_value, "$completedToday / $totalToday Tasks done")
                         views.setTextColor(R.id.txt_metric1_value, textPrimaryColor)
 
-                        views.setTextViewText(R.id.txt_metric2_label, "Scheduled Today:")
+                        views.setTextViewText(R.id.txt_metric2_label, "Action Item:")
                         views.setTextColor(R.id.txt_metric2_label, textSecondaryColor)
-                        views.setTextViewText(R.id.txt_metric2_value, "$completedToday of $totalToday done")
-                        views.setTextColor(R.id.txt_metric2_value, textPrimaryColor)
+                        val taskStatusText = if (pendingToday > 0) "$pendingToday tasks remaining" else "All tasks completed! 🎉"
+                        views.setTextViewText(R.id.txt_metric2_value, taskStatusText)
+                        views.setTextColor(R.id.txt_metric2_value, if (pendingToday > 0) Color.parseColor("#F59E0B") else Color.parseColor("#10B981"))
 
-                        // Progress based on completed tasks percentage
-                        val progress = if (totalCount > 0) {
-                            ((completedCount.toDouble() / totalCount) * 100).toInt().coerceIn(0, 100)
+                        // Progress based on completed tasks percentage today
+                        val progress = if (totalToday > 0) {
+                            ((completedToday.toDouble() / totalToday) * 100).toInt().coerceIn(0, 100)
                         } else {
                             0
                         }

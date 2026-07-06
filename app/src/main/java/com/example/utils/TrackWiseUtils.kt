@@ -17,7 +17,9 @@ object TrackWiseUtils {
         sb.append("[")
         subtasks.forEachIndexed { index, subTask ->
             val escapedTitle = subTask.title.replace("\"", "\\\"")
-            sb.append("{\"id\":\"${subTask.id}\",\"title\":\"$escapedTitle\",\"completed\":${subTask.completed}}")
+            val escapedDueDate = subTask.dueDate?.replace("\"", "\\\"") ?: ""
+            val escapedDueTime = subTask.dueTime?.replace("\"", "\\\"") ?: ""
+            sb.append("{\"id\":\"${subTask.id}\",\"title\":\"$escapedTitle\",\"completed\":${subTask.completed},\"dueDate\":\"$escapedDueDate\",\"dueTime\":\"$escapedDueTime\"}")
             if (index < subtasks.size - 1) sb.append(",")
         }
         sb.append("]")
@@ -28,14 +30,31 @@ object TrackWiseUtils {
         if (json.isBlank() || json == "[]") return emptyList()
         val list = mutableListOf<SubTask>()
         try {
-            // Simple manual parse for safety
-            val regex = """\{"id":"([^"]*)","title":"([^"]*)","completed":(true|false)\}""".toRegex()
-            val matches = regex.findAll(json)
-            for (match in matches) {
-                val id = match.groupValues[1]
-                val title = match.groupValues[2].replace("\\\"", "\"")
-                val completed = match.groupValues[3].toBoolean()
-                list.add(SubTask(id, title, completed))
+            val objRegex = """\{([^}]+)\}""".toRegex()
+            val keyValRegex = """\"([^\"]+)\"\s*:\s*(\"([^\"]*)\"|(true|false))""".toRegex()
+            
+            val objects = objRegex.findAll(json)
+            for (obj in objects) {
+                val content = obj.groupValues[1]
+                var id = ""
+                var title = ""
+                var completed = false
+                var dueDate: String? = null
+                var dueTime: String? = null
+                
+                val pairs = keyValRegex.findAll(content)
+                for (pair in pairs) {
+                    val key = pair.groupValues[1]
+                    val value = if (pair.groupValues[3].isNotEmpty()) pair.groupValues[3] else pair.groupValues[4]
+                    when (key) {
+                        "id" -> id = value
+                        "title" -> title = value.replace("\\\"", "\"")
+                        "completed" -> completed = value.toBoolean()
+                        "dueDate" -> if (value.isNotBlank()) dueDate = value
+                        "dueTime" -> if (value.isNotBlank()) dueTime = value
+                    }
+                }
+                list.add(SubTask(id, title, completed, dueDate, dueTime))
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -468,12 +487,23 @@ object TrackWiseUtils {
     )
 
     fun shouldShowHabitOnDate(habit: com.example.data.HabitEntity, dateStr: String): Boolean {
-        val sDate = if (!habit.startDate.isNullOrBlank()) habit.startDate else habit.createdAt
+        val rawSDate = if (!habit.startDate.isNullOrBlank()) habit.startDate else habit.createdAt
+        val sDate = rawSDate.take(10)
+        val eDate = habit.endDate?.take(10)
+
         if (dateStr < sDate) {
             return false
         }
-        if (!habit.endDate.isNullOrBlank() && dateStr > habit.endDate) {
+        if (!eDate.isNullOrBlank() && dateStr > eDate) {
             return false
+        }
+
+        val isToday = dateStr == getTodayString()
+        if (isToday && !habit.dueTime.isNullOrBlank()) {
+            val nowTimeStr = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+            if (nowTimeStr > habit.dueTime) {
+                return false
+            }
         }
 
         val date = parseDate(dateStr)

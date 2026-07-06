@@ -28,7 +28,7 @@ import androidx.room.RoomDatabase
         FinanceLogEntity::class,
         NetWorthItemEntity::class
     ],
-    version = 10,
+    version = 13,
     exportSchema = false
 )
 abstract class TrackWiseDatabase : RoomDatabase() {

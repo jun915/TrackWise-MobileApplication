@@ -33,9 +33,13 @@ import com.example.data.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 @Composable
 fun MainScreen(
@@ -54,6 +58,7 @@ fun MainScreen(
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncMessage by viewModel.syncMessage.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
+    val currentUser by viewModel.sessionUser.collectAsState()
     var leftDrawerOpen by remember { mutableStateOf(false) }
 
     var showImportOptionDialog by remember { mutableStateOf(false) }
@@ -200,6 +205,21 @@ fun MainScreen(
                 onNavigate = { activeTab = it },
                 onClose = { leftDrawerOpen = false },
                 onImportClick = { showImportOptionDialog = true }
+            )
+        }
+
+        // --- Onboarding Popup / Overlay ---
+        val needsOnboarding = currentUser != null && (
+            currentUser.dob.isNullOrBlank() ||
+            currentUser.gender.isNullOrBlank() ||
+            currentUser.phone.isNullOrBlank() ||
+            currentUser.religion.isNullOrBlank()
+        )
+
+        if (needsOnboarding) {
+            OnboardingOverlay(
+                viewModel = viewModel,
+                currentUser = currentUser!!
             )
         }
     }
@@ -1664,5 +1684,313 @@ fun LeftDrawerPane(
                 }
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OnboardingOverlay(
+    viewModel: TrackWiseViewModel,
+    currentUser: UserEntity
+) {
+    val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+
+    val initialFirst = remember(currentUser.fullName) {
+        val parts = currentUser.fullName.split(" ")
+        parts.firstOrNull() ?: ""
+    }
+    val initialLast = remember(currentUser.fullName) {
+        val parts = currentUser.fullName.split(" ")
+        if (parts.size > 1) parts.drop(1).joinToString(" ") else ""
+    }
+
+    var firstName by remember { mutableStateOf(initialFirst) }
+    var lastName by remember { mutableStateOf(initialLast) }
+    val email = currentUser.email
+    var phone by remember { mutableStateOf(currentUser.phone ?: "") }
+    var gender by remember { mutableStateOf(currentUser.gender ?: "Male") }
+    var religion by remember { mutableStateOf(currentUser.religion ?: "Islam") }
+    var dob by remember { mutableStateOf(currentUser.dob ?: "") }
+
+    var showError by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf("") }
+
+    val calendar = Calendar.getInstance()
+    val datePickerDialog = remember(calendar) {
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val monthStr = String.format("%02d", month + 1)
+                val dayStr = String.format("%02d", dayOfMonth)
+                dob = "$year-$monthStr-$dayStr"
+            },
+            calendar.get(Calendar.YEAR) - 20,
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    var genderDropdownExpanded by remember { mutableStateOf(false) }
+    var religionDropdownExpanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.85f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusManager.clearFocus()
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.85f)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                }
+                .border(1.dp, BrandViolet.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
+        ) {
+            val scrollState = rememberScrollState()
+            LaunchedEffect(scrollState.isScrollInProgress) {
+                if (scrollState.isScrollInProgress) {
+                    focusManager.clearFocus()
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Welcome to TrackWise! 🌟",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = BrandViolet,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "Let's personalize your experience. Please fill out your details.",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                if (showError && validationError.isNotBlank()) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Text(
+                                text = validationError,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = firstName,
+                    onValueChange = { firstName = it },
+                    label = { Text("First Name *") },
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = BrandViolet) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = lastName,
+                    onValueChange = { lastName = it },
+                    label = { Text("Last Name *") },
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = BrandViolet) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {},
+                    label = { Text("Email (Signed up with)") },
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Color.Gray) },
+                    singleLine = true,
+                    readOnly = true,
+                    enabled = false,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone Number *") },
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = BrandViolet) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { datePickerDialog.show() }
+                ) {
+                    OutlinedTextField(
+                        value = dob,
+                        onValueChange = {},
+                        label = { Text("Date of Birth (YYYY-MM-DD) *") },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandViolet) },
+                        readOnly = true,
+                        enabled = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { datePickerDialog.show() }
+                    )
+                }
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = gender,
+                        onValueChange = {},
+                        label = { Text("Gender *") },
+                        leadingIcon = { Icon(Icons.Default.Face, contentDescription = null, tint = BrandViolet) },
+                        readOnly = true,
+                        enabled = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        trailingIcon = {
+                            IconButton(onClick = { genderDropdownExpanded = !genderDropdownExpanded }) {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { genderDropdownExpanded = !genderDropdownExpanded }
+                    )
+                    DropdownMenu(
+                        expanded = genderDropdownExpanded,
+                        onDismissRequest = { genderDropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.85f)
+                    ) {
+                        listOf("Male", "Female", "Prefer not to say").forEach { g ->
+                            DropdownMenuItem(
+                                text = { Text(g) },
+                                onClick = {
+                                    gender = g
+                                    genderDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = religion,
+                        onValueChange = {},
+                        label = { Text("Religion *") },
+                        leadingIcon = { Icon(Icons.Default.Book, contentDescription = null, tint = BrandViolet) },
+                        readOnly = true,
+                        enabled = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        trailingIcon = {
+                            IconButton(onClick = { religionDropdownExpanded = !religionDropdownExpanded }) {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { religionDropdownExpanded = !religionDropdownExpanded }
+                    )
+                    DropdownMenu(
+                        expanded = religionDropdownExpanded,
+                        onDismissRequest = { religionDropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.85f)
+                    ) {
+                        listOf("Islam", "Hindu", "Christian", "Sikh", "Others").forEach { r ->
+                            DropdownMenuItem(
+                                text = { Text(r) },
+                                onClick = {
+                                    religion = r
+                                    religionDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = {
+                        if (firstName.isBlank() || lastName.isBlank()) {
+                            validationError = "First and Last Name are required."
+                            showError = true
+                        } else if (phone.isBlank() || phone.length < 10) {
+                            validationError = "Please enter a valid phone number (at least 10 digits)."
+                            showError = true
+                        } else if (dob.isBlank()) {
+                            validationError = "Please select your Date of Birth."
+                            showError = true
+                        } else {
+                            viewModel.completeOnboarding(
+                                firstName = firstName.trim(),
+                                lastName = lastName.trim(),
+                                phone = phone.trim(),
+                                gender = gender,
+                                religion = religion,
+                                dob = dob
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                ) {
+                    Text("COMPLETE PROFILE SETUP", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
