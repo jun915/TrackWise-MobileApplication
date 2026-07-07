@@ -156,13 +156,14 @@ fun FinanceScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("income", "expense", "borrowed").forEach { t ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("income", "expense", "savings", "borrowed").forEach { t ->
                             val selected = editType == t
                             val color = when (t) {
                                 "income" -> BrandViolet
                                 "expense" -> BrandRose
-                                else -> BrandGreen
+                                "savings" -> BrandGreen
+                                else -> BrandOrange
                             }
                             Button(
                                 onClick = { editType = t },
@@ -171,9 +172,15 @@ fun FinanceScreen(
                                     contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text(t.replaceFirstChar { it.uppercase() }, fontSize = 10.sp)
+                                Text(
+                                    text = t.replaceFirstChar { tChar -> tChar.uppercase() },
+                                    fontSize = 9.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
                             }
                         }
                     }
@@ -1290,8 +1297,17 @@ fun FinanceScreen(
                                         maxLines = 1,
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = log.category,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Row(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         val formattedDate = try {
@@ -1301,37 +1317,35 @@ fun FinanceScreen(
                                             log.date
                                         }
                                         Text(
-                                            text = "($formattedDate)",
+                                            text = formattedDate,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                        Text(
-                                            text = "•",
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
-                                        )
-                                        Text(
-                                            text = log.category,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
                                         )
                                         if (!log.spendSource.isNullOrBlank()) {
                                             Text(
-                                                text = "• Src: ${log.spendSource}",
-                                                fontSize = 11.sp,
+                                                text = "•",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
+                                            )
+                                            Text(
+                                                text = "Src: ${log.spendSource}",
+                                                fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = BrandRose
+                                                color = BrandRose,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
                                         }
                                     }
                                     if (!log.notes.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = log.notes,
                                             fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                         )
                                     }
                                 }

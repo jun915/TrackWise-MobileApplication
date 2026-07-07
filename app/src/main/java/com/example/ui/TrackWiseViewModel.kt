@@ -2001,7 +2001,7 @@ class TrackWiseViewModel(
     }
 
     // --- Settings Panels Actions ---
-    fun generateBackupJsonString(user: UserEntity): String {
+    suspend fun generateBackupJsonString(user: UserEntity): String {
         val rootJson = org.json.JSONObject()
         rootJson.put("version", 1)
         
@@ -2014,7 +2014,7 @@ class TrackWiseViewModel(
         
         // Tasks
         val tasksArray = org.json.JSONArray()
-        allTasks.value.forEach { item ->
+        repository.getTasksFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("title", item.title)
@@ -2033,7 +2033,7 @@ class TrackWiseViewModel(
         
         // Habits
         val habitsArray = org.json.JSONArray()
-        allHabits.value.forEach { item ->
+        repository.getHabitsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("name", item.name)
@@ -2050,7 +2050,7 @@ class TrackWiseViewModel(
 
         // Alarms
         val alarmsArray = org.json.JSONArray()
-        allAlarms.value.forEach { item ->
+        repository.getAlarmsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("label", item.label)
@@ -2065,7 +2065,7 @@ class TrackWiseViewModel(
 
         // Water Logs
         val waterArray = org.json.JSONArray()
-        waterLogs.value.forEach { item ->
+        repository.getWaterLogsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("date", item.date)
@@ -2079,7 +2079,7 @@ class TrackWiseViewModel(
 
         // Vital Readings
         val vitalsArray = org.json.JSONArray()
-        vitalReadings.value.forEach { item ->
+        repository.getVitalsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("type", item.type)
@@ -2094,7 +2094,7 @@ class TrackWiseViewModel(
 
         // Weight Entries
         val weightArray = org.json.JSONArray()
-        weightEntries.value.forEach { item ->
+        repository.getWeightEntriesFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("date", item.date)
@@ -2107,7 +2107,7 @@ class TrackWiseViewModel(
 
         // Sleep Logs
         val sleepArray = org.json.JSONArray()
-        sleepLogs.value.forEach { item ->
+        repository.getSleepLogsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("date", item.date)
@@ -2120,7 +2120,7 @@ class TrackWiseViewModel(
         rootJson.put("sleepLogs", sleepArray)
 
         // Profile
-        userProfile.value?.let { prof ->
+        repository.getUserProfileFlow(user.id).first()?.let { prof ->
             val obj = org.json.JSONObject()
             obj.put("userId", prof.userId)
             obj.put("firstName", prof.firstName)
@@ -2162,13 +2162,14 @@ class TrackWiseViewModel(
             obj.put("vitalsBloodPressure", prof.vitalsBloodPressure)
             obj.put("vitalsHeartRate", prof.vitalsHeartRate)
             obj.put("vitalsBloodGroup", prof.vitalsBloodGroup)
+            obj.put("religion", prof.religion)
             obj.put("financeDailyTarget", prof.financeDailyTarget)
             rootJson.put("profile", obj)
         }
 
         // Birthdays / Occasions
         val birthdaysArray = org.json.JSONArray()
-        allBirthdays.value.forEach { item ->
+        repository.getBirthdaysFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("name", item.name)
@@ -2181,7 +2182,7 @@ class TrackWiseViewModel(
 
         // Wishlist
         val wishlistArray = org.json.JSONArray()
-        allWishlist.value.forEach { item ->
+        repository.getWishlistFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("title", item.title)
@@ -2195,7 +2196,7 @@ class TrackWiseViewModel(
 
         // Grocery Items
         val groceryArray = org.json.JSONArray()
-        allGroceryItems.value.forEach { item ->
+        repository.getGroceryItemsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("name", item.name)
@@ -2211,7 +2212,7 @@ class TrackWiseViewModel(
 
         // Streak History
         val streakHistoryArray = org.json.JSONArray()
-        streakHistory.value.forEach { item ->
+        repository.getStreakHistoryFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("date", item.date)
@@ -2222,7 +2223,7 @@ class TrackWiseViewModel(
 
         // Exercise Logs
         val exerciseArray = org.json.JSONArray()
-        exerciseLogs.value.forEach { item ->
+        repository.getExerciseLogsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("date", item.date)
@@ -2237,7 +2238,7 @@ class TrackWiseViewModel(
 
         // Health Issue Logs
         val healthIssueArray = org.json.JSONArray()
-        healthIssueLogs.value.forEach { item ->
+        repository.getHealthIssueLogsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("date", item.date)
@@ -2253,7 +2254,7 @@ class TrackWiseViewModel(
 
         // Tablet Reminders
         val tabletArray = org.json.JSONArray()
-        tabletReminders.value.forEach { item ->
+        repository.getTabletRemindersFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("tabletName", item.tabletName)
@@ -2268,7 +2269,7 @@ class TrackWiseViewModel(
 
         // Period Cycles
         val periodArray = org.json.JSONArray()
-        periodCycles.value.forEach { item ->
+        repository.getPeriodCyclesFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("startDate", item.startDate)
@@ -2282,7 +2283,7 @@ class TrackWiseViewModel(
 
         // Finance Logs
         val financeArray = org.json.JSONArray()
-        allFinanceLogs.value.forEach { item ->
+        repository.getFinanceLogsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("date", item.date)
@@ -2298,7 +2299,7 @@ class TrackWiseViewModel(
 
         // Net Worth Items
         val netWorthArray = org.json.JSONArray()
-        allNetWorthItems.value.forEach { item ->
+        repository.getNetWorthItemsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("name", item.name)
@@ -2310,7 +2311,7 @@ class TrackWiseViewModel(
 
         // Friends
         val friendsArray = org.json.JSONArray()
-        friendConnections.value.forEach { item ->
+        repository.getFriendsFlow(user.id).first().forEach { item ->
             val obj = org.json.JSONObject()
             obj.put("id", item.id)
             obj.put("friendUserId", item.friendUserId)
@@ -2632,7 +2633,9 @@ class TrackWiseViewModel(
                         vitalsWeight = obj.optString("vitalsWeight", ""),
                         vitalsBloodPressure = obj.optString("vitalsBloodPressure", ""),
                         vitalsHeartRate = obj.optString("vitalsHeartRate", ""),
-                        vitalsBloodGroup = obj.optString("vitalsBloodGroup", "")
+                        vitalsBloodGroup = obj.optString("vitalsBloodGroup", ""),
+                        religion = obj.optString("religion", "Others"),
+                        financeDailyTarget = obj.optDouble("financeDailyTarget", 30000.0)
                     )
                     repository.insertUserProfile(entity)
                 }

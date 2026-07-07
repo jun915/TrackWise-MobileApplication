@@ -634,7 +634,7 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(0.8f)
                 )
 
                 OutlinedTextField(
@@ -642,7 +642,7 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
                     onValueChange = { notesInput = it },
                     label = { Text("Notes (optional)") },
                     singleLine = true,
-                    modifier = Modifier.weight(1.5f)
+                    modifier = Modifier.weight(1.8f)
                 )
             }
 
@@ -1380,8 +1380,8 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
             Text("LOG EXERCISE ACTIVITY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Exercise selector dropdown (weight 1f)
-                Box(modifier = Modifier.weight(1f)) {
+                // Exercise selector dropdown (weight 1.8f)
+                Box(modifier = Modifier.weight(1.8f)) {
                     OutlinedTextField(
                         value = selectedType,
                         onValueChange = {},
@@ -1412,7 +1412,7 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                     }
                 }
 
-                // Duration input box (weight 1f)
+                // Duration input box (weight 0.8f)
                 OutlinedTextField(
                     value = durationInput,
                     onValueChange = { 
@@ -1429,7 +1429,7 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(0.8f)
                 )
             }
 
