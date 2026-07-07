@@ -33,9 +33,20 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (::viewModel.isInitialized) {
-            intent.getStringExtra("target_tab")?.let {
-                viewModel.setNotificationNavigateTab(it)
+        handleIntentExtras(intent)
+    }
+
+    private fun handleIntentExtras(intent: android.content.Intent) {
+        val targetTab = intent.getStringExtra("target_tab")
+        val targetSubTab = intent.getIntExtra("target_sub_tab", -1)
+        if (targetTab != null && ::viewModel.isInitialized) {
+            viewModel.setNotificationNavigateTab(targetTab)
+            if (targetSubTab != -1) {
+                if (targetTab == "workspace") {
+                    viewModel.setWorkspaceSubTab(targetSubTab)
+                } else if (targetTab == "health") {
+                    viewModel.setHealthSubTab(targetSubTab)
+                }
             }
         }
     }
@@ -49,9 +60,10 @@ class MainActivity : ComponentActivity() {
         val repository = TrackWiseRepository(database.trackWiseDao())
         viewModel = TrackWiseViewModel(application, repository)
 
-        intent.getStringExtra("target_tab")?.let {
-            viewModel.setNotificationNavigateTab(it)
-        }
+        handleIntentExtras(intent)
+
+        // Schedule persistent background reminder receiver
+        com.example.receiver.ReminderReceiver.scheduleBackgroundReminderAlarm(applicationContext)
 
         setContent {
             val themeMode by viewModel.themeMode.collectAsState()

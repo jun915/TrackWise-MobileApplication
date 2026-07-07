@@ -1888,17 +1888,15 @@ fun OnboardingOverlay(
                         label = { Text("Gender *") },
                         leadingIcon = { Icon(Icons.Default.Face, contentDescription = null, tint = BrandViolet) },
                         readOnly = true,
-                        enabled = false,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledBorderColor = MaterialTheme.colorScheme.outline,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface
-                        ),
                         trailingIcon = {
                             IconButton(onClick = { genderDropdownExpanded = !genderDropdownExpanded }) {
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                             }
                         },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BrandViolet,
+                            focusedLabelColor = BrandViolet
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { genderDropdownExpanded = !genderDropdownExpanded }
@@ -1927,17 +1925,15 @@ fun OnboardingOverlay(
                         label = { Text("Religion *") },
                         leadingIcon = { Icon(Icons.Default.Book, contentDescription = null, tint = BrandViolet) },
                         readOnly = true,
-                        enabled = false,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledBorderColor = MaterialTheme.colorScheme.outline,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface
-                        ),
                         trailingIcon = {
                             IconButton(onClick = { religionDropdownExpanded = !religionDropdownExpanded }) {
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                             }
                         },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BrandViolet,
+                            focusedLabelColor = BrandViolet
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { religionDropdownExpanded = !religionDropdownExpanded }
@@ -1956,6 +1952,40 @@ fun OnboardingOverlay(
                                 }
                             )
                         }
+                    }
+                }
+
+                // Show detailed religion information card during onboarding
+                val religionDescription = when (religion) {
+                    "Islam" -> "Islamic context features the Hijri (Lunar) calendar, used to mark Islamic months and holy occasions like Ramadan, Eid al-Fitr, and Eid al-Adha. The Hijri year consists of 12 lunar months."
+                    "Hindu" -> "Hindu context features the Vikram Samvat / Saka (Luni-Solar) calendar, tracking moon phases (tithis, pakshas) and solar transits. It marks traditional events like Diwali, Holi, and Ekadashi fasting."
+                    "Christian" -> "Christian context features the standard Gregorian (Solar) calendar, aligning with holy milestones such as Christmas, Good Friday, Easter, and advent seasons."
+                    "Sikh" -> "Sikh context features the Nanakshahi calendar, honoring Gurpurab historical events, key martyrs, and teachings of the Sikh Gurus on a standard solar framework."
+                    else -> "General calendar context tracking international standard solar dates, global milestones, and universal events."
+                }
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = "✨ $religion Calendar Details",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = BrandViolet
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = religionDescription,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 14.sp
+                        )
                     }
                 }
 

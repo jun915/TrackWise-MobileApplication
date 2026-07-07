@@ -87,12 +87,68 @@ fun FinanceScreen(
                         label = { Text("Amount (INR)") },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = editCategory,
-                        onValueChange = { editCategory = it },
-                        label = { Text("Category") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    
+                    var editCategoryExpanded by remember { mutableStateOf(false) }
+                    val availableCategoriesForEdit = remember(editType) {
+                        when (editType) {
+                            "income" -> listOf("Salary", "Business", "Freelance", "Investment", "Pocket Money", "Others")
+                            "expense" -> listOf(
+                                "Housing and Utilities",
+                                "Groceries and Daily Essentials",
+                                "Education and Childcare",
+                                "Transport and Commute",
+                                "Healthcare and Insurance",
+                                "Lifestyle, Entertainment, and Discretionary",
+                                "Others"
+                            )
+                            else -> listOf("Borrowed", "Lent", "Repayment", "Others")
+                        }
+                    }
+                    
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = editCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            enabled = false,
+                            label = { Text("Category") },
+                            trailingIcon = {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { editCategoryExpanded = !editCategoryExpanded }
+                        )
+                        DropdownMenu(
+                            expanded = editCategoryExpanded,
+                            onDismissRequest = { editCategoryExpanded = false },
+                            modifier = Modifier
+                                .widthIn(min = 180.dp, max = 280.dp)
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(1.dp, BrandViolet.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        ) {
+                            availableCategoriesForEdit.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat) },
+                                    onClick = {
+                                        editCategory = cat
+                                        editCategoryExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = editNotes,
                         onValueChange = { editNotes = it },
@@ -1862,9 +1918,11 @@ fun TransactionDatePicker(
             value = dateStr,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Transaction Date") },
-            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = tintColor) },
-            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Date", tint = tintColor, modifier = Modifier.size(16.dp)) },
+            singleLine = true,
+            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+            label = { Text("Transaction Date", fontSize = 10.sp, maxLines = 1) },
+            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = tintColor, modifier = Modifier.size(18.dp)) },
+            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Date", tint = tintColor, modifier = Modifier.size(14.dp)) },
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         )

@@ -46,14 +46,13 @@ fun CalendarScreen(
         when {
             userReligion.equals("Islam", ignoreCase = true) -> listOf("none", "islamic")
             userReligion.equals("Hindu", ignoreCase = true) -> listOf("none", "hindu")
-            userReligion.equals("Christian", ignoreCase = true) -> listOf("none")
-            else -> listOf("none", "islamic", "hindu")
+            else -> listOf("none")
         }
     }
 
-    LaunchedEffect(availableOverlays, overlay) {
+    LaunchedEffect(userReligion, availableOverlays) {
         if (overlay !in availableOverlays) {
-            viewModel.setCalendarOverlay(availableOverlays.firstOrNull() ?: "none")
+            viewModel.setCalendarOverlay("none")
         }
     }
 
@@ -199,7 +198,7 @@ fun CalendarScreen(
         }
 
         // --- Calendar Overlay Selector (Only relevant in Month mode) ---
-        if (activeView == "month") {
+        if (activeView == "month" && availableOverlays.size > 1) {
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -222,9 +221,9 @@ fun CalendarScreen(
                         ) {
                             availableOverlays.forEach { mode ->
                                 val label = when(mode) {
-                                    "islamic" -> "URDU / HIJRI"
-                                    "hindu" -> "HINDU"
-                                    else -> "NONE"
+                                    "islamic" -> "HIJRI CALENDAR"
+                                    "hindu" -> "HINDU CALENDAR"
+                                    else -> "NORMAL CALENDAR"
                                 }
                                 Row(
                                     modifier = Modifier
@@ -251,6 +250,41 @@ fun CalendarScreen(
                                         modifier = Modifier.padding(start = 4.dp)
                                     )
                                 }
+                            }
+                        }
+
+                        // Show detailed religion details card here
+                        Spacer(modifier = Modifier.height(12.dp))
+                        val religionDescription = when (userReligion) {
+                            "Islam" -> "Islamic context features the Hijri (Lunar) calendar, used to mark Islamic months and holy occasions like Ramadan, Eid al-Fitr, and Eid al-Adha. The Hijri year consists of 12 lunar months."
+                            "Hindu" -> "Hindu context features the Vikram Samvat / Saka (Luni-Solar) calendar, tracking moon phases (tithis, pakshas) and solar transits. It marks traditional events like Diwali, Holi, and Ekadashi fasting."
+                            "Christian" -> "Christian context features the standard Gregorian (Solar) calendar, aligning with holy milestones such as Christmas, Good Friday, Easter, and advent seasons."
+                            "Sikh" -> "Sikh context features the Nanakshahi calendar, honoring Gurpurab historical events, key martyrs, and teachings of the Sikh Gurus on a standard solar framework."
+                            else -> "General calendar context tracking international standard solar dates, global milestones, and universal events."
+                        }
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = "✨ $userReligion Calendar Details",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = BrandCyan
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = religionDescription,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 14.sp
+                                )
                             }
                         }
                     }

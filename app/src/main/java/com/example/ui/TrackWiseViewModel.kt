@@ -231,6 +231,13 @@ class TrackWiseViewModel(
         _workspaceSubTab.value = tabIndex
     }
 
+    private val _healthSubTab = MutableStateFlow(0)
+    val healthSubTab: StateFlow<Int> = _healthSubTab.asStateFlow()
+
+    fun setHealthSubTab(tabIndex: Int) {
+        _healthSubTab.value = tabIndex
+    }
+
     val allGroceryItems: StateFlow<List<GroceryItemEntity>> = _sessionUser
         .flatMapLatest { user ->
             if (user != null) repository.getGroceryItemsFlow(user.id) else flowOf(emptyList())

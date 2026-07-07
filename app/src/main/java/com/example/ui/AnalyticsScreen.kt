@@ -54,8 +54,8 @@ fun AnalyticsScreen(
     val periodCycles by viewModel.periodCycles.collectAsState()
 
     val isFemale = remember(currentUser, userProfile) {
-        val g = userProfile?.gender ?: currentUser?.gender ?: ""
-        g.lowercase().let { it.contains("female") || it.contains("women") || it == "female" }
+        val g = (userProfile?.gender ?: currentUser?.gender ?: "").lowercase().trim()
+        g == "female" || g == "woman" || g == "women" || g == "girl"
     }
 
     // Interactive category selector

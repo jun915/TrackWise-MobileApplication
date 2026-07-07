@@ -4163,9 +4163,11 @@ fun DatePickerField(
             value = dateStr,
             onValueChange = {},
             readOnly = true,
-            label = { Text(label) },
-            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = tintColor) },
-            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Date", tint = tintColor, modifier = Modifier.size(16.dp)) },
+            singleLine = true,
+            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+            label = { Text(label, fontSize = 10.sp, maxLines = 1) },
+            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = tintColor, modifier = Modifier.size(18.dp)) },
+            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Date", tint = tintColor, modifier = Modifier.size(14.dp)) },
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         )
@@ -4209,9 +4211,11 @@ fun TimePickerField(
             value = displayValue,
             onValueChange = {},
             readOnly = true,
-            label = { Text(label) },
-            leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = tintColor) },
-            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Time", tint = tintColor, modifier = Modifier.size(16.dp)) },
+            singleLine = true,
+            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+            label = { Text(label, fontSize = 10.sp, maxLines = 1) },
+            leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = tintColor, modifier = Modifier.size(18.dp)) },
+            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Time", tint = tintColor, modifier = Modifier.size(14.dp)) },
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         )

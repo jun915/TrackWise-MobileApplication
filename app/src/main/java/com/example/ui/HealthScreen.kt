@@ -52,8 +52,8 @@ fun HealthScreen(
 
     val userProfile by viewModel.userProfile.collectAsState()
     val isWoman = remember(currentUser, userProfile) {
-        val g = userProfile?.gender ?: currentUser?.gender ?: ""
-        g.lowercase().let { it.contains("female") || it.contains("women") || it == "female" }
+        val g = (userProfile?.gender ?: currentUser?.gender ?: "").lowercase().trim()
+        g == "female" || g == "woman" || g == "women" || g == "girl"
     }
 
     val tabs = remember(isWoman) {
@@ -64,10 +64,10 @@ fun HealthScreen(
         list
     }
 
-    var activeSubTab by remember { mutableStateOf(0) }
+    val activeSubTab by viewModel.healthSubTab.collectAsState()
     LaunchedEffect(tabs) {
         if (activeSubTab >= tabs.size) {
-            activeSubTab = 0
+            viewModel.setHealthSubTab(0)
         }
     }
 
@@ -242,7 +242,7 @@ fun HealthScreen(
                                 )
                             },
                             onClick = {
-                                activeSubTab = index
+                                viewModel.setHealthSubTab(index)
                                 dropdownExpanded = false
                             },
                             leadingIcon = {
@@ -652,8 +652,10 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
                         value = selectedDate,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Log Date") },
-                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandPink, modifier = Modifier.size(16.dp)) },
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                        label = { Text("Log Date", fontSize = 10.sp, maxLines = 1) },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandPink, modifier = Modifier.size(18.dp)) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -731,6 +733,7 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
         val read = editingVitalReading!!
         var editValue by remember(read) { mutableStateOf(read.value) }
         var editContext by remember(read) { mutableStateOf(read.context ?: "fasting") }
+        var editContextExpanded by remember { mutableStateOf(false) }
 
         val scrollState = rememberScrollState()
         LaunchedEffect(scrollState.isScrollInProgress) {
@@ -760,12 +763,115 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                         label = { Text(if (read.type == "blood_sugar") "Value (mg/dL)" else "Value (Systolic/Diastolic)") },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = editContext,
-                        onValueChange = { editContext = it },
-                        label = { Text("Context") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    
+                    if (read.type == "blood_sugar") {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = if (editContext == "fasting") "Fasting" else if (editContext == "post_meal") "Post Meal" else "Random",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Condition / Meal State") },
+                                trailingIcon = {
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = BrandCyan,
+                                    focusedLabelColor = BrandCyan
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { editContextExpanded = !editContextExpanded }
+                            )
+                            DropdownMenu(
+                                expanded = editContextExpanded,
+                                onDismissRequest = { editContextExpanded = false },
+                                modifier = Modifier
+                                    .widthIn(min = 180.dp, max = 280.dp)
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(1.dp, BrandCyan.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Fasting") },
+                                    onClick = {
+                                        editContext = "fasting"
+                                        editContextExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Post Meal") },
+                                    onClick = {
+                                        editContext = "post_meal"
+                                        editContextExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Random") },
+                                    onClick = {
+                                        editContext = "random"
+                                        editContextExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        var editContextBpExpanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = if (editContext == "resting") "Resting" else if (editContext == "post_exercise") "Post Exercise" else "Random",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Context") },
+                                trailingIcon = {
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = BrandCyan,
+                                    focusedLabelColor = BrandCyan
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { editContextBpExpanded = !editContextBpExpanded }
+                            )
+                            DropdownMenu(
+                                expanded = editContextBpExpanded,
+                                onDismissRequest = { editContextBpExpanded = false },
+                                modifier = Modifier
+                                    .widthIn(min = 180.dp, max = 280.dp)
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(1.dp, BrandCyan.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Resting") },
+                                    onClick = {
+                                        editContext = "resting"
+                                        editContextBpExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Post Exercise") },
+                                    onClick = {
+                                        editContext = "post_exercise"
+                                        editContextBpExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Random") },
+                                    onClick = {
+                                        editContext = "random"
+                                        editContextBpExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -944,17 +1050,14 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                         value = if (contextInput == "fasting") "Fasting" else if (contextInput == "post_meal") "Post Meal" else "Random",
                         onValueChange = {},
                         readOnly = true,
-                        enabled = false,
                         label = { Text("Condition / Meal State") },
                         trailingIcon = {
                             Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
                         },
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                            disabledBorderColor = MaterialTheme.colorScheme.outline,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            focusedBorderColor = BrandRose,
+                            focusedLabelColor = BrandRose
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1022,8 +1125,10 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                         value = selectedDate,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Log Date") },
-                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(16.dp)) },
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                        label = { Text("Log Date", fontSize = 10.sp, maxLines = 1) },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(18.dp)) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1126,6 +1231,8 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
         var editType by remember(log) { mutableStateOf(log.exerciseType) }
         var editDuration by remember(log) { mutableStateOf(log.durationMinutes.toString()) }
         var editNotes by remember(log) { mutableStateOf(log.notes ?: "") }
+        var editTypeExpanded by remember { mutableStateOf(false) }
+        val exerciseOptions = listOf("Walking", "Running", "Gym/Weights", "Yoga", "Cycling", "Others")
 
         val scrollState = rememberScrollState()
         LaunchedEffect(scrollState.isScrollInProgress) {
@@ -1149,12 +1256,48 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                         },
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    OutlinedTextField(
-                        value = editType,
-                        onValueChange = { editType = it },
-                        label = { Text("Activity Type *") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = editType,
+                            onValueChange = {},
+                            readOnly = true,
+                            enabled = false,
+                            label = { Text("Activity Type *") },
+                            trailingIcon = {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Toggle")
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { editTypeExpanded = !editTypeExpanded }
+                        )
+                        DropdownMenu(
+                            expanded = editTypeExpanded,
+                            onDismissRequest = { editTypeExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surface)
+                        ) {
+                            exerciseOptions.forEach { opt ->
+                                DropdownMenuItem(
+                                    text = { Text(opt) },
+                                    onClick = {
+                                        editType = opt
+                                        editTypeExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
                     OutlinedTextField(
                         value = editDuration,
                         onValueChange = { editDuration = it },
@@ -1318,8 +1461,10 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                         value = selectedDate,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Log Date") },
-                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(16.dp)) },
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                        label = { Text("Log Date", fontSize = 10.sp, maxLines = 1) },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(18.dp)) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1532,8 +1677,10 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
                         value = selectedDate,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Log Date") },
-                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandRose, modifier = Modifier.size(16.dp)) },
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                        label = { Text("Log Date", fontSize = 10.sp, maxLines = 1) },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandRose, modifier = Modifier.size(18.dp)) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1762,8 +1909,10 @@ fun SleepLogSection(
                         value = selectedDate,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Sleep Date") },
-                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(16.dp)) },
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                        label = { Text("Sleep Date", fontSize = 10.sp, maxLines = 1) },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(18.dp)) },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
