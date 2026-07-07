@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.data.TrackWiseDatabase
 import com.example.repository.TrackWiseRepository
@@ -70,9 +71,27 @@ class MainActivity : ComponentActivity() {
             val themeAccent by viewModel.appThemeSelection.collectAsState()
 
             val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            
+            // Auto theme calculation (Dark: <6 AM or >= 6 PM)
+            var autoIsDark by androidx.compose.runtime.remember(themeMode) {
+                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                androidx.compose.runtime.mutableStateOf(hour < 6 || hour >= 18)
+            }
+            
+            if (themeMode == "auto") {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    while (true) {
+                        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                        autoIsDark = hour < 6 || hour >= 18
+                        kotlinx.coroutines.delay(15000) // check every 15 seconds to remain perfectly synced
+                    }
+                }
+            }
+
             val isDark = when (themeMode) {
                 "dark" -> true
                 "light" -> false
+                "auto" -> autoIsDark
                 else -> systemDark
             }
 

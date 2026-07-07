@@ -65,10 +65,32 @@ fun AuthScreen(
     val authError by viewModel.authError.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
     
-    val currentTheme = viewModel.themeMode.collectAsState().value
+    val currentTheme by viewModel.themeMode.collectAsState()
     val themeAccent by viewModel.appThemeSelection.collectAsState()
     val isSystemInDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val isDark = false
+    
+    // Auto theme calculation (Dark: <6 AM or >= 6 PM)
+    var autoIsDark by remember(currentTheme) {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        mutableStateOf(hour < 6 || hour >= 18)
+    }
+    
+    if (currentTheme == "auto") {
+        LaunchedEffect(Unit) {
+            while (true) {
+                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                autoIsDark = hour < 6 || hour >= 18
+                kotlinx.coroutines.delay(15000)
+            }
+        }
+    }
+
+    val isDark = when (currentTheme) {
+        "dark" -> true
+        "light" -> false
+        "auto" -> autoIsDark
+        else -> isSystemInDark
+    }
     val focusManager = LocalFocusManager.current
 
     val gradientColors = com.example.ui.theme.getThemeGradientColors(themeAccent, isDark)

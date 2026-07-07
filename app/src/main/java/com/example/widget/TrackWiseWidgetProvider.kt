@@ -126,7 +126,18 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                 // Fetch theme mode & accent
                 val themeMode = sessionPrefs.getString("saved_theme_mode", "light") ?: "light"
                 val themeAccent = sessionPrefs.getString("saved_theme_accent", "Default Violet") ?: "Default Violet"
-                val isDark = themeMode == "dark"
+                val isDark = when (themeMode) {
+                    "dark" -> true
+                    "light" -> false
+                    "auto" -> {
+                        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                        hour < 6 || hour >= 18
+                    }
+                    else -> {
+                        val currentNightMode = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                        currentNightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                    }
+                }
 
                 val widgetBgRes = if (isDark) R.drawable.widget_background_dark else R.drawable.widget_background_light
                 val textPrimaryColor = if (isDark) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A")
