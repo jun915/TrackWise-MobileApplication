@@ -1681,6 +1681,17 @@ class TrackWiseViewModel(
     fun saveDetailedProfile(profile: UserProfileEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertUserProfile(profile)
+            _sessionUser.value?.let { user ->
+                val updatedUser = user.copy(
+                    religion = profile.religion,
+                    gender = profile.gender,
+                    dob = profile.dob,
+                    phone = profile.mobileNumber,
+                    fullName = "${profile.firstName} ${profile.lastName}".trim()
+                )
+                repository.updateUserProfile(updatedUser)
+                _sessionUser.value = updatedUser
+            }
             _successMessage.value = "Detailed profile saved successfully."
             triggerFakeSync()
         }

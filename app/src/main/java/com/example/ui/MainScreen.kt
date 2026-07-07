@@ -209,17 +209,18 @@ fun MainScreen(
         }
 
         // --- Onboarding Popup / Overlay ---
-        val needsOnboarding = currentUser != null && (
-            currentUser.dob.isNullOrBlank() ||
-            currentUser.gender.isNullOrBlank() ||
-            currentUser.phone.isNullOrBlank() ||
-            currentUser.religion.isNullOrBlank()
+        val user = currentUser
+        val needsOnboarding = user != null && (
+            user.dob.isNullOrBlank() ||
+            user.gender.isNullOrBlank() ||
+            user.phone.isNullOrBlank() ||
+            user.religion.isNullOrBlank()
         )
 
         if (needsOnboarding) {
             OnboardingOverlay(
                 viewModel = viewModel,
-                currentUser = currentUser!!
+                currentUser = user!!
             )
         }
     }

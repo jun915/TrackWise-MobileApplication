@@ -50,7 +50,13 @@ fun AnalyticsScreen(
     val financeLogs by viewModel.allFinanceLogs.collectAsState()
     val netWorthItems by viewModel.allNetWorthItems.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
     val periodCycles by viewModel.periodCycles.collectAsState()
+
+    val isFemale = remember(currentUser, userProfile) {
+        val g = userProfile?.gender ?: currentUser?.gender ?: ""
+        g.lowercase().let { it.contains("female") || it.contains("women") || it == "female" }
+    }
 
     // Interactive category selector
     val categories = listOf("Finance Tracker", "Habits & Tasks", "Health & Fitness")
@@ -415,7 +421,7 @@ fun AnalyticsScreen(
                 }
 
                 // --- 10. Period Analytics (Hormonal Phase Overlay and Symptom Peak Chart) ---
-                if (currentUser?.gender?.equals("female", ignoreCase = true) == true) {
+                if (isFemale) {
                     item {
                         HormonalPhaseOverlayCard(periodCycles = periodCycles)
                     }

@@ -39,6 +39,7 @@ fun ProfileScreen(
     var dob by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("Prefer not to say") }
     var maritalStatus by remember { mutableStateOf("Single") }
+    var religion by remember { mutableStateOf("Islam") }
     var nationality by remember { mutableStateOf("") }
     var nationalId by remember { mutableStateOf("") }
 
@@ -106,6 +107,7 @@ fun ProfileScreen(
             maritalStatus = if (prof.maritalStatus.isBlank()) "Single" else prof.maritalStatus
             nationality = prof.nationality
             nationalId = prof.nationalId
+            religion = if (prof.religion.isNotBlank()) prof.religion else (sessionUser?.religion ?: "Islam")
             
             // Consolidate blood group from either field
             bloodGroup = if (prof.bloodGroup.isNotBlank()) {
@@ -151,6 +153,7 @@ fun ProfileScreen(
             vitalsHeartRate = prof.vitalsHeartRate
         } ?: run {
             emailAddress = sessionUser?.email ?: ""
+            religion = sessionUser?.religion ?: "Islam"
         }
     }
 
@@ -271,6 +274,19 @@ fun ProfileScreen(
                         listOf("Single", "Married", "Divorced", "Widowed").forEach { option ->
                             val isSel = maritalStatus == option
                             ChoiceChip(text = option, isSelected = isSel, onClick = { maritalStatus = option })
+                        }
+                    }
+
+                    // Religion Selector
+                    Text("Religion", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Islam", "Hindu", "Christian", "Sikh", "Others").forEach { option ->
+                            val isSel = religion == option
+                            ChoiceChip(text = option, isSelected = isSel, onClick = { religion = option })
                         }
                     }
 
@@ -674,7 +690,8 @@ fun ProfileScreen(
                             vitalsWeight = weight,
                             vitalsBloodPressure = vitalsBloodPressure,
                             vitalsHeartRate = vitalsHeartRate,
-                            vitalsBloodGroup = bloodGroup
+                            vitalsBloodGroup = bloodGroup,
+                            religion = religion
                         )
                         viewModel.saveDetailedProfile(newProfile)
                         showErrors = false

@@ -51,7 +51,10 @@ fun HealthScreen(
     val sleepLogs by viewModel.sleepLogs.collectAsState()
 
     val userProfile by viewModel.userProfile.collectAsState()
-    val isWoman = userProfile?.gender?.lowercase()?.let { it.contains("female") || it.contains("women") } == true
+    val isWoman = remember(currentUser, userProfile) {
+        val g = userProfile?.gender ?: currentUser?.gender ?: ""
+        g.lowercase().let { it.contains("female") || it.contains("women") || it == "female" }
+    }
 
     val tabs = remember(isWoman) {
         val list = mutableListOf("Metrics Log", "Exercise", "Symptom Log", "Sleep", "Tablets")

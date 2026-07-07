@@ -39,6 +39,23 @@ fun CalendarScreen(
     val tasks by viewModel.allTasks.collectAsState()
     val birthdays by viewModel.allBirthdays.collectAsState()
     val overlay by viewModel.calendarOverlay.collectAsState()
+    val currentUser by viewModel.sessionUser.collectAsState()
+
+    val userReligion = currentUser?.religion ?: "Islam"
+    val availableOverlays = remember(userReligion) {
+        when {
+            userReligion.equals("Islam", ignoreCase = true) -> listOf("none", "islamic")
+            userReligion.equals("Hindu", ignoreCase = true) -> listOf("none", "hindu")
+            userReligion.equals("Christian", ignoreCase = true) -> listOf("none")
+            else -> listOf("none", "islamic", "hindu")
+        }
+    }
+
+    LaunchedEffect(availableOverlays, overlay) {
+        if (overlay !in availableOverlays) {
+            viewModel.setCalendarOverlay(availableOverlays.firstOrNull() ?: "none")
+        }
+    }
 
     var activeView by remember { mutableStateOf("month") } // "day", "week", "month"
     var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
@@ -203,7 +220,7 @@ fun CalendarScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            listOf("none", "islamic", "hindu").forEach { mode ->
+                            availableOverlays.forEach { mode ->
                                 val label = when(mode) {
                                     "islamic" -> "URDU / HIJRI"
                                     "hindu" -> "HINDU"

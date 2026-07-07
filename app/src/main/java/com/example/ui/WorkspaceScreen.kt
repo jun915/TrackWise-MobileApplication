@@ -460,6 +460,7 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
 
 @Composable
 fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
+    val focusManager = LocalFocusManager.current
     var showSubtaskInput by remember { mutableStateOf(false) }
     var newSubtaskTitle by remember { mutableStateOf("") }
     var newSubtaskDueDate by remember { mutableStateOf("") }
@@ -1243,6 +1244,7 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
 
 @Composable
 fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
+    val focusManager = LocalFocusManager.current
     val completedDays = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
     val today = TrackWiseUtils.getTodayString()
     val completedCountToday = completedDays.count { it == today }
