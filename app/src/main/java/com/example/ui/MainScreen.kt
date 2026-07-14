@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -46,11 +47,40 @@ fun MainScreen(
     viewModel: TrackWiseViewModel,
     modifier: Modifier = Modifier
 ) {
-    var activeTab by remember { mutableStateOf("dashboard") }
+    var navigationHistory by remember { mutableStateOf(listOf("dashboard")) }
+    val activeTab = navigationHistory.lastOrNull() ?: "dashboard"
+
+    fun navigateTo(tab: String) {
+        if (activeTab != tab) {
+            val currentList = navigationHistory.toMutableList()
+            if (tab == "dashboard") {
+                navigationHistory = listOf("dashboard")
+            } else {
+                val existingIdx = currentList.indexOf(tab)
+                if (existingIdx != -1) {
+                    navigationHistory = currentList.subList(0, existingIdx + 1)
+                } else {
+                    currentList.add(tab)
+                    navigationHistory = currentList
+                }
+            }
+        }
+    }
+
+    fun navigateBack() {
+        if (navigationHistory.size > 1) {
+            navigationHistory = navigationHistory.dropLast(1)
+        }
+    }
+
+    BackHandler(enabled = navigationHistory.size > 1) {
+        navigateBack()
+    }
+
     val notificationNavTab by viewModel.notificationNavigateTab.collectAsState()
     LaunchedEffect(notificationNavTab) {
         notificationNavTab?.let {
-            activeTab = it
+            navigateTo(it)
             viewModel.setNotificationNavigateTab(null)
         }
     }
@@ -114,9 +144,9 @@ fun MainScreen(
                 HeaderToolbar(
                     viewModel = viewModel,
                     activeTab = activeTab,
-                    onNavigateToDashboard = { activeTab = "dashboard" },
+                    onNavigateToDashboard = { navigateTo("dashboard") },
                     onNavigateToSubTab = { tab, subTab ->
-                        activeTab = tab
+                        navigateTo(tab)
                         viewModel.setWorkspaceSubTab(subTab)
                     }
                 )
@@ -125,7 +155,7 @@ fun MainScreen(
                 BottomNavigationBar(
                     activeTab = activeTab,
                     onTabSelected = {
-                        activeTab = it
+                        navigateTo(it)
                         viewModel.setSettingsPanelOpen(false) // Auto-close settings on tab swap
                     },
                     leftDrawerOpen = leftDrawerOpen,
@@ -150,15 +180,15 @@ fun MainScreen(
                     "dashboard" -> DashboardScreen(viewModel = viewModel)
                     "workspace" -> WorkspaceScreen(viewModel = viewModel)
                     "health" -> HealthScreen(viewModel = viewModel)
-                    "calendar" -> CalendarScreen(viewModel = viewModel, onNavigateToSeerah = { activeTab = "seerah" })
+                    "calendar" -> CalendarScreen(viewModel = viewModel, onNavigateToSeerah = { navigateTo("seerah") })
                     "finance" -> FinanceScreen(viewModel = viewModel)
                     "analytics" -> AnalyticsScreen(viewModel = viewModel)
-                    "profile" -> SettingsScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" }, onImportClick = { showImportOptionDialog = true })
-                    "settings" -> SettingsScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" }, onImportClick = { showImportOptionDialog = true })
+                    "profile" -> SettingsScreen(viewModel = viewModel, onBack = { navigateBack() }, onImportClick = { showImportOptionDialog = true })
+                    "settings" -> SettingsScreen(viewModel = viewModel, onBack = { navigateBack() }, onImportClick = { showImportOptionDialog = true })
                     "social" -> SocialScreen(viewModel = viewModel)
-                    "help" -> HelpScreen(onBack = { activeTab = "dashboard" })
-                    "archive" -> ArchiveScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" })
-                    "seerah" -> SeerahScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" })
+                    "help" -> HelpScreen(onBack = { navigateBack() })
+                    "archive" -> ArchiveScreen(viewModel = viewModel, onBack = { navigateBack() })
+                    "seerah" -> SeerahScreen(viewModel = viewModel, onBack = { navigateBack() })
                 }
 
                 // In-App Toast alerts (Section 13.4)
@@ -226,7 +256,7 @@ fun MainScreen(
             LeftDrawerPane(
                 viewModel = viewModel,
                 activeTab = activeTab,
-                onNavigate = { activeTab = it },
+                onNavigate = { navigateTo(it) },
                 onClose = { leftDrawerOpen = false },
                 onImportClick = { showImportOptionDialog = true }
             )

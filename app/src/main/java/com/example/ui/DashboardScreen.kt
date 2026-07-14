@@ -41,6 +41,21 @@ import java.util.*
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
+private fun isTaskDueTimeEnded(task: com.example.data.TaskEntity, todayStr: String): Boolean {
+    if (task.deadline < todayStr) return true
+    if (task.deadline > todayStr) return false
+    val dTime = if (!task.dueTime.isNullOrBlank()) task.dueTime else task.reminderTime
+    if (!dTime.isNullOrBlank()) {
+        try {
+            val nowTimeStr = SimpleDateFormat("HH:mm", Locale.US).format(Date())
+            return nowTimeStr > dTime
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    return false
+}
+
 @Composable
 fun DashboardScreen(
     viewModel: TrackWiseViewModel,
@@ -56,21 +71,32 @@ fun DashboardScreen(
     val isPreLaunch = TrackWiseUtils.isBeforeLaunch(todayStr)
 
     val todayFocusItems = remember(allTasks, todayStr) {
-        allTasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && !it.completed }
-            .sortedWith(compareBy<TaskEntity> { it.reminderTime == null }
-                .thenBy { it.reminderTime ?: "" }
-                .thenBy { it.title }
-            )
-            .take(5)
+        allTasks.filter { 
+            TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && 
+            (!it.completed || !isTaskDueTimeEnded(it, todayStr))
+        }
+        .sortedWith(compareBy<TaskEntity> { it.completed }
+            .thenBy { it.reminderTime == null }
+            .thenBy { it.reminderTime ?: "" }
+            .thenBy { it.title }
+        )
+        .take(5)
     }
 
     val priorityAndOverdueItems = remember(allTasks, todayStr) {
-        allTasks.filter { !it.completed && (it.deadline < todayStr || it.priority == "high") }
-            .sortedWith(compareBy<TaskEntity> { it.deadline }
-                .thenByDescending { it.priority == "high" }
-                .thenBy { it.title }
-            )
-            .take(5)
+        allTasks.filter {
+            if (it.completed) {
+                (it.priority == "high" || it.deadline == todayStr) && !isTaskDueTimeEnded(it, todayStr)
+            } else {
+                it.deadline < todayStr || it.priority == "high"
+            }
+        }
+        .sortedWith(compareBy<TaskEntity> { it.completed }
+            .thenBy { it.deadline }
+            .thenByDescending { it.priority == "high" }
+            .thenBy { it.title }
+        )
+        .take(5)
     }
 
     val name = currentUser?.fullName?.split(" ")?.firstOrNull() ?: "there"
@@ -464,6 +490,99 @@ fun DailyScoresOverviewWidget(
     }
 }
 
+private fun getHabitCompletionPercentage(habit: com.example.data.HabitEntity): Int {
+    val completedDays = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+    if (completedDays.isEmpty()) return 0
+    val today = Date()
+    val cal = Calendar.getInstance()
+    var totalDaysCount = 0
+    var completedCount = 0
+    for (i in 0 until 30) {
+        cal.time = today
+        cal.add(Calendar.DAY_OF_YEAR, -i)
+        val dateStr = TrackWiseUtils.formatDate(cal.time)
+        val sDate = (habit.startDate ?: habit.createdAt).take(10)
+        if (dateStr >= sDate) {
+            totalDaysCount++
+            if (completedDays.contains(dateStr)) {
+                completedCount++
+            }
+        }
+    }
+    if (totalDaysCount == 0) return 0
+    return ((completedCount.toFloat() / totalDaysCount.toFloat()) * 100).toInt().coerceIn(0, 100)
+}
+
+private fun getHabitColor(index: Int, category: String): Color {
+    val categoryLower = category.lowercase()
+    return when {
+        categoryLower.contains("exercise") || categoryLower.contains("fitness") || categoryLower.contains("run") -> Color(0xFF1976D2)
+        categoryLower.contains("read") || categoryLower.contains("learn") || categoryLower.contains("book") -> Color(0xFFFF8F00)
+        categoryLower.contains("water") || categoryLower.contains("hydration") || categoryLower.contains("drink") -> Color(0xFF2E7D32)
+        categoryLower.contains("meditation") || categoryLower.contains("wellness") || categoryLower.contains("mind") -> Color(0xFFD32F2F)
+        categoryLower.contains("health") || categoryLower.contains("diet") || categoryLower.contains("eat") -> Color(0xFF8E24AA)
+        else -> {
+            val colors = listOf(
+                Color(0xFF1976D2),
+                Color(0xFFFF8F00),
+                Color(0xFF2E7D32),
+                Color(0xFFD32F2F),
+                Color(0xFF8E24AA),
+                Color(0xFF8D6E63)
+            )
+            colors[index % colors.size]
+        }
+    }
+}
+
+@Composable
+fun SegmentedDonutChart(
+    percentage: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val numSegments = 20
+            val strokeWidth = 6.dp.toPx()
+            val diameter = size.minDimension - strokeWidth
+            val radius = diameter / 2f
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+            
+            val gapAngle = 3.5f
+            val totalGapAngle = numSegments * gapAngle
+            val availableAngle = 360f - totalGapAngle
+            val segmentAngle = availableAngle / numSegments
+            
+            for (i in 0 until numSegments) {
+                val startAngle = -90f + i * (segmentAngle + gapAngle) + gapAngle / 2f
+                val isFilled = (i.toFloat() / numSegments.toFloat() * 100) < percentage
+                val segmentColor = if (isFilled) color else Color(0xFFE0E0E0).copy(alpha = 0.5f)
+                
+                drawArc(
+                    color = segmentColor,
+                    startAngle = startAngle,
+                    sweepAngle = segmentAngle,
+                    useCenter = false,
+                    topLeft = androidx.compose.ui.geometry.Offset(center.x - radius, center.y - radius),
+                    size = androidx.compose.ui.geometry.Size(diameter, diameter),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Butt)
+                )
+            }
+        }
+        
+        Text(
+            text = "$percentage",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+    }
+}
+
 @Composable
 fun HabitStreaksWidget(
     allHabits: List<HabitEntity>,
@@ -488,61 +607,71 @@ fun HabitStreaksWidget(
             if (allHabits.isEmpty()) {
                 EmptyProgressPlaceholder("Create habits in the Workspace tab to view streak trajectories.")
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    allHabits.take(4).forEach { habit ->
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(allHabits) { habit ->
+                        val percentage = getHabitCompletionPercentage(habit)
+                        val color = getHabitColor(allHabits.indexOf(habit), habit.category)
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                            modifier = Modifier
+                                .width(115.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
+                                SegmentedDonutChart(
+                                    percentage = percentage,
+                                    color = color,
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     text = habit.name,
-                                    fontSize = 13.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     color = MaterialTheme.colorScheme.onBackground
                                 )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = habit.category,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
                                     Icon(
                                         Icons.Default.LocalFireDepartment,
                                         contentDescription = null,
                                         tint = BrandOrange,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(12.dp)
                                     )
                                     Text(
-                                        text = "${habit.streak}d streak",
-                                        fontSize = 12.sp,
+                                        text = "${habit.streak}d",
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = BrandOrange,
                                         modifier = Modifier.padding(start = 2.dp)
                                     )
                                 }
                             }
-                            val milestones = listOf(1, 3, 5, 7, 14, 21, 30, 45, 60, 90, 100, 365)
-                            val nextMilestone = milestones.firstOrNull { it > habit.streak } ?: 365
-                            val progressFraction = (habit.streak.toFloat() / nextMilestone).coerceIn(0f, 1f)
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 4.dp)
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .fillMaxWidth(progressFraction)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(BrandOrange)
-                                )
-                            }
-                            Text(
-                                text = "Next milestone: $nextMilestone days",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
                         }
                     }
                 }
@@ -1031,7 +1160,8 @@ fun DailyHabitsWidget(
                                     text = habit.name,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground
+                                    textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None,
+                                    color = if (isDone) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
                                 )
                                 Text(
                                     text = habit.category,

@@ -1584,7 +1584,8 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                         text = habit.name,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        textDecoration = if (isCompletedToday) TextDecoration.LineThrough else TextDecoration.None,
+                        color = if (isCompletedToday) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
                     )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
