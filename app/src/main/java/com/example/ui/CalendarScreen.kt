@@ -29,11 +29,13 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
 @Composable
 fun CalendarScreen(
     viewModel: TrackWiseViewModel,
+    onNavigateToSeerah: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val tasks by viewModel.allTasks.collectAsState()
@@ -432,6 +434,7 @@ fun CalendarScreen(
                             val urduDateStr = "${TrackWiseUtils.toUrduNumerals(hijriInfo.day)} ${hijriInfo.monthNameUr} ${TrackWiseUtils.toUrduNumerals(hijriInfo.year)} ہجری"
                             val enHijriDate = "${hijriInfo.day} ${hijriInfo.monthNameEn} ${hijriInfo.year} AH"
                             val allahName = TrackWiseUtils.getAllahNameForDate(selectedDateStr)
+                            val seerahEvents = getSeerahEvents().filter { it.hijriMonth == hijriInfo.month }
 
                             Column(
                                 modifier = Modifier
@@ -508,6 +511,87 @@ fun CalendarScreen(
                                 }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
+                        }
+
+                        // --- Integrated Seerah Events for the Current Hijri Month ---
+                        if (overlay == "islamic") {
+                            val hijriInfo = TrackWiseUtils.getHijriInfo(selectedDateStr)
+                            val seerahEvents = getSeerahEvents().filter { it.hijriMonth == hijriInfo.month }
+                            if (seerahEvents.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(BrandGreen.copy(alpha = 0.08f))
+                                        .border(1.dp, BrandGreen.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "SEERAH EVENTS IN ${hijriInfo.monthNameEn.uppercase()}",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandGreen
+                                        )
+                                        Text(
+                                            text = "📖 سِیْرَتِ طَیِّبَہ",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandGreen
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    seerahEvents.forEachIndexed { idx, event ->
+                                        if (idx > 0) {
+                                            Divider(color = BrandGreen.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
+                                        }
+                                        Column {
+                                            Text(
+                                                text = event.titleEn,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = BrandGreen
+                                            )
+                                            Text(
+                                                text = "Hijri Year: ${event.yearH} (${event.yearG} CE) · Location: ${event.locationEn}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                            )
+                                            Text(
+                                                text = event.descEn,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    TextButton(
+                                        onClick = onNavigateToSeerah,
+                                        modifier = Modifier
+                                            .align(Alignment.End)
+                                            .testTag("seerah_learn_more_button"),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Learn More ➔",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandGreen
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
                         }
 
                         // 2. Hindu details
@@ -1315,6 +1399,16 @@ fun CalendarGrid(
 
                                         // Urdu Hijri Day (Center/Bottom Right)
                                         val hijriInfo = TrackWiseUtils.getHijriInfo(dayStr)
+                                        val hasSeerahEvents = remember(hijriInfo.month) {
+                                            getSeerahEvents().any { it.hijriMonth == hijriInfo.month }
+                                        }
+                                        if (hasSeerahEvents) {
+                                            Text(
+                                                text = "📖",
+                                                fontSize = 8.sp,
+                                                modifier = Modifier.align(Alignment.BottomEnd)
+                                            )
+                                        }
                                         Text(
                                             text = TrackWiseUtils.toUrduNumerals(hijriInfo.day),
                                             fontSize = 11.sp,

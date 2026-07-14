@@ -150,13 +150,15 @@ fun MainScreen(
                     "dashboard" -> DashboardScreen(viewModel = viewModel)
                     "workspace" -> WorkspaceScreen(viewModel = viewModel)
                     "health" -> HealthScreen(viewModel = viewModel)
-                    "calendar" -> CalendarScreen(viewModel = viewModel)
+                    "calendar" -> CalendarScreen(viewModel = viewModel, onNavigateToSeerah = { activeTab = "seerah" })
                     "finance" -> FinanceScreen(viewModel = viewModel)
                     "analytics" -> AnalyticsScreen(viewModel = viewModel)
-                    "profile" -> ProfileScreen(viewModel = viewModel)
+                    "profile" -> SettingsScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" }, onImportClick = { showImportOptionDialog = true })
+                    "settings" -> SettingsScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" }, onImportClick = { showImportOptionDialog = true })
                     "social" -> SocialScreen(viewModel = viewModel)
                     "help" -> HelpScreen(onBack = { activeTab = "dashboard" })
                     "archive" -> ArchiveScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" })
+                    "seerah" -> SeerahScreen(viewModel = viewModel, onBack = { activeTab = "dashboard" })
                 }
 
                 // In-App Toast alerts (Section 13.4)
@@ -1013,69 +1015,7 @@ fun LeftDrawerPane(
     onClose: () -> Unit,
     onImportClick: () -> Unit
 ) {
-    val currentTheme by viewModel.themeMode.collectAsState()
-    val taskSound by viewModel.taskSound.collectAsState()
-    val alarmSound by viewModel.alarmSound.collectAsState()
-    val themeAccent by viewModel.appThemeSelection.collectAsState()
-    val detailedProfile by viewModel.userProfile.collectAsState()
-    val friendConnections by viewModel.friendConnections.collectAsState()
-
-    var settingsExpanded by remember { mutableStateOf(true) }
-    var profileFormExpanded by remember { mutableStateOf(false) }
-    var friendEmailInput by remember { mutableStateOf("") }
-    val authError by viewModel.authError.collectAsState()
-
-    var showClearDataConfirm by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
-    var showDeleteAccountConfirm by remember { mutableStateOf(false) }
-
-    // --- Profile Form Local State Binding ---
-    var firstName by remember { mutableStateOf("") }
-    var middleName by remember { mutableStateOf("") }
-    var lastName by remember { mutableStateOf("") }
-    var dob by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf("Prefer not to say") }
-    var maritalStatus by remember { mutableStateOf("Single") }
-    var nationality by remember { mutableStateOf("") }
-    var nationalId by remember { mutableStateOf("") }
-    var bloodGroup by remember { mutableStateOf("") }
-
-    var resAddress by remember { mutableStateOf("") }
-    var permAddress by remember { mutableStateOf("") }
-    var mobileNum by remember { mutableStateOf("") }
-    var altPhone by remember { mutableStateOf("") }
-    var emailAddress by remember { mutableStateOf("") }
-
-    var emergName by remember { mutableStateOf("") }
-    var emergRelation by remember { mutableStateOf("") }
-    var emergMobile by remember { mutableStateOf("") }
-    var emergAltPhone by remember { mutableStateOf("") }
-    var emergEmail by remember { mutableStateOf("") }
-
-    // Sync database state with form
-    LaunchedEffect(detailedProfile) {
-        detailedProfile?.let {
-            firstName = it.firstName
-            middleName = it.middleName
-            lastName = it.lastName
-            dob = it.dob
-            gender = it.gender
-            maritalStatus = it.maritalStatus
-            nationality = it.nationality
-            nationalId = it.nationalId
-            bloodGroup = it.bloodGroup
-            resAddress = it.residentialStreet
-            permAddress = it.permanentStreet
-            mobileNum = it.mobileNumber
-            altPhone = it.alternatePhone
-            emailAddress = it.emailAddress
-            emergName = it.emergencyName
-            emergRelation = it.emergencyRelationship
-            emergMobile = it.emergencyPhone
-            emergAltPhone = it.alternateEmergencyPhone
-            emergEmail = ""
-        }
-    }
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -1106,16 +1046,14 @@ fun LeftDrawerPane(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    IconButton(onClick = { settingsExpanded = !settingsExpanded }) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings Expanded",
-                            tint = BrandViolet,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Main Menu Icon",
+                        tint = BrandViolet,
+                        modifier = Modifier.size(28.dp)
+                    )
                     Text(
-                        text = "Settings & Analytics",
+                        text = "Main Menu",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface
@@ -1206,7 +1144,7 @@ fun LeftDrawerPane(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Assessment, contentDescription = null, tint = BrandViolet)
+                                Icon(Icons.Default.BarChart, contentDescription = null, tint = BrandViolet)
                                 Text(
                                     text = "ANALYTICS CENTER",
                                     fontSize = 12.sp,
@@ -1223,17 +1161,17 @@ fun LeftDrawerPane(
                     }
                 }
 
-                // --- Detailed Profile Navigation Link ---
+                // --- Settings Navigation Link (REPLACED Profile Card) ---
                 item {
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = if (activeTab == "profile") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                            containerColor = if (activeTab == "settings") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
                         ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                onNavigate("profile")
+                                onNavigate("settings")
                                 onClose()
                             }
                     ) {
@@ -1248,18 +1186,18 @@ fun LeftDrawerPane(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.AccountBox, contentDescription = null, tint = BrandViolet)
+                                Icon(Icons.Default.Settings, contentDescription = null, tint = BrandViolet)
                                 Text(
-                                    text = "DETAILED PROFILE FORM",
+                                    text = "SETTINGS",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (activeTab == "profile") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                    color = if (activeTab == "settings") BrandViolet else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
-                                tint = if (activeTab == "profile") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                tint = if (activeTab == "settings") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     }
@@ -1307,303 +1245,44 @@ fun LeftDrawerPane(
                     }
                 }
 
-                if (settingsExpanded) {
-                    // --- Theme Configurations with Dropdowns ---
-                    item {
-                        var themeModeExpanded by remember { mutableStateOf(false) }
-                        var themeAccentExpanded by remember { mutableStateOf(false) }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("THEME", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-                            
-                            // Combined Theme Mode
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Theme Mode", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                Box {
-                                    Card(
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { themeModeExpanded = true }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            val currentThemeLabel = when (currentTheme) {
-                                                "light" -> "Light Mode ☀️"
-                                                "dark" -> "Dark Mode 🌙"
-                                                "auto" -> "Auto (Day/Night) 🌅"
-                                                else -> "System Default ⚙️"
-                                            }
-                                            Text(text = currentThemeLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Theme Mode")
-                                        }
-                                    }
-                                    DropdownMenu(
-                                        expanded = themeModeExpanded,
-                                        onDismissRequest = { themeModeExpanded = false },
-                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
-                                    ) {
-                                        listOf("light" to "Light Mode ☀️", "dark" to "Dark Mode 🌙", "auto" to "Auto (Day/Night) 🌅", "system" to "System Default ⚙️").forEach { (mode, label) ->
-                                            DropdownMenuItem(
-                                                text = { Text(label, fontSize = 12.sp) },
-                                                onClick = {
-                                                    viewModel.setThemeMode(mode)
-                                                    themeModeExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
+                // --- Help Navigation Link ---
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeTab == "help") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigate("help")
+                                onClose()
                             }
-
-                            // Combined Theme Design Accent
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Design Accent", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                Box {
-                                    Card(
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { themeAccentExpanded = true }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            val accentEmoji = when (themeAccent) {
-                                                "Default Violet" -> "💜"
-                                                "Ocean Blue" -> "💙"
-                                                "Forest Green" -> "💚"
-                                                "Sunset Orange" -> "🧡"
-                                                "Crimson Red" -> "❤️"
-                                                else -> "🎨"
-                                            }
-                                            Text(text = "$themeAccent $accentEmoji", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Accent")
-                                        }
-                                    }
-                                    DropdownMenu(
-                                        expanded = themeAccentExpanded,
-                                        onDismissRequest = { themeAccentExpanded = false },
-                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
-                                    ) {
-                                        listOf("Default Violet" to "💜", "Ocean Blue" to "💙", "Forest Green" to "💚", "Sunset Orange" to "🧡", "Crimson Red" to "❤️").forEach { (accent, emoji) ->
-                                            DropdownMenuItem(
-                                                text = { Text("$accent $emoji", fontSize = 12.sp) },
-                                                onClick = {
-                                                    viewModel.setAppThemeSelection(accent)
-                                                    themeAccentExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // --- Sounds Configurations with Dropdowns ---
-                    item {
-                        var taskSoundExpanded by remember { mutableStateOf(false) }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("SOUNDS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-
-                            // Task Completion Sound Dropdown
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Task Completion Trigger", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                Box {
-                                    Card(
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { taskSoundExpanded = true }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(text = "🎵 $taskSound", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Task Sound")
-                                        }
-                                    }
-                                    DropdownMenu(
-                                        expanded = taskSoundExpanded,
-                                        onDismissRequest = { taskSoundExpanded = false },
-                                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
-                                    ) {
-                                        listOf("Chime", "Ding", "Bell", "None").forEach { snd ->
-                                            DropdownMenuItem(
-                                                text = { Text(snd, fontSize = 12.sp) },
-                                                onClick = {
-                                                    viewModel.setTaskSound(snd)
-                                                    taskSoundExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // --- Help Navigation Link (Below Sounds, Shipped from Profile) ---
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (activeTab == "help") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    onNavigate("help")
-                                    onClose()
-                                }
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.HelpOutline, contentDescription = null, tint = BrandViolet)
-                                    Text(
-                                        text = "HOW THIS APP WORKS",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                )
-                            }
-                        }
-                    }
-
-                    // --- Sync, Import, Export Row ---
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("DATA & SYNC MANAGEMENT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Button(
-                                    onClick = { viewModel.syncDeviceState() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.weight(1.2f),
-                                    contentPadding = PaddingValues(vertical = 4.dp)
-                                ) {
-                                    Text("Sync States", fontSize = 11.sp, color = Color.White)
-                                }
-
-                                Button(
-                                    onClick = { viewModel.exportData() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandGreen),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(vertical = 4.dp)
-                                ) {
-                                    Text("Export", fontSize = 11.sp, color = Color.White)
-                                }
-
-                                Button(
-                                    onClick = { onImportClick() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandAmber),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(vertical = 4.dp)
-                                ) {
-                                    Text("Import", fontSize = 11.sp, color = Color.White)
-                                }
-                            }
-                            
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text("AUTO LOCAL BACKUP FREQUENCY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-                            
-                            val autoBackupFreq by viewModel.autoBackupFrequency.collectAsState()
-                            val lastBackupTime by viewModel.lastAutoBackupTime.collectAsState()
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                listOf("none" to "None", "hourly" to "Hourly", "daily" to "Daily", "weekly" to "Weekly").forEach { (key, label) ->
-                                    val isSelected = autoBackupFreq == key
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .background(
-                                                color = if (isSelected) BrandViolet.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                                shape = RoundedCornerShape(6.dp)
-                                            )
-                                            .border(
-                                                width = 1.dp,
-                                                color = if (isSelected) BrandViolet else Color.Transparent,
-                                                shape = RoundedCornerShape(6.dp)
-                                            )
-                                            .clickable { viewModel.updateAutoBackupFrequency(key) }
-                                            .padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                                        )
-                                    }
-                                }
-                            }
-                            
-                            if (autoBackupFreq != "none") {
+                                Icon(Icons.Default.HelpOutline, contentDescription = null, tint = BrandViolet)
                                 Text(
-                                    text = if (lastBackupTime > 0L) {
-                                        val formatted = java.text.SimpleDateFormat("dd MMM yyyy HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(lastBackupTime))
-                                        "Last auto-backup successfully saved: $formatted"
-                                    } else {
-                                        "Auto-backup enabled. Silently saving based on frequency selection."
-                                    },
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    modifier = Modifier.padding(top = 2.dp)
+                                    text = "HOW THIS APP WORKS",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface
                                 )
                             }
-                            
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Button(
-                                onClick = { showClearDataConfirm = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(vertical = 4.dp)
-                            ) {
-                                Text("Clear All Data (Start Fresh)", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
                         }
                     }
                 }
@@ -1611,57 +1290,18 @@ fun LeftDrawerPane(
 
             Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
-            // --- Footer Controls (Logout & Delete Account) ---
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // --- Footer Controls (Logout) ---
+            Button(
+                onClick = { showLogoutConfirm = true },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Button(
-                    onClick = { showLogoutConfirm = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Logout", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                }
-
-                Button(
-                    onClick = { showDeleteAccountConfirm = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1.2f)
-                ) {
-                    Icon(Icons.Default.DeleteForever, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Delete Account", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                }
+                Icon(Icons.Default.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Logout", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
             }
         }
-    }
-
-    if (showClearDataConfirm) {
-        AlertDialog(
-            onDismissRequest = { showClearDataConfirm = false },
-            title = { Text("Clear All Data", fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure you want to clear all your local logs, tracking history, and health statistics? This action cannot be undone, but your user account will remain active.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showClearDataConfirm = false
-                        viewModel.clearAllData()
-                    }
-                ) {
-                    Text("Clear All", color = BrandRose, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearDataConfirm = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
     }
 
     if (showLogoutConfirm) {
@@ -1681,29 +1321,6 @@ fun LeftDrawerPane(
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutConfirm = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    if (showDeleteAccountConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteAccountConfirm = false },
-            title = { Text("Delete User Account", fontWeight = FontWeight.Bold) },
-            text = { Text("Are you absolutely sure you want to delete your entire user profile and all associated data permanently? This action is completely irreversible!") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteAccountConfirm = false
-                        viewModel.deleteAccount()
-                    }
-                ) {
-                    Text("Delete Permanently", color = BrandRose, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteAccountConfirm = false }) {
                     Text("Cancel")
                 }
             }
