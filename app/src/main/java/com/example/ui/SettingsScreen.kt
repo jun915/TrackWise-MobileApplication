@@ -40,6 +40,8 @@ fun SettingsScreen(
 ) {
     var showClearDataConfirm by remember { mutableStateOf(false) }
     var showDeleteAccountConfirm by remember { mutableStateOf(false) }
+    var isThemesAndSoundsExpanded by remember { mutableStateOf(false) }
+    var isImportAndExportExpanded by remember { mutableStateOf(false) }
 
     val themeColor = MaterialTheme.colorScheme.primary
 
@@ -50,54 +52,121 @@ fun SettingsScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // --- Custom App Bar Header ---
+        // --- 1. Themes and Sounds Link Section ---
         item {
-            Row(
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
+                shape = RoundedCornerShape(20.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                    .clickable { isThemesAndSoundsExpanded = !isThemesAndSoundsExpanded }
             ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.testTag("settings_back_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Settings & Preferences",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Configure app appearance, sounds, and data backups",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(themeColor.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Palette, contentDescription = null, tint = themeColor, modifier = Modifier.size(20.dp))
+                            }
+                            Column {
+                                Text(
+                                    text = "Themes and sounds",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Fonts, font styles, themes, and sound triggers",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = if (isThemesAndSoundsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+
+                    AnimatedVisibility(visible = isThemesAndSoundsExpanded) {
+                        Column(modifier = Modifier.padding(top = 16.dp)) {
+                            PreferencesSection(viewModel = viewModel)
+                        }
+                    }
                 }
             }
         }
 
-        // --- 1. Preferences & Themes Section ---
+        // --- 2. Import and Export Link Section ---
         item {
-            PreferencesSection(viewModel = viewModel)
-        }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                    .clickable { isImportAndExportExpanded = !isImportAndExportExpanded }
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(themeColor.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.ImportExport, contentDescription = null, tint = themeColor, modifier = Modifier.size(20.dp))
+                            }
+                            Column {
+                                Text(
+                                    text = "Import and export",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Database backups, restore, and change password",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                                )
+                            }
+                        }
+                        Icon(
+                            imageVector = if (isImportAndExportExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
 
-        // --- 2. Backup, Restore & Sync Section ---
-        item {
-            BackupAndSyncSection(
-                viewModel = viewModel,
-                onImportClick = onImportClick,
-                onClearDataClick = { showClearDataConfirm = true },
-                onDeleteAccountClick = { showDeleteAccountConfirm = true }
-            )
+                    AnimatedVisibility(visible = isImportAndExportExpanded) {
+                        Column(modifier = Modifier.padding(top = 16.dp)) {
+                            BackupAndSyncSection(
+                                viewModel = viewModel,
+                                onImportClick = onImportClick,
+                                onClearDataClick = { showClearDataConfirm = true },
+                                onDeleteAccountClick = { showDeleteAccountConfirm = true }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -162,6 +231,10 @@ fun PreferencesSection(viewModel: TrackWiseViewModel) {
 
     var themeModeExpanded by remember { mutableStateOf(false) }
     var taskSoundExpanded by remember { mutableStateOf(false) }
+    val fontSize by viewModel.appFontSize.collectAsState()
+    val fontStyle by viewModel.appFontStyle.collectAsState()
+    var fontSizeExpanded by remember { mutableStateOf(false) }
+    var fontStyleExpanded by remember { mutableStateOf(false) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -243,6 +316,86 @@ fun PreferencesSection(viewModel: TrackWiseViewModel) {
                                     onClick = {
                                         viewModel.setThemeMode(mode)
                                         themeModeExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Font Size Selector
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Font Size", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Box {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { fontSizeExpanded = true }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = "$fontSize Size Option", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Font Size")
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = fontSizeExpanded,
+                            onDismissRequest = { fontSizeExpanded = false },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                        ) {
+                            listOf("Small", "Medium", "Large").forEach { sizeOpt ->
+                                DropdownMenuItem(
+                                    text = { Text(sizeOpt, fontSize = 13.sp) },
+                                    onClick = {
+                                        viewModel.setAppFontSize(sizeOpt)
+                                        fontSizeExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Font Style Selector
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Font Style", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Box {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { fontStyleExpanded = true }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = "$fontStyle Style Option", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Font Style")
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = fontStyleExpanded,
+                            onDismissRequest = { fontStyleExpanded = false },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                        ) {
+                            listOf("Default", "Sans Serif", "Serif", "Monospace", "Cursive").forEach { styleOpt ->
+                                DropdownMenuItem(
+                                    text = { Text(styleOpt, fontSize = 13.sp) },
+                                    onClick = {
+                                        viewModel.setAppFontStyle(styleOpt)
+                                        fontStyleExpanded = false
                                     }
                                 )
                             }
@@ -372,41 +525,45 @@ fun PreferencesSection(viewModel: TrackWiseViewModel) {
                         bgType == "gradient" -> {
                             Text("Choose Background Gradient", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                BackgroundPresets.gradients.forEach { gradOpt ->
-                                    val isSelected = bgType == "gradient" && bgGradientName == gradOpt.name
-                                    val colors = if (isSystemInDarkTheme()) gradOpt.darkColors else gradOpt.lightColors
+                                BackgroundPresets.gradients.chunked(4).forEach { chunk ->
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(56.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Brush.horizontalGradient(colors))
-                                            .border(
-                                                width = if (isSelected) 2.5.dp else 1.dp,
-                                                color = if (isSelected) themeColor else Color.Transparent,
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .clickable {
-                                                viewModel.setAppBgGradient(gradOpt.name)
-                                                viewModel.setAppBgType("gradient")
-                                            }
-                                            .padding(horizontal = 16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text(
-                                            text = gradOpt.name,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSystemInDarkTheme()) Color.White else Color.Black
-                                        )
-                                        if (isSelected) {
-                                            Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = "Selected",
-                                                tint = if (isSystemInDarkTheme()) Color.White else Color.Black,
-                                                modifier = Modifier.size(24.dp)
-                                            )
+                                        chunk.forEach { gradOpt ->
+                                            val isSelected = bgType == "gradient" && bgGradientName == gradOpt.name
+                                            val colors = if (isSystemInDarkTheme()) gradOpt.darkColors else gradOpt.lightColors
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(48.dp)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(Brush.horizontalGradient(colors))
+                                                    .border(
+                                                        width = if (isSelected) 2.5.dp else 1.dp,
+                                                        color = if (isSelected) themeColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                        shape = RoundedCornerShape(10.dp)
+                                                    )
+                                                    .clickable {
+                                                        viewModel.setAppBgGradient(gradOpt.name)
+                                                        viewModel.setAppBgType("gradient")
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isSelected) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = if (isSystemInDarkTheme()) Color.White else Color.Black,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (chunk.size < 4) {
+                                            repeat(4 - chunk.size) {
+                                                Spacer(modifier = Modifier.weight(1f))
+                                            }
                                         }
                                     }
                                 }
@@ -645,6 +802,13 @@ fun BackupAndSyncSection(
     val autoBackupFreq by viewModel.autoBackupFrequency.collectAsState()
     val lastBackupTime by viewModel.lastAutoBackupTime.collectAsState()
 
+    var isChangePasswordOpen by remember { mutableStateOf(false) }
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmNewPassword by remember { mutableStateOf("") }
+    var changePasswordError by remember { mutableStateOf<String?>(null) }
+    var changePasswordSuccess by remember { mutableStateOf<String?>(null) }
+
     val themeColor = MaterialTheme.colorScheme.primary
 
     Column(
@@ -714,6 +878,125 @@ fun BackupAndSyncSection(
                         Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Import", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { isChangePasswordOpen = !isChangePasswordOpen }
+                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Lock, 
+                            contentDescription = null, 
+                            tint = MaterialTheme.colorScheme.primary, 
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Change Account Password",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Icon(
+                        if (isChangePasswordOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (isChangePasswordOpen) "Collapse Change Password" else "Expand Change Password",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                AnimatedVisibility(visible = isChangePasswordOpen) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = currentPassword,
+                            onValueChange = { currentPassword = it },
+                            label = { Text("Current Password", fontSize = 11.sp) },
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = newPassword,
+                            onValueChange = { newPassword = it },
+                            label = { Text("New Password", fontSize = 11.sp) },
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = confirmNewPassword,
+                            onValueChange = { confirmNewPassword = it },
+                            label = { Text("Confirm New Password", fontSize = 11.sp) },
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        changePasswordError?.let {
+                            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        changePasswordSuccess?.let {
+                            Text(it, color = BrandGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                changePasswordError = null
+                                changePasswordSuccess = null
+                                if (currentPassword.isEmpty() || newPassword.isEmpty() || confirmNewPassword.isEmpty()) {
+                                    changePasswordError = "All fields are required."
+                                    return@Button
+                                }
+                                if (newPassword != confirmNewPassword) {
+                                    changePasswordError = "New passwords do not match."
+                                    return@Button
+                                }
+                                if (newPassword.length < 6) {
+                                    changePasswordError = "Password must be at least 6 characters."
+                                    return@Button
+                                }
+                                viewModel.changePassword(
+                                    currentPasswordRaw = currentPassword,
+                                    newPasswordRaw = newPassword,
+                                    onSuccess = {
+                                        changePasswordSuccess = "Password changed successfully!"
+                                        currentPassword = ""
+                                        newPassword = ""
+                                        confirmNewPassword = ""
+                                    },
+                                    onError = { err ->
+                                        changePasswordError = err
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(vertical = 12.dp)
+                        ) {
+                            Text("Update Password", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                     }
                 }
             }

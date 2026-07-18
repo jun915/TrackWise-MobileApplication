@@ -44,7 +44,14 @@ object BackgroundPresets {
         BgColorOption("Gold & Bronze", Color(0xFFFFFDF5), Color(0xFF221A04)),
         BgColorOption("Crimson & Night Blood", Color(0xFFFFECEE), Color(0xFF2D050B)),
         BgColorOption("Coral & Charcoal Orange", Color(0xFFFFF4F0), Color(0xFF240E06)),
-        BgColorOption("Slate & Midnight Obsidian", Color(0xFFF8FAFC), Color(0xFF0A0F1D))
+        BgColorOption("Slate & Midnight Obsidian", Color(0xFFF8FAFC), Color(0xFF0A0F1D)),
+        BgColorOption("Midnight Black", Color(0xFF08080C), Color(0xFF08080C)),
+        BgColorOption("Deep Charcoal", Color(0xFF1A1A1E), Color(0xFF1A1A1E)),
+        BgColorOption("Navy Abyss", Color(0xFF020C1B), Color(0xFF020C1B)),
+        BgColorOption("Obsidian Void", Color(0xFF0A0518), Color(0xFF0A0518)),
+        BgColorOption("Dark Emerald", Color(0xFF021510), Color(0xFF021510)),
+        BgColorOption("Royal Velvet", Color(0xFF150424), Color(0xFF150424)),
+        BgColorOption("Vampire Red", Color(0xFF1D0308), Color(0xFF1D0308))
     )
 
     val gradients = listOf(
@@ -54,7 +61,13 @@ object BackgroundPresets {
         BgGradientOption("Aurora Night", listOf(Color(0xFFE8E8FF), Color(0xFFFBE3F3)), listOf(Color(0xFF131136), Color(0xFF240431))),
         BgGradientOption("Cosmic Dust", listOf(Color(0xFFF3EFFF), Color(0xFFFFE0E3)), listOf(Color(0xFF110224), Color(0xFF2C020B))),
         BgGradientOption("Volcanic Ash", listOf(Color(0xFFF1F5F9), Color(0xFFE2E8F0)), listOf(Color(0xFF0B101E), Color(0xFF01040A))),
-        BgGradientOption("Royal Silk", listOf(Color(0xFFFBE8FF), Color(0xFFF3EFFF)), listOf(Color(0xFF1E0744), Color(0xFF13103D)))
+        BgGradientOption("Royal Silk", listOf(Color(0xFFFBE8FF), Color(0xFFF3EFFF)), listOf(Color(0xFF1E0744), Color(0xFF13103D))),
+        BgGradientOption("Midnight Abyss", listOf(Color(0xFF0C0728), Color(0xFF03010C)), listOf(Color(0xFF0C0728), Color(0xFF03010C))),
+        BgGradientOption("Dark Nebula", listOf(Color(0xFF1B003A), Color(0xFF070014)), listOf(Color(0xFF1B003A), Color(0xFF070014))),
+        BgGradientOption("Forest Shadow", listOf(Color(0xFF021E12), Color(0xFF010805)), listOf(Color(0xFF021E12), Color(0xFF010805))),
+        BgGradientOption("Charcoal Slate", listOf(Color(0xFF1C1E21), Color(0xFF0B0C0E)), listOf(Color(0xFF1C1E21), Color(0xFF0B0C0E))),
+        BgGradientOption("Blood Rose", listOf(Color(0xFF330006), Color(0xFF0E0002)), listOf(Color(0xFF330006), Color(0xFF0E0002))),
+        BgGradientOption("Abyssal Trench", listOf(Color(0xFF001524), Color(0xFF00050A)), listOf(Color(0xFF001524), Color(0xFF00050A)))
     )
 
     val textures = listOf(
@@ -133,6 +146,12 @@ fun AppBackground(
                         .fillMaxSize()
                         .background(activeColor)
                 )
+                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.25f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(overlayColor)
+                )
             }
             "gradient" -> {
                 val gradOpt = BackgroundPresets.gradients.find { it.name == bgGradientName } ?: BackgroundPresets.gradients.first()
@@ -141,6 +160,12 @@ fun AppBackground(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Brush.verticalGradient(activeColors))
+                )
+                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.25f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(overlayColor)
                 )
             }
             "image" -> {

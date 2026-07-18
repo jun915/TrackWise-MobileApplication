@@ -126,6 +126,40 @@ class TrackWiseViewModel(
                 pendingIntentFlags
             )
 
+            val notificationId = System.currentTimeMillis().toInt()
+
+            val actionFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            } else {
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            }
+
+            // Snooze action
+            val snoozeIntent = android.content.Intent(context, com.example.receiver.ReminderReceiver::class.java).apply {
+                action = "com.example.action.NOTIFICATION_SNOOZE"
+                putExtra("notification_id", notificationId)
+                putExtra("title", title)
+                putExtra("message", message)
+            }
+            val snoozePendingIntent = android.app.PendingIntent.getBroadcast(
+                context,
+                notificationId + 3000,
+                snoozeIntent,
+                actionFlags
+            )
+
+            // Dismiss action
+            val dismissIntent = android.content.Intent(context, com.example.receiver.ReminderReceiver::class.java).apply {
+                action = "com.example.action.NOTIFICATION_DISMISS"
+                putExtra("notification_id", notificationId)
+            }
+            val dismissPendingIntent = android.app.PendingIntent.getBroadcast(
+                context,
+                notificationId + 4000,
+                dismissIntent,
+                actionFlags
+            )
+
             val builder = androidx.core.app.NotificationCompat.Builder(context, "trackwise_notifications")
                 .setSmallIcon(smallIcon)
                 .setContentTitle(title)
@@ -134,8 +168,10 @@ class TrackWiseViewModel(
                 .setVibrate(longArrayOf(0, 250, 100, 250))
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent)
+                .addAction(0, "Snooze (5 min)", snoozePendingIntent)
+                .addAction(0, "Dismiss", dismissPendingIntent)
                 
-            notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
+            notificationManager.notify(notificationId, builder.build())
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -193,6 +229,12 @@ class TrackWiseViewModel(
 
     private val _profileImageUri = MutableStateFlow<String?>(null)
     val profileImageUri: StateFlow<String?> = _profileImageUri.asStateFlow()
+
+    private val _appFontSize = MutableStateFlow("Medium")
+    val appFontSize: StateFlow<String> = _appFontSize.asStateFlow()
+
+    private val _appFontStyle = MutableStateFlow("Default")
+    val appFontStyle: StateFlow<String> = _appFontStyle.asStateFlow()
 
     private val _settingsPanelOpen = MutableStateFlow(false)
     val settingsPanelOpen: StateFlow<Boolean> = _settingsPanelOpen.asStateFlow()
@@ -495,6 +537,51 @@ class TrackWiseViewModel(
 
     fun showSuccessMessage(message: String) {
         _successMessage.value = message
+    }
+
+    fun setAppFontSize(size: String) {
+        _appFontSize.value = size
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_font_size", size).apply()
+    }
+
+    fun setAppFontStyle(style: String) {
+        _appFontStyle.value = style
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_font_style", style).apply()
+    }
+
+    fun changePassword(currentPasswordRaw: String, newPasswordRaw: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val user = _sessionUser.value
+        if (user == null) {
+            onError("No user logged in.")
+            return
+        }
+        viewModelScope.launch(Dispatchers.Main) {
+            try {
+                val isSuccess = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    val hashedCurrent = SecurityUtils.hashPassword(currentPasswordRaw)
+                    if (user.passwordHash != hashedCurrent) {
+                        false
+                    } else {
+                        val newHashed = SecurityUtils.hashPassword(newPasswordRaw)
+                        val updated = user.copy(passwordHash = newHashed)
+                        repository.updateUserProfile(updated)
+                        _sessionUser.value = updated
+                        true
+                    }
+                }
+                if (isSuccess) {
+                    _successMessage.value = "Password changed successfully!"
+                    addNotification("Security Update", "Your password has been changed successfully.")
+                    onSuccess()
+                } else {
+                    onError("Current password is incorrect.")
+                }
+            } catch (e: Exception) {
+                onError(e.message ?: "Failed to change password.")
+            }
+        }
     }
 
     // --- Preferences Actions ---
@@ -2973,6 +3060,8 @@ class TrackWiseViewModel(
         val savedThemeAccent = prefs.getString("saved_theme_accent", "Default Violet") ?: "Default Violet"
         _themeMode.value = if (savedThemeMode == "auto") "system" else savedThemeMode
         _appThemeSelection.value = savedThemeAccent
+        _appFontSize.value = prefs.getString("app_font_size", "Medium") ?: "Medium"
+        _appFontStyle.value = prefs.getString("app_font_style", "Default") ?: "Default"
 
         // Restore background preferences
         _appBgType.value = prefs.getString("app_bg_type", "gradient") ?: "gradient"

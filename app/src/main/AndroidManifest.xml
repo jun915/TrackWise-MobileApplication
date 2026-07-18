@@ -44,6 +44,10 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="com.example.action.NOTIFICATION_COMPLETE" />
+                <action android:name="com.example.action.NOTIFICATION_SNOOZE" />
+                <action android:name="com.example.action.NOTIFICATION_DISMISS" />
+                <action android:name="com.example.action.TRIGGER_SNOOZE" />
             </intent-filter>
         </receiver>
 

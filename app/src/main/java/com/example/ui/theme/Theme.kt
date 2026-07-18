@@ -10,6 +10,135 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+fun createTypography(fontSize: String, fontStyle: String): Typography {
+    val multiplier = when (fontSize) {
+        "Small" -> 0.85f
+        "Large" -> 1.2f
+        else -> 1.0f // Medium
+    }
+
+    val family = when (fontStyle) {
+        "Sans Serif" -> FontFamily.SansSerif
+        "Serif" -> FontFamily.Serif
+        "Monospace" -> FontFamily.Monospace
+        "Cursive" -> FontFamily.Cursive
+        else -> FontFamily.Default
+    }
+
+    return Typography(
+        displayLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (57 * multiplier).sp,
+            lineHeight = (64 * multiplier).sp,
+            letterSpacing = (-0.25).sp
+        ),
+        displayMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (45 * multiplier).sp,
+            lineHeight = (52 * multiplier).sp,
+            letterSpacing = 0.sp
+        ),
+        displaySmall = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (36 * multiplier).sp,
+            lineHeight = (44 * multiplier).sp,
+            letterSpacing = 0.sp
+        ),
+        headlineLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (32 * multiplier).sp,
+            lineHeight = (40 * multiplier).sp,
+            letterSpacing = 0.sp
+        ),
+        headlineMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (28 * multiplier).sp,
+            lineHeight = (36 * multiplier).sp,
+            letterSpacing = 0.sp
+        ),
+        headlineSmall = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (24 * multiplier).sp,
+            lineHeight = (32 * multiplier).sp,
+            letterSpacing = 0.sp
+        ),
+        titleLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (22 * multiplier).sp,
+            lineHeight = (28 * multiplier).sp,
+            letterSpacing = 0.sp
+        ),
+        titleMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Medium,
+            fontSize = (16 * multiplier).sp,
+            lineHeight = (24 * multiplier).sp,
+            letterSpacing = 0.15.sp
+        ),
+        titleSmall = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Medium,
+            fontSize = (14 * multiplier).sp,
+            lineHeight = (20 * multiplier).sp,
+            letterSpacing = 0.1.sp
+        ),
+        bodyLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (16 * multiplier).sp,
+            lineHeight = (24 * multiplier).sp,
+            letterSpacing = 0.5.sp
+        ),
+        bodyMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (14 * multiplier).sp,
+            lineHeight = (20 * multiplier).sp,
+            letterSpacing = 0.25.sp
+        ),
+        bodySmall = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Normal,
+            fontSize = (12 * multiplier).sp,
+            lineHeight = (16 * multiplier).sp,
+            letterSpacing = 0.4.sp
+        ),
+        labelLarge = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Medium,
+            fontSize = (14 * multiplier).sp,
+            lineHeight = (20 * multiplier).sp,
+            letterSpacing = 0.1.sp
+        ),
+        labelMedium = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Medium,
+            fontSize = (12 * multiplier).sp,
+            lineHeight = (16 * multiplier).sp,
+            letterSpacing = 0.5.sp
+        ),
+        labelSmall = TextStyle(
+            fontFamily = family,
+            fontWeight = FontWeight.Medium,
+            fontSize = (11 * multiplier).sp,
+            lineHeight = (16 * multiplier).sp,
+            letterSpacing = 0.5.sp
+        )
+    )
+}
 
 private val DarkColorScheme =
   darkColorScheme(
@@ -81,8 +210,14 @@ fun getThemeGradientColors(themeAccent: String, darkTheme: Boolean): List<Color>
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
   themeAccent: String = "Default Violet",
+  fontSize: String = "Medium",
+  fontStyle: String = "Default",
   // Disable dynamic color by default for cohesive glassmorphism branding
   dynamicColor: Boolean = false,
+  bgType: String = "none",
+  bgColorName: String = "",
+  bgGradientName: String = "",
+  bgImageName: String = "",
   content: @Composable () -> Unit,
 ) {
   var darkBg = DarkBgStart
@@ -152,6 +287,91 @@ fun MyApplicationTheme(
       }
   }
 
+  // Override colors based on active background selection to adapt tiles/icons dynamically
+  if (bgType == "color") {
+      val name = bgColorName.lowercase()
+      if (name.contains("lavender") || name.contains("purple") || name.contains("plum")) {
+          BrandViolet = Color(0xFF8B5CF6) // Royal Lavender
+          BrandCyan = Color(0xFFD946EF)   // Pink/Fuchsia
+          BrandPink = Color(0xFF06B6D4)   // Teal/Cyan
+      } else if (name.contains("sky") || name.contains("ocean") || name.contains("periwinkle")) {
+          BrandViolet = Color(0xFF2563EB) // Sky Blue
+          BrandCyan = Color(0xFF06B6D4)   // Electric Cyan
+          BrandPink = Color(0xFF6366F1)   // Violet/Indigo
+      } else if (name.contains("mint") || name.contains("forest") || name.contains("sage") || name.contains("olive")) {
+          BrandViolet = Color(0xFF10B981) // Emerald Green
+          BrandCyan = Color(0xFF14B8A6)   // Teal
+          BrandPink = Color(0xFFF59E0B)   // Amber
+      } else if (name.contains("rose") || name.contains("burgundy") || name.contains("crimson")) {
+          BrandViolet = Color(0xFFEF4444) // Vibrant Red
+          BrandCyan = Color(0xFFEC4899)   // Hot Pink
+          BrandPink = Color(0xFFF97316)   // Orange
+      } else if (name.contains("amber") || name.contains("rust") || name.contains("peach") || name.contains("terracotta") || name.contains("coral") || name.contains("gold") || name.contains("bronze")) {
+          BrandViolet = Color(0xFFF97316) // Energetic Orange
+          BrandCyan = Color(0xFFF59E0B)   // Vivid Amber
+          BrandPink = Color(0xFFEF4444)   // Red
+      } else if (name.contains("teal") || name.contains("marine")) {
+          BrandViolet = Color(0xFF0D9488) // Deep Teal
+          BrandCyan = Color(0xFF0891B2)   // Cyan
+          BrandPink = Color(0xFF059669)   // Green
+      }
+  } else if (bgType == "gradient") {
+      val name = bgGradientName.lowercase()
+      if (name.contains("sunset")) {
+          BrandViolet = Color(0xFFF97316) // Sunset Orange
+          BrandCyan = Color(0xFFEF4444)   // Red
+          BrandPink = Color(0xFFF59E0B)   // Amber
+      } else if (name.contains("ocean")) {
+          BrandViolet = Color(0xFF0284C7) // Ocean Blue
+          BrandCyan = Color(0xFF0891B2)   // Cyan
+          BrandPink = Color(0xFF0D9488)   // Teal
+      } else if (name.contains("emerald") || name.contains("forest")) {
+          BrandViolet = Color(0xFF059669) // Emerald Green
+          BrandCyan = Color(0xFF10B981)   // Bright Green
+          BrandPink = Color(0xFF84CC16)   // Lime
+      } else if (name.contains("aurora")) {
+          BrandViolet = Color(0xFF7C3AED) // Royal Violet
+          BrandCyan = Color(0xFF6366F1)   // Electric Indigo
+          BrandPink = Color(0xFFEC4899)   // Hot Pink
+      } else if (name.contains("cosmic")) {
+          BrandViolet = Color(0xFF8B5CF6) // Violet
+          BrandCyan = Color(0xFFD946EF)   // Fuchsia
+          BrandPink = Color(0xFFEF4444)   // Red
+      } else if (name.contains("volcanic") || name.contains("ash")) {
+          BrandViolet = Color(0xFF64748B) // Slate Gray
+          BrandCyan = Color(0xFF71717A)   // Zinc
+          BrandPink = Color(0xFF3B82F6)   // Blue
+      } else if (name.contains("royal") || name.contains("silk")) {
+          BrandViolet = Color(0xFF6D28D9) // Royal Violet
+          BrandCyan = Color(0xFFDB2777)   // Deep Pink
+          BrandPink = Color(0xFF2563EB)   // Royal Blue
+      }
+  } else if (bgType == "image") {
+      val url = bgImageName.lowercase()
+      if (url.contains("forest") || url.contains("wood") || url.contains("grass") || url.contains("leaves") || url.contains("olive") || url.contains("green")) {
+          BrandViolet = Color(0xFF10B981) // Emerald Green
+          BrandCyan = Color(0xFF14B8A6)   // Teal
+          BrandPink = Color(0xFFF59E0B)   // Amber
+      } else if (url.contains("sunset") || url.contains("desert") || url.contains("sand") || url.contains("orange") || url.contains("gold") || url.contains("rust")) {
+          BrandViolet = Color(0xFFF97316) // Energetic Orange
+          BrandCyan = Color(0xFFF59E0B)   // Vivid Amber
+          BrandPink = Color(0xFFEF4444)   // Red
+      } else if (url.contains("beach") || url.contains("ocean") || url.contains("sea") || url.contains("water") || url.contains("sky") || url.contains("blue")) {
+          BrandViolet = Color(0xFF0EA5E9) // Sky Blue
+          BrandCyan = Color(0xFF06B6D4)   // Electric Cyan
+          BrandPink = Color(0xFF6366F1)   // Indigo
+      } else if (url.contains("lavender") || url.contains("flower") || url.contains("purple") || url.contains("rose")) {
+          BrandViolet = Color(0xFF8B5CF6) // Royal Lavender
+          BrandCyan = Color(0xFFEC4899)   // Hot Pink
+          BrandPink = Color(0xFF0EA5E9)   // Sky Blue
+      } else {
+          // Default beautiful dynamic teal adaptive color for custom images or other textures
+          BrandViolet = Color(0xFF0EA5E9) // Sky Blue
+          BrandCyan = Color(0xFF10B981)   // Emerald Green
+          BrandPink = Color(0xFF6366F1)   // Indigo
+      }
+  }
+
   // Dynamically build the color scheme based on current BrandViolet, BrandCyan, etc.
   val activeDarkScheme = darkColorScheme(
     primary = BrandViolet,
@@ -208,5 +428,5 @@ fun MyApplicationTheme(
       else -> activeLightScheme
     }
 
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  MaterialTheme(colorScheme = colorScheme, typography = createTypography(fontSize, fontStyle), content = content)
 }

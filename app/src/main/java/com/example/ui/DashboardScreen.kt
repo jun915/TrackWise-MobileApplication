@@ -38,9 +38,13 @@ import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 
 private fun isTaskDueTimeEnded(task: com.example.data.TaskEntity, todayStr: String): Boolean {
     if (task.completed) return false
@@ -72,15 +76,19 @@ fun DashboardScreen(
     val allHabits by viewModel.allHabits.collectAsState()
     val allWishlist by viewModel.allWishlist.collectAsState()
 
+    var activePostponeTask by remember { mutableStateOf<TaskEntity?>(null) }
+
     val todayStr = TrackWiseUtils.getTodayString()
     val isPreLaunch = TrackWiseUtils.isBeforeLaunch(todayStr)
 
     val todayFocusItems = remember(allTasks, todayStr) {
         allTasks.filter { 
+            !it.notes.contains("[ARCHIVED]") &&
             TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && 
             (!it.completed || !isTaskDueTimeEnded(it, todayStr))
         }
-        .sortedWith(compareBy<TaskEntity> { it.completed }
+        .sortedWith(compareBy<TaskEntity> { !it.notes.contains("[PINNED]") }
+            .thenBy { it.completed }
             .thenBy { it.reminderTime == null }
             .thenBy { it.reminderTime ?: "" }
             .thenBy { it.title }
@@ -89,13 +97,15 @@ fun DashboardScreen(
 
     val priorityAndOverdueItems = remember(allTasks, todayStr) {
         allTasks.filter {
+            !it.notes.contains("[ARCHIVED]") &&
             if (it.completed) {
                 (it.deadline <= todayStr || it.priority == "high") && !isTaskDueTimeEnded(it, todayStr)
             } else {
                 it.deadline < todayStr || it.priority == "high"
             }
         }
-        .sortedWith(compareBy<TaskEntity> { it.completed }
+        .sortedWith(compareBy<TaskEntity> { !it.notes.contains("[PINNED]") }
+            .thenBy { it.completed }
             .thenBy { it.deadline }
             .thenByDescending { it.priority == "high" }
             .thenBy { it.title }
@@ -349,7 +359,11 @@ fun DashboardScreen(
         item {
             TodayItemsWidget(
                 tasks = todayFocusItems,
-                onToggleTask = { viewModel.toggleTaskCompletion(it) }
+                onToggleTask = { viewModel.toggleTaskCompletion(it) },
+                onDeleteTask = { viewModel.deleteTask(it.id) },
+                onArchiveTask = { viewModel.updateTask(it.copy(notes = it.notes + "[ARCHIVED]")) },
+                onPinTask = { viewModel.updateTask(it.copy(notes = if (it.notes.contains("[PINNED]")) it.notes.replace("[PINNED]", "") else it.notes + "[PINNED]")) },
+                onPostponeTask = { activePostponeTask = it }
             )
         }
 
@@ -357,7 +371,11 @@ fun DashboardScreen(
         item {
             PriorityItemsWidget(
                 tasks = priorityAndOverdueItems,
-                onToggleTask = { viewModel.toggleTaskCompletion(it) }
+                onToggleTask = { viewModel.toggleTaskCompletion(it) },
+                onDeleteTask = { viewModel.deleteTask(it.id) },
+                onArchiveTask = { viewModel.updateTask(it.copy(notes = it.notes + "[ARCHIVED]")) },
+                onPinTask = { viewModel.updateTask(it.copy(notes = if (it.notes.contains("[PINNED]")) it.notes.replace("[PINNED]", "") else it.notes + "[PINNED]")) },
+                onPostponeTask = { activePostponeTask = it }
             )
         }
 
@@ -375,6 +393,27 @@ fun DashboardScreen(
                 HabitBadgeCollection(habits = allHabits)
             }
         }
+    }
+
+    activePostponeTask?.let { task ->
+        PostponeTaskDialog(
+            task = task,
+            onDismiss = { activePostponeTask = null },
+            onReschedule = { newDate, newTime ->
+                val updatedTask = task.copy(deadline = newDate, reminderTime = newTime, completed = false)
+                viewModel.updateTask(updatedTask)
+                viewModel.addNotification("Task Postponed", "Rescheduled \"${task.title}\" to $newDate")
+            },
+            onSkipReoccurrence = {
+                val cal = Calendar.getInstance()
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                cal.add(Calendar.DAY_OF_YEAR, 1)
+                val tomorrow = sdf.format(cal.time)
+                val updatedTask = task.copy(deadline = tomorrow, startDate = tomorrow, completed = false)
+                viewModel.updateTask(updatedTask)
+                viewModel.addNotification("Reoccurrence Skipped", "Skipped next session of \"${task.title}\"")
+            }
+        )
     }
 }
 
@@ -863,6 +902,10 @@ fun EmptyProgressPlaceholder(message: String) {
 fun TodayItemsWidget(
     tasks: List<TaskEntity>,
     onToggleTask: (TaskEntity) -> Unit,
+    onDeleteTask: (TaskEntity) -> Unit,
+    onArchiveTask: (TaskEntity) -> Unit,
+    onPinTask: (TaskEntity) -> Unit,
+    onPostponeTask: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -911,119 +954,128 @@ fun TodayItemsWidget(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     tasks.sortedBy { it.completed }.forEach { task ->
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    if (task.completed) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
-                                    RoundedCornerShape(16.dp)
-                                )
-                                .clickable { onToggleTask(task) }
+                        SwipeableTaskItem(
+                            task = task,
+                            onToggleTask = { onToggleTask(task) },
+                            onDeleteTask = { onDeleteTask(task) },
+                            onArchiveTask = { onArchiveTask(task) },
+                            onPinTask = { onPinTask(task) },
+                            onPostponeTask = { onPostponeTask(task) }
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                // Header Row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = task.title,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                            color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = "${task.project} · ${task.priority.uppercase()}",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Points capsule tag (Amanah style)
-                                    Card(
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
-                                                            else BrandCyan.copy(alpha = 0.12f)
-                                        ),
-                                        shape = RoundedCornerShape(6.dp)
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        1.dp,
+                                        if (task.completed) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable { onToggleTask(task) }
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    // Header Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = "+${task.points} PTS",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (task.completed) BrandGreen else BrandCyan,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                }
-
-                                // Subtle separator line inside card
-                                Spacer(
-                                    modifier = Modifier
-                                        .padding(vertical = 10.dp)
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
-                                )
-
-                                // Footer Row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Left: Calendar indicator / reminder
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.CalendarToday,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Text(
-                                            text = if (task.reminderTime != null) "Today at ${task.reminderTime}" else "Today",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                            modifier = Modifier.padding(start = 4.dp)
-                                        )
-                                    }
-
-                                    // Right: Complete Toggle Circle button
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .border(
-                                                2.dp,
-                                                if (task.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                                CircleShape
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = task.title,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                                color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-                                            .background(
-                                                if (task.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
-                                                CircleShape
+                                            Text(
+                                                text = "${task.project} · ${task.priority.uppercase()}",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        // Points capsule tag (Amanah style)
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
+                                                                else BrandCyan.copy(alpha = 0.12f)
                                             ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (task.completed) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = BrandGreen,
-                                                modifier = Modifier.size(14.dp)
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "+${task.points} PTS",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (task.completed) BrandGreen else BrandCyan,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                             )
+                                        }
+                                    }
+
+                                    // Subtle separator line inside card
+                                    Spacer(
+                                        modifier = Modifier
+                                            .padding(vertical = 10.dp)
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                                    )
+
+                                    // Footer Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Left: Calendar indicator / reminder
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.CalendarToday,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = if (task.reminderTime != null) "Today at ${task.reminderTime}" else "Today",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                                modifier = Modifier.padding(start = 4.dp)
+                                            )
+                                        }
+
+                                        // Right: Complete Toggle Circle button
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .border(
+                                                    2.dp,
+                                                    if (task.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                    CircleShape
+                                                )
+                                                .background(
+                                                    if (task.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
+                                                    CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (task.completed) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = BrandGreen,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1040,6 +1092,10 @@ fun TodayItemsWidget(
 fun PriorityItemsWidget(
     tasks: List<TaskEntity>,
     onToggleTask: (TaskEntity) -> Unit,
+    onDeleteTask: (TaskEntity) -> Unit,
+    onArchiveTask: (TaskEntity) -> Unit,
+    onPinTask: (TaskEntity) -> Unit,
+    onPostponeTask: (TaskEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val today = TrackWiseUtils.getTodayString()
@@ -1123,150 +1179,159 @@ fun PriorityItemsWidget(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     tasks.forEach { task ->
                         val isOverdue = task.deadline < today && !task.completed
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                                                else if (isOverdue) BrandRose.copy(alpha = 0.04f)
-                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    if (isOverdue) BrandRose.copy(alpha = 0.15f)
-                                    else if (task.completed) Color.Transparent
-                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
-                                    RoundedCornerShape(16.dp)
-                                )
-                                .clickable { onToggleTask(task) }
+                        SwipeableTaskItem(
+                            task = task,
+                            onToggleTask = { onToggleTask(task) },
+                            onDeleteTask = { onDeleteTask(task) },
+                            onArchiveTask = { onArchiveTask(task) },
+                            onPinTask = { onPinTask(task) },
+                            onPostponeTask = { onPostponeTask(task) }
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                // Header Row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = task.title,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                                color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f, fill = false)
-                                            )
-                                            if (isOverdue) {
-                                                Spacer(modifier = Modifier.width(6.dp))
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                                    else if (isOverdue) BrandRose.copy(alpha = 0.04f)
+                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        1.dp,
+                                        if (isOverdue) BrandRose.copy(alpha = 0.15f)
+                                        else if (task.completed) Color.Transparent
+                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable { onToggleTask(task) }
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    // Header Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
-                                                    text = "OVERDUE",
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    color = BrandRose,
-                                                    modifier = Modifier
-                                                        .background(BrandRose.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-                                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                    text = task.title,
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                                    color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f, fill = false)
+                                                )
+                                                if (isOverdue) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "OVERDUE",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = BrandRose,
+                                                        modifier = Modifier
+                                                            .background(BrandRose.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = "${task.project} · ${task.priority.uppercase()}",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        // Points capsule tag
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
+                                                                else BrandRose.copy(alpha = 0.12f)
+                                            ),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "+${task.points} PTS",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (task.completed) BrandGreen else BrandRose,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (task.notes.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "📝 ${task.notes}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = BrandViolet.copy(alpha = 0.8f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    // Subtle separator line inside card
+                                    Spacer(
+                                        modifier = Modifier
+                                            .padding(vertical = 10.dp)
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                                    )
+
+                                    // Footer Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Left: Calendar indicator / reminder
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.CalendarToday,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = "Due: ${task.deadline}",
+                                                fontSize = 11.sp,
+                                                color = if (isOverdue) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                                fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal,
+                                                modifier = Modifier.padding(start = 4.dp)
+                                            )
+                                        }
+
+                                        // Right: Complete Toggle Circle button (colored BrandRose)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .border(
+                                                    2.dp,
+                                                    if (task.completed) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                    CircleShape
+                                                )
+                                                .background(
+                                                    if (task.completed) BrandRose.copy(alpha = 0.2f) else Color.Transparent,
+                                                    CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (task.completed) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = BrandRose,
+                                                    modifier = Modifier.size(14.dp)
                                                 )
                                             }
-                                        }
-                                        Text(
-                                            text = "${task.project} · ${task.priority.uppercase()}",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Points capsule tag
-                                    Card(
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
-                                                            else BrandRose.copy(alpha = 0.12f)
-                                        ),
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
-                                        Text(
-                                            text = "+${task.points} PTS",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (task.completed) BrandGreen else BrandRose,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                }
-
-                                if (task.notes.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "📝 ${task.notes}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = BrandViolet.copy(alpha = 0.8f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                // Subtle separator line inside card
-                                Spacer(
-                                    modifier = Modifier
-                                        .padding(vertical = 10.dp)
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
-                                )
-
-                                // Footer Row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Left: Calendar indicator / reminder
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.CalendarToday,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Text(
-                                            text = "Due: ${task.deadline}",
-                                            fontSize = 11.sp,
-                                            color = if (isOverdue) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                            fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal,
-                                            modifier = Modifier.padding(start = 4.dp)
-                                        )
-                                    }
-
-                                    // Right: Complete Toggle Circle button (colored BrandRose)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .border(
-                                                2.dp,
-                                                if (task.completed) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                                CircleShape
-                                            )
-                                            .background(
-                                                if (task.completed) BrandRose.copy(alpha = 0.2f) else Color.Transparent,
-                                                CircleShape
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (task.completed) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = BrandRose,
-                                                modifier = Modifier.size(14.dp)
-                                            )
                                         }
                                     }
                                 }
@@ -1774,3 +1839,351 @@ data class BadgeSpec(
     val tier: String,
     val description: String
 )
+
+private fun getTomorrowDate(): String {
+    val cal = Calendar.getInstance()
+    cal.add(Calendar.DAY_OF_YEAR, 1)
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+    return sdf.format(cal.time)
+}
+
+private fun getNextMondayDate(): String {
+    val cal = Calendar.getInstance()
+    while (cal.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY) {
+        cal.add(Calendar.DAY_OF_YEAR, 1)
+    }
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+    return sdf.format(cal.time)
+}
+
+private fun showDatePicker(context: android.content.Context, onDateSelected: (String) -> Unit) {
+    val calendar = Calendar.getInstance()
+    val dpd = android.app.DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            val formattedMonth = String.format("%02d", month + 1)
+            val formattedDay = String.format("%02d", dayOfMonth)
+            val dateStr = "$year-$formattedMonth-$formattedDay"
+            onDateSelected(dateStr)
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    )
+    dpd.show()
+}
+
+private fun showTimePicker(context: android.content.Context, onTimeSelected: (String) -> Unit) {
+    val calendar = Calendar.getInstance()
+    val tpd = android.app.TimePickerDialog(
+        context,
+        { _, hourOfDay, minute ->
+            val formattedHour = String.format("%02d", hourOfDay)
+            val formattedMinute = String.format("%02d", minute)
+            onTimeSelected("$formattedHour:$formattedMinute")
+        },
+        calendar.get(Calendar.HOUR_OF_DAY),
+        calendar.get(Calendar.MINUTE),
+        true
+    )
+    tpd.show()
+}
+
+@Composable
+fun SwipeableTaskItem(
+    task: com.example.data.TaskEntity,
+    onToggleTask: () -> Unit,
+    onDeleteTask: () -> Unit,
+    onArchiveTask: () -> Unit,
+    onPinTask: () -> Unit,
+    onPostponeTask: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val animOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f))
+    ) {
+        // --- BACKGROUND ACTIONS ---
+        // Right Swipe Actions (Mark Done, Pin) - aligned to LEFT (revealed when dragging right, i.e. positive offset)
+        Row(
+            modifier = Modifier
+                .fillMaxHeight()
+                .align(Alignment.CenterStart)
+                .padding(start = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = {
+                    coroutineScope.launch { animOffset.animateTo(0f) }
+                    onToggleTask()
+                },
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(BrandGreen.copy(alpha = 0.15f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Mark Done",
+                    tint = BrandGreen,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    coroutineScope.launch { animOffset.animateTo(0f) }
+                    onPinTask()
+                },
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(BrandAmber.copy(alpha = 0.15f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PushPin,
+                    contentDescription = "Pin to Top",
+                    tint = BrandAmber,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // Left Swipe Actions (Archive, Delete, Postpone) - aligned to RIGHT (revealed when dragging left, i.e. negative offset)
+        Row(
+            modifier = Modifier
+                .fillMaxHeight()
+                .align(Alignment.CenterEnd)
+                .padding(end = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = {
+                    coroutineScope.launch { animOffset.animateTo(0f) }
+                    onArchiveTask()
+                },
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Archive,
+                    contentDescription = "Archive",
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    coroutineScope.launch { animOffset.animateTo(0f) }
+                    onDeleteTask()
+                },
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    coroutineScope.launch { animOffset.animateTo(0f) }
+                    onPostponeTask()
+                },
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(BrandOrange.copy(alpha = 0.15f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccessTime,
+                    contentDescription = "Postpone",
+                    tint = BrandOrange,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // --- FOREGROUND CARD ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { androidx.compose.ui.unit.IntOffset(animOffset.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            coroutineScope.launch {
+                                animOffset.snapTo((animOffset.value + dragAmount).coerceIn(-280f * density, 280f * density))
+                            }
+                        },
+                        onDragEnd = {
+                            coroutineScope.launch {
+                                val offsetPx = animOffset.value
+                                val thresholdFullRight = 200f * density
+                                val thresholdFullLeft = -200f * density
+                                val thresholdRevealRight = 50f * density
+                                val thresholdRevealLeft = -50f * density
+                                val snapRevealRight = 112f * density
+                                val snapRevealLeft = -164f * density
+
+                                if (offsetPx > thresholdFullRight) {
+                                    animOffset.animateTo(300f * density)
+                                    onToggleTask()
+                                    animOffset.animateTo(0f)
+                                } else if (offsetPx < thresholdFullLeft) {
+                                    animOffset.animateTo(-300f * density)
+                                    onPostponeTask()
+                                    animOffset.animateTo(0f)
+                                } else if (offsetPx > thresholdRevealRight) {
+                                    animOffset.animateTo(snapRevealRight)
+                                } else if (offsetPx < thresholdRevealLeft) {
+                                    animOffset.animateTo(snapRevealLeft)
+                                } else {
+                                    animOffset.animateTo(0f)
+                                }
+                            }
+                        }
+                    )
+                }
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+fun PostponeTaskDialog(
+    task: com.example.data.TaskEntity,
+    onDismiss: () -> Unit,
+    onReschedule: (newDate: String, newTime: String?) -> Unit,
+    onSkipReoccurrence: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Postpone Workitem", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Reschedule \"${task.title}\" to:",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                // Today
+                Button(
+                    onClick = {
+                        onReschedule(TrackWiseUtils.getTodayString(), task.reminderTime)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                ) {
+                    Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Today", fontWeight = FontWeight.SemiBold)
+                }
+
+                // Tomorrow
+                Button(
+                    onClick = {
+                        val tomorrow = getTomorrowDate()
+                        onReschedule(tomorrow, task.reminderTime)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                ) {
+                    Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Tomorrow", fontWeight = FontWeight.SemiBold)
+                }
+
+                // Next Monday
+                Button(
+                    onClick = {
+                        val nextMonday = getNextMondayDate()
+                        onReschedule(nextMonday, task.reminderTime)
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                ) {
+                    Icon(Icons.Default.NextWeek, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Next Monday", fontWeight = FontWeight.SemiBold)
+                }
+
+                // Pick Date
+                Button(
+                    onClick = {
+                        showDatePicker(context) { dateStr ->
+                            showTimePicker(context) { timeStr ->
+                                onReschedule(dateStr, timeStr)
+                                onDismiss()
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                ) {
+                    Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Pick Date & Time", fontWeight = FontWeight.SemiBold)
+                }
+
+                // Skip Reoccurrence
+                if (task.repeatType != "none") {
+                    Button(
+                        onClick = {
+                            onSkipReoccurrence()
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
+                    ) {
+                        Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Skip Reoccurrence", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Clear", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        shape = RoundedCornerShape(24.dp)
+    )
+}

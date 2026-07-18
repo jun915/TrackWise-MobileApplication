@@ -204,7 +204,11 @@ fun MainScreen(
                     "calendar" -> CalendarScreen(viewModel = viewModel, onNavigateToSeerah = { navigateTo("seerah") })
                     "finance" -> FinanceScreen(viewModel = viewModel)
                     "analytics" -> AnalyticsScreen(viewModel = viewModel)
-                    "profile" -> ProfileScreen(viewModel = viewModel, onBack = { navigateBack() })
+                    "profile" -> ProfileScreen(
+                        viewModel = viewModel,
+                        onBack = { navigateBack() },
+                        onNavigateToSocial = { navigateTo("social") }
+                    )
                     "settings" -> SettingsScreen(viewModel = viewModel, onBack = { navigateBack() }, onImportClick = { showImportOptionDialog = true })
                     "social" -> SocialScreen(viewModel = viewModel)
                     "help" -> HelpScreen(onBack = { navigateBack() })
@@ -1313,12 +1317,6 @@ fun LeftDrawerPane(
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "Tap to view profile & milestones 👤",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -2433,13 +2431,6 @@ fun GlobalSearchDialog(
                         modifier = Modifier
                             .weight(1f)
                             .focusRequester(focusRequester),
-                        placeholder = {
-                            Text(
-                                "Search literally anything in the app...",
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                fontSize = 14.sp
-                            )
-                        },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Search,

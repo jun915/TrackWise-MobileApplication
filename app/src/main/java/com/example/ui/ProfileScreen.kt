@@ -31,6 +31,10 @@ import coil.compose.AsyncImage
 import com.example.data.UserProfileEntity
 import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.CompositingStrategy
 
 data class ProfileBadgeSpec(
     val days: Int,
@@ -45,6 +49,7 @@ data class ProfileBadgeSpec(
 fun ProfileScreen(
     viewModel: TrackWiseViewModel,
     onBack: () -> Unit,
+    onNavigateToSocial: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val dbProfile by viewModel.userProfile.collectAsState()
@@ -53,6 +58,7 @@ fun ProfileScreen(
     val allHabits by viewModel.allHabits.collectAsState()
 
     // --- State Holders for Personal Information ---
+    var isPersonalInfoExpanded by remember { mutableStateOf(false) }
     var firstName by remember { mutableStateOf("") }
     var middleName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
@@ -186,12 +192,15 @@ fun ProfileScreen(
         }
     }
 
+    var showPhotoOptionsDialog by remember { mutableStateOf(false) }
+    var selectedRawUriForCrop by remember { mutableStateOf<String?>(null) }
+
     // Image Picker Launcher
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            viewModel.setProfileImageUri(uri.toString())
+            selectedRawUriForCrop = uri.toString()
         }
     }
 
@@ -204,41 +213,6 @@ fun ProfileScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // --- Custom App Bar Header ---
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "My Profile & Milestones",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Your digital profile, biometrics & earned rewards",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        }
-
         // --- Profile Image & Hero Card ---
         item {
             Card(
@@ -256,30 +230,59 @@ fun ProfileScreen(
                     val nameLetter = displayName.trim().take(1).uppercase()
 
                     Box(
-                        modifier = Modifier
-                            .size(100.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(themeColor, MaterialTheme.colorScheme.tertiary)
-                                )
-                            )
-                            .border(3.dp, themeColor.copy(alpha = 0.3f), CircleShape),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier.size(106.dp),
+                        contentAlignment = Alignment.BottomEnd
                     ) {
-                        if (profileImageUri != null) {
-                            AsyncImage(
-                                model = profileImageUri,
-                                contentDescription = "Profile Photo",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Text(
-                                text = nameLetter,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                fontSize = 38.sp
+                        Box(
+                            modifier = Modifier
+                                .size(100.dp)
+                                .align(Alignment.Center)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(themeColor, MaterialTheme.colorScheme.tertiary)
+                                    )
+                                )
+                                .border(3.dp, themeColor.copy(alpha = 0.3f), CircleShape)
+                                .clickable {
+                                    showPhotoOptionsDialog = true
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (profileImageUri != null) {
+                                AsyncImage(
+                                    model = profileImageUri,
+                                    contentDescription = "Profile Photo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Text(
+                                    text = nameLetter,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    fontSize = 38.sp
+                                )
+                            }
+                        }
+
+                        // Camera icon overlay indicator for click-to-edit
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                .clickable {
+                                    showPhotoOptionsDialog = true
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Edit photo",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
@@ -298,42 +301,55 @@ fun ProfileScreen(
                         )
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = { imagePickerLauncher.launch("image/*") },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = themeColor)
-                        ) {
-                            Icon(
-                                imageVector = if (profileImageUri == null) Icons.Default.Upload else Icons.Default.Edit,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (profileImageUri == null) "Upload Photo" else "Edit Photo",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                    if (showPhotoOptionsDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showPhotoOptionsDialog = false },
+                            title = { Text("Profile Photo", fontWeight = FontWeight.Bold) },
+                            text = { Text("Choose an action for your profile photo.") },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showPhotoOptionsDialog = false
+                                        imagePickerLauncher.launch("image/*")
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text("Choose Photo")
+                                }
+                            },
+                            dismissButton = {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (profileImageUri != null) {
+                                        TextButton(
+                                            onClick = {
+                                                showPhotoOptionsDialog = false
+                                                viewModel.setProfileImageUri(null)
+                                            },
+                                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                        ) {
+                                            Text("Remove")
+                                        }
+                                    }
+                                    TextButton(onClick = { showPhotoOptionsDialog = false }) {
+                                        Text("Cancel")
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                    }
 
-                        if (profileImageUri != null) {
-                            OutlinedButton(
-                                onClick = { viewModel.setProfileImageUri(null) },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Delete Photo", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    selectedRawUriForCrop?.let { rawUri ->
+                        ImageCropDialog(
+                            sourceUri = rawUri,
+                            onDismiss = { selectedRawUriForCrop = null },
+                            onCropSuccess = { croppedUri ->
+                                viewModel.setProfileImageUri(croppedUri)
+                                selectedRawUriForCrop = null
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -406,16 +422,19 @@ fun ProfileScreen(
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                                 modifier = Modifier
-                                    .width(110.dp)
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp)),
+                                    .size(125.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        onNavigateToSocial?.invoke()
+                                    },
                                 shape = RoundedCornerShape(14.dp)
                             ) {
                                 Column(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(10.dp),
+                                        .fillMaxSize()
+                                        .padding(8.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    verticalArrangement = Arrangement.Center
                                 ) {
                                     Text(text = badge.medal, fontSize = 28.sp)
                                     Text(
@@ -424,7 +443,8 @@ fun ProfileScreen(
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         textAlign = TextAlign.Center,
-                                        maxLines = 1
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = badge.tier,
@@ -439,7 +459,8 @@ fun ProfileScreen(
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                         textAlign = TextAlign.Center,
                                         maxLines = 2,
-                                        lineHeight = 10.sp
+                                        lineHeight = 10.sp,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -451,106 +472,131 @@ fun ProfileScreen(
 
         // --- 1. Basic Personal Information ---
         item {
-            ProfileSectionCard(
-                title = "1. BASIC PERSONAL INFORMATION",
-                icon = Icons.Default.Person
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                    .clickable { isPersonalInfoExpanded = !isPersonalInfoExpanded },
+                shape = RoundedCornerShape(20.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = firstName,
-                            onValueChange = { 
-                                firstName = it
-                                if (it.isNotBlank()) showErrors = false
-                            },
-                            label = { Text("First Name *") },
-                            isError = showErrors && firstNameError != null,
-                            supportingText = {
-                                if (showErrors && firstNameError != null) {
-                                    Text(firstNameError, color = MaterialTheme.colorScheme.error)
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = themeColor, modifier = Modifier.size(20.dp))
+                        Text("1. BASIC PERSONAL INFORMATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Icon(
+                            imageVector = if (isPersonalInfoExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Toggle Section",
+                            tint = themeColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    if (isPersonalInfoExpanded) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = firstName,
+                                    onValueChange = { 
+                                        firstName = it
+                                        if (it.isNotBlank()) showErrors = false
+                                    },
+                                    label = { Text("First Name *") },
+                                    isError = showErrors && firstNameError != null,
+                                    supportingText = {
+                                        if (showErrors && firstNameError != null) {
+                                            Text(firstNameError, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                )
+                                OutlinedTextField(
+                                    value = middleName,
+                                    onValueChange = { middleName = it },
+                                    label = { Text("Middle Name") },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                )
+                            }
+                            OutlinedTextField(
+                                value = lastName,
+                                onValueChange = { lastName = it },
+                                label = { Text("Last Name") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                            )
+                            OutlinedTextField(
+                                value = dob,
+                                onValueChange = { dob = it },
+                                label = { Text("Date of Birth (DD/MM/YYYY)") },
+                                placeholder = { Text("e.g. 15/08/1998") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                            )
+
+                            // Gender Selector
+                            Text("Gender / Sex", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("Male", "Female", "Other", "Prefer not to say").forEach { option ->
+                                    val isSel = gender == option
+                                    ChoiceChip(text = option, isSelected = isSel, onClick = { gender = option })
                                 }
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                        OutlinedTextField(
-                            value = middleName,
-                            onValueChange = { middleName = it },
-                            label = { Text("Middle Name") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                    }
-                    OutlinedTextField(
-                        value = lastName,
-                        onValueChange = { lastName = it },
-                        label = { Text("Last Name") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = dob,
-                        onValueChange = { dob = it },
-                        label = { Text("Date of Birth (DD/MM/YYYY)") },
-                        placeholder = { Text("e.g. 15/08/1998") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
+                            }
 
-                    // Gender Selector
-                    Text("Gender / Sex", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("Male", "Female", "Other", "Prefer not to say").forEach { option ->
-                            val isSel = gender == option
-                            ChoiceChip(text = option, isSelected = isSel, onClick = { gender = option })
+                            // Marital Status Selector
+                            Text("Marital Status", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("Single", "Married", "Divorced", "Widowed").forEach { option ->
+                                    val isSel = maritalStatus == option
+                                    ChoiceChip(text = option, isSelected = isSel, onClick = { maritalStatus = option })
+                                }
+                            }
+
+                            // Religion Selector
+                            Text("Religion", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("Islam", "Hindu", "Christian", "Sikh", "Others").forEach { option ->
+                                    val isSel = religion == option
+                                    ChoiceChip(text = option, isSelected = isSel, onClick = { religion = option })
+                                }
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = nationality,
+                                    onValueChange = { nationality = it },
+                                    label = { Text("Nationality") },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                )
+                                OutlinedTextField(
+                                    value = nationalId,
+                                    onValueChange = { nationalId = it },
+                                    label = { Text("National ID / Passport") },
+                                    modifier = Modifier.weight(1.2f),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                )
+                            }
                         }
-                    }
-
-                    // Marital Status Selector
-                    Text("Marital Status", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("Single", "Married", "Divorced", "Widowed").forEach { option ->
-                            val isSel = maritalStatus == option
-                            ChoiceChip(text = option, isSelected = isSel, onClick = { maritalStatus = option })
-                        }
-                    }
-
-                    // Religion Selector
-                    Text("Religion", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("Islam", "Hindu", "Christian", "Sikh", "Others").forEach { option ->
-                            val isSel = religion == option
-                            ChoiceChip(text = option, isSelected = isSel, onClick = { religion = option })
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = nationality,
-                            onValueChange = { nationality = it },
-                            label = { Text("Nationality") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                        OutlinedTextField(
-                            value = nationalId,
-                            onValueChange = { nationalId = it },
-                            label = { Text("National ID / Passport") },
-                            modifier = Modifier.weight(1.2f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
                     }
                 }
             }
@@ -997,4 +1043,230 @@ fun ChoiceChip(
             color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
         )
     }
+}
+
+@Composable
+fun ImageCropDialog(
+    sourceUri: String,
+    onDismiss: () -> Unit,
+    onCropSuccess: (String) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var scale by remember { mutableStateOf(1f) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val viewportSizeDp = 240.dp
+    val viewportSizePx = with(density) { viewportSizeDp.toPx() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Crop Profile Photo",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Drag to reposition, use slider to zoom.\nThe photo inside the circle is what will be saved.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center
+                )
+
+                // Viewport Container
+                Box(
+                    modifier = Modifier
+                        .size(viewportSizeDp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black)
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                offsetX += dragAmount.x
+                                offsetY += dragAmount.y
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = sourceUri,
+                        contentDescription = "Preview",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offsetX,
+                                translationY = offsetY
+                            )
+                    )
+
+                    // Overlay Mask with transparent circle cutout
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    ) {
+                        val canvasWidth = size.width
+                        val canvasHeight = size.height
+                        val radius = canvasWidth.coerceAtMost(canvasHeight) / 2f * 0.88f
+
+                        // Draw dark overlay
+                        drawRect(
+                            color = Color.Black.copy(alpha = 0.65f)
+                        )
+
+                        // Clear circle cutout
+                        drawCircle(
+                            color = Color.Transparent,
+                            radius = radius,
+                            center = androidx.compose.ui.geometry.Offset(canvasWidth / 2f, canvasHeight / 2f),
+                            blendMode = androidx.compose.ui.graphics.BlendMode.Clear
+                        )
+
+                        // Outline stroke
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.8f),
+                            radius = radius,
+                            center = androidx.compose.ui.geometry.Offset(canvasWidth / 2f, canvasHeight / 2f),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
+                        )
+                    }
+                }
+
+                // Precision Zoom Slider
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ZoomOut,
+                        contentDescription = "Zoom Out",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Slider(
+                        value = scale,
+                        onValueChange = { scale = it },
+                        valueRange = 1f..4f,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ZoomIn,
+                        contentDescription = "Zoom In",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val croppedUri = performCropAndSave(
+                        context = context,
+                        sourceUriStr = sourceUri,
+                        userScale = scale,
+                        offsetX = offsetX,
+                        offsetY = offsetY,
+                        viewportSizePx = viewportSizePx
+                    )
+                    if (croppedUri != null) {
+                        onCropSuccess(croppedUri)
+                    }
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Crop & Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = true,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        )
+    )
+}
+
+private fun performCropAndSave(
+    context: android.content.Context,
+    sourceUriStr: String,
+    userScale: Float,
+    offsetX: Float,
+    offsetY: Float,
+    viewportSizePx: Float
+): String? {
+    try {
+        val uri = android.net.Uri.parse(sourceUriStr)
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val originalBitmap = android.graphics.BitmapFactory.decodeStream(inputStream) ?: return null
+        inputStream.close()
+
+        val wOrig = originalBitmap.width.toFloat()
+        val hOrig = originalBitmap.height.toFloat()
+
+        val baseScale = Math.max(viewportSizePx / wOrig, viewportSizePx / hOrig)
+        val totalScale = baseScale * userScale
+
+        val wFinal = wOrig * totalScale
+        val hFinal = hOrig * totalScale
+
+        val xFinal = (viewportSizePx - wFinal) / 2f + offsetX
+        val yFinal = (viewportSizePx - hFinal) / 2f + offsetY
+
+        val leftScaled = -xFinal
+        val topScaled = -yFinal
+
+        var cropX = (leftScaled / totalScale).toInt()
+        var cropY = (topScaled / totalScale).toInt()
+        var cropW = (viewportSizePx / totalScale).toInt()
+        var cropH = (viewportSizePx / totalScale).toInt()
+
+        cropX = cropX.coerceIn(0, (wOrig - 1).toInt())
+        cropY = cropY.coerceIn(0, (hOrig - 1).toInt())
+        cropW = cropW.coerceAtMost((wOrig - cropX).toInt())
+        cropH = cropH.coerceAtMost((hOrig - cropY).toInt())
+
+        if (cropW <= 0 || cropH <= 0) return null
+
+        val croppedBitmap = android.graphics.Bitmap.createBitmap(originalBitmap, cropX, cropY, cropW, cropH)
+
+        val cacheFile = java.io.File(context.cacheDir, "cropped_profile_${System.currentTimeMillis()}.jpg")
+        val outStream = java.io.FileOutputStream(cacheFile)
+        croppedBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, outStream)
+        outStream.flush()
+        outStream.close()
+
+        originalBitmap.recycle()
+        if (croppedBitmap != originalBitmap) {
+            croppedBitmap.recycle()
+        }
+
+        return android.net.Uri.fromFile(cacheFile).toString()
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return null
 }

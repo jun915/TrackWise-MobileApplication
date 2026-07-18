@@ -280,7 +280,7 @@ fun SocialScreen(
                                         friendEmailInput = it 
                                         showFriendErrors = false
                                     },
-                                    label = { Text("Friend's Email Address *") },
+                                    label = { Text("Friend's Email *") },
                                     placeholder = { Text("friend@trackwise.com") },
                                     singleLine = true,
                                     isError = showFriendErrors && friendEmailError != null,

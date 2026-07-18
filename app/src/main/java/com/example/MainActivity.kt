@@ -69,6 +69,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by viewModel.themeMode.collectAsState()
             val themeAccent by viewModel.appThemeSelection.collectAsState()
+            val appFontSize by viewModel.appFontSize.collectAsState()
+            val appFontStyle by viewModel.appFontStyle.collectAsState()
+            val appBgType by viewModel.appBgType.collectAsState()
+            val appBgColor by viewModel.appBgColor.collectAsState()
+            val appBgGradient by viewModel.appBgGradient.collectAsState()
+            val appBgImage by viewModel.appBgImage.collectAsState()
 
             val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
             
@@ -100,7 +106,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            MyApplicationTheme(darkTheme = isDark, themeAccent = themeAccent) {
+            MyApplicationTheme(
+                darkTheme = isDark,
+                themeAccent = themeAccent,
+                fontSize = appFontSize,
+                fontStyle = appFontStyle,
+                bgType = appBgType,
+                bgColorName = appBgColor,
+                bgGradientName = appBgGradient,
+                bgImageName = appBgImage
+            ) {
                 val isLoggedIn by viewModel.isLoggedIn.collectAsState(initial = false)
                 val focusManager = LocalFocusManager.current
 

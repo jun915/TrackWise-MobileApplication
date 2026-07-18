@@ -23,8 +23,144 @@ import java.util.Locale
 class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+        val action = intent.action
+        if (action == Intent.ACTION_BOOT_COMPLETED) {
             scheduleBackgroundReminderAlarm(context)
+            return
+        }
+
+        val notificationId = intent.getIntExtra("notification_id", -1)
+        val notifManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (action == "com.example.action.NOTIFICATION_DISMISS") {
+            if (notificationId != -1) {
+                notifManager.cancel(notificationId)
+            }
+            return
+        }
+
+        if (action == "com.example.action.NOTIFICATION_SNOOZE") {
+            if (notificationId != -1) {
+                notifManager.cancel(notificationId)
+            }
+            val title = intent.getStringExtra("title") ?: "Snoozed Reminder"
+            val message = intent.getStringExtra("message") ?: "Snooze elapsed!"
+            
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            val snoozeIntent = Intent(context, ReminderReceiver::class.java).apply {
+                setAction("com.example.action.TRIGGER_SNOOZE")
+                putExtra("title", title)
+                putExtra("message", message)
+                putExtra("notification_id", notificationId)
+            }
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            } else {
+                PendingIntent.FLAG_ONE_SHOT
+            }
+            val pendingSnooze = PendingIntent.getBroadcast(context, notificationId + 100000, snoozeIntent, flags)
+            
+            // 5 minutes from now (300,000 ms)
+            val triggerTime = System.currentTimeMillis() + 300_000L
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingSnooze)
+                } else {
+                    alarmManager.set(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingSnooze)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            return
+        }
+
+        if (action == "com.example.action.TRIGGER_SNOOZE") {
+            val title = intent.getStringExtra("title") ?: "Snoozed Reminder"
+            val message = intent.getStringExtra("message") ?: "Snooze elapsed!"
+            val originalId = intent.getIntExtra("notification_id", System.currentTimeMillis().toInt())
+
+            val channelId = "trackwise_notifications"
+            val iconId = context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName)
+            val smallIcon = if (iconId != 0) iconId else android.R.drawable.ic_dialog_info
+
+            showNotification(
+                context,
+                notifManager,
+                title,
+                "$message (Snoozed)",
+                "dashboard",
+                0,
+                originalId,
+                smallIcon,
+                channelId
+            )
+            return
+        }
+
+        if (action == "com.example.action.NOTIFICATION_COMPLETE") {
+            if (notificationId != -1) {
+                notifManager.cancel(notificationId)
+            }
+            val taskId = intent.getStringExtra("task_id")
+            val tabletId = intent.getStringExtra("tablet_id")
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val database = TrackWiseDatabase.getDatabase(context)
+                    val dao = database.trackWiseDao()
+                    
+                    val sharedPrefs = context.getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+                    val userId = sharedPrefs.getString("saved_user_id", null) ?: run {
+                        val users = dao.getAllUsers()
+                        users.firstOrNull()?.id
+                    }
+                    
+                    if (userId != null) {
+                        if (taskId != null) {
+                            val task = dao.getTasksForUser(userId).firstOrNull { it.id == taskId }
+                            if (task != null) {
+                                dao.insertTask(task.copy(completed = true))
+                            }
+                        } else if (tabletId != null) {
+                            val tablet = dao.getTabletRemindersForUserFlow(userId).first().firstOrNull { it.id == tabletId }
+                            if (tablet != null) {
+                                val todayStr = TrackWiseUtils.getTodayString().take(10)
+                                val completedDates = try {
+                                    val array = org.json.JSONArray(tablet.completedDatesJson)
+                                    val list = mutableListOf<String>()
+                                    for (i in 0 until array.length()) {
+                                        list.add(array.getString(i))
+                                    }
+                                    list
+                                } catch (e: Exception) {
+                                    mutableListOf<String>()
+                                }
+                                if (!completedDates.contains(todayStr)) {
+                                    completedDates.add(todayStr)
+                                    val updatedJson = org.json.JSONArray(completedDates).toString()
+                                    dao.insertTabletReminder(tablet.copy(completedDatesJson = updatedJson))
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Show confirmation notification
+                    val iconId = context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName)
+                    val smallIcon = if (iconId != 0) iconId else android.R.drawable.ic_dialog_info
+                    val completedNotification = NotificationCompat.Builder(context, "trackwise_notifications")
+                        .setSmallIcon(smallIcon)
+                        .setContentTitle("Goal Met! 🎉")
+                        .setContentText("Activity completed and successfully logged.")
+                        .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setAutoCancel(true)
+                        .build()
+                    notifManager.notify(System.currentTimeMillis().toInt(), completedNotification)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    pendingResult.finish()
+                }
+            }
             return
         }
 
@@ -95,7 +231,8 @@ class ReminderReceiver : BroadcastReceiver() {
                             0, // Tasks tab
                             key.hashCode(),
                             smallIcon,
-                            channelId
+                            channelId,
+                            taskId = task.id
                         )
                     }
                 }
@@ -210,7 +347,8 @@ class ReminderReceiver : BroadcastReceiver() {
                             4, // Tablets tab in HealthScreen
                             key.hashCode(),
                             smallIcon,
-                            channelId
+                            channelId,
+                            tabletId = tablet.id
                         )
                     }
                 }
@@ -238,7 +376,9 @@ class ReminderReceiver : BroadcastReceiver() {
         targetSubTab: Int,
         notificationId: Int,
         smallIcon: Int,
-        channelId: String
+        channelId: String,
+        taskId: String? = null,
+        tabletId: String? = null
     ) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -254,6 +394,52 @@ class ReminderReceiver : BroadcastReceiver() {
 
         val pendingIntent = PendingIntent.getActivity(context, notificationId, intent, flags)
 
+        val actionFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+
+        // Complete action
+        val completeIntent = Intent(context, ReminderReceiver::class.java).apply {
+            action = "com.example.action.NOTIFICATION_COMPLETE"
+            putExtra("notification_id", notificationId)
+            putExtra("task_id", taskId)
+            putExtra("tablet_id", tabletId)
+        }
+        val completePendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 2000,
+            completeIntent,
+            actionFlags
+        )
+
+        // Snooze action
+        val snoozeIntent = Intent(context, ReminderReceiver::class.java).apply {
+            action = "com.example.action.NOTIFICATION_SNOOZE"
+            putExtra("notification_id", notificationId)
+            putExtra("title", title)
+            putExtra("message", message)
+        }
+        val snoozePendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 3000,
+            snoozeIntent,
+            actionFlags
+        )
+
+        // Dismiss action
+        val dismissIntent = Intent(context, ReminderReceiver::class.java).apply {
+            action = "com.example.action.NOTIFICATION_DISMISS"
+            putExtra("notification_id", notificationId)
+        }
+        val dismissPendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId + 4000,
+            dismissIntent,
+            actionFlags
+        )
+
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(smallIcon)
             .setContentTitle(title)
@@ -261,6 +447,9 @@ class ReminderReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .addAction(0, "Complete", completePendingIntent)
+            .addAction(0, "Snooze (5 min)", snoozePendingIntent)
+            .addAction(0, "Dismiss", dismissPendingIntent)
             .build()
 
         notificationManager.notify(notificationId, notification)
