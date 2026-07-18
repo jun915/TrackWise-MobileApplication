@@ -36,7 +36,7 @@ fun SocialScreen(
     viewModel: TrackWiseViewModel,
     modifier: Modifier = Modifier
 ) {
-    var activeSubTab by remember { mutableStateOf("friends") } // "friends", "achievements"
+    val activeSubTab by viewModel.socialSubTab.collectAsState()
     val friends by viewModel.friendConnections.collectAsState()
     val authError by viewModel.authError.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
@@ -98,7 +98,7 @@ fun SocialScreen(
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (isSelected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .clickable { activeSubTab = tabId }
+                        .clickable { viewModel.setSocialSubTab(tabId) }
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {

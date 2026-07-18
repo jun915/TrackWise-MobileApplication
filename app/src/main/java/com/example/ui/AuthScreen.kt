@@ -2,6 +2,7 @@ package com.example.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,8 +39,8 @@ fun AuthScreen(
     modifier: Modifier = Modifier
 ) {
     var authMode by remember { mutableStateOf("login") } // "login", "signup", "forgot"
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("ju") }
+    var password by remember { mutableStateOf("1234567890") }
     var confirmPassword by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     
@@ -48,6 +50,8 @@ fun AuthScreen(
     val fullNameError = if (fullName.isBlank()) "Full name is required" else null
     val emailError = if (email.isBlank()) {
         "Email address is required"
+    } else if (email.lowercase().trim() == "ju") {
+        null
     } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
         "Please enter a valid email address"
     } else null
@@ -69,38 +73,22 @@ fun AuthScreen(
     val themeAccent by viewModel.appThemeSelection.collectAsState()
     val isSystemInDark = androidx.compose.foundation.isSystemInDarkTheme()
     
-    // Auto theme calculation (Dark: <6 AM or >= 6 PM)
-    var autoIsDark by remember(currentTheme) {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        mutableStateOf(hour < 6 || hour >= 18)
-    }
-    
-    if (currentTheme == "auto") {
-        LaunchedEffect(Unit) {
-            while (true) {
-                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-                autoIsDark = hour < 6 || hour >= 18
-                kotlinx.coroutines.delay(15000)
-            }
-        }
-    }
-
     val isDark = when (currentTheme) {
         "dark" -> true
         "light" -> false
-        "auto" -> autoIsDark
         else -> isSystemInDark
     }
     val focusManager = LocalFocusManager.current
 
-    val gradientColors = com.example.ui.theme.getThemeGradientColors(themeAccent, isDark)
-    val bgGradient = Brush.verticalGradient(gradientColors)
-
-    Box(
+    com.example.ui.theme.AppBackground(
+        viewModel = viewModel,
+        isDark = isDark,
         modifier = modifier
-            .fillMaxSize()
-            .background(bgGradient)
-            .clickable(
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
@@ -386,6 +374,38 @@ fun AuthScreen(
                 )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Bypass Login & Signup Button
+            OutlinedButton(
+                onClick = {
+                    viewModel.clearAuthError()
+                    viewModel.dismissSuccessMessage()
+                    showErrors = false
+                    viewModel.login("ju", "1234567890")
+                },
+                border = BorderStroke(1.5.dp, BrandViolet),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .testTag("bypass_auth_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FastForward,
+                    contentDescription = "Bypass Authentication",
+                    tint = BrandViolet,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Bypass Login & Signup",
+                    color = BrandViolet,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+
             // Toggle Text
             TextButton(
                 onClick = {
@@ -417,4 +437,5 @@ fun AuthScreen(
             )
         }
     }
+}
 }

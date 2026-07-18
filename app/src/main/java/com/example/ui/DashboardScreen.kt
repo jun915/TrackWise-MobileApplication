@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,7 +43,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
 private fun isTaskDueTimeEnded(task: com.example.data.TaskEntity, todayStr: String): Boolean {
-    if (task.deadline < todayStr) return true
+    if (task.completed) return false
+    if (task.deadline < todayStr) {
+        return true
+    }
     if (task.deadline > todayStr) return false
     val dTime = if (!task.dueTime.isNullOrBlank()) task.dueTime else task.reminderTime
     if (!dTime.isNullOrBlank()) {
@@ -59,7 +63,8 @@ private fun isTaskDueTimeEnded(task: com.example.data.TaskEntity, todayStr: Stri
 @Composable
 fun DashboardScreen(
     viewModel: TrackWiseViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigate: (String) -> Unit = {}
 ) {
     val currentUser by viewModel.sessionUser.collectAsState()
     val todayScore by viewModel.todayScore.collectAsState()
@@ -80,13 +85,12 @@ fun DashboardScreen(
             .thenBy { it.reminderTime ?: "" }
             .thenBy { it.title }
         )
-        .take(5)
     }
 
     val priorityAndOverdueItems = remember(allTasks, todayStr) {
         allTasks.filter {
             if (it.completed) {
-                (it.priority == "high" || it.deadline == todayStr) && !isTaskDueTimeEnded(it, todayStr)
+                (it.deadline <= todayStr || it.priority == "high") && !isTaskDueTimeEnded(it, todayStr)
             } else {
                 it.deadline < todayStr || it.priority == "high"
             }
@@ -96,7 +100,6 @@ fun DashboardScreen(
             .thenByDescending { it.priority == "high" }
             .thenBy { it.title }
         )
-        .take(5)
     }
 
     val name = currentUser?.fullName?.split(" ")?.firstOrNull() ?: "there"
@@ -151,20 +154,22 @@ fun DashboardScreen(
                 }
             }
         }
-
-        // --- Welcome Hero Section ---
+        // --- Welcome Header Section ---
         item {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
                 Text(
                     text = "$greeting, $name!",
-                    fontSize = 28.sp,
+                    fontSize = 26.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Your analytics, today's focus, and priority items at a glance.",
+                    text = "Your analytics, today's focus, and priority runways at a glance.",
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
             }
@@ -191,6 +196,10 @@ fun DashboardScreen(
                 colors = CardDefaults.cardColors(containerColor = BrandPink.copy(alpha = 0.08f)),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable {
+                        viewModel.setSocialSubTab("achievements")
+                        onNavigate("social")
+                    }
                     .border(
                         1.dp,
                         BrandPink.copy(alpha = 0.25f),
@@ -378,34 +387,47 @@ fun StatTile(
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
-        modifier = modifier.border(1.dp, color.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)),
+        modifier = modifier.border(
+            1.dp,
+            color.copy(alpha = 0.25f),
+            RoundedCornerShape(20.dp)
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(24.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = value,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 4.dp)
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onBackground
             )
             Text(
                 text = label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = color,
+                letterSpacing = 1.2.sp
             )
         }
     }
@@ -686,14 +708,20 @@ fun WaterIntakeWidget(
     waterLogs: List<WaterLogEntity>,
     modifier: Modifier = Modifier
 ) {
+    val todayStr = TrackWiseUtils.getTodayString()
+    val todayWater = waterLogs.firstOrNull { it.date == todayStr }
+    val waterGlasses = todayWater?.glasses ?: 0
+    val waterGoal = todayWater?.goal ?: 8
+    val waterFraction = (waterGlasses.toFloat() / waterGoal).coerceIn(0f, 1f)
+
     Card(
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(24.dp))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -702,68 +730,107 @@ fun WaterIntakeWidget(
                 Text(
                     text = "DAILY HYDRATION MONITOR",
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandCyan
+                    fontWeight = FontWeight.ExtraBold,
+                    color = BrandCyan,
+                    letterSpacing = 1.sp
                 )
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val todayStr = TrackWiseUtils.getTodayString()
-                    val todayWater = waterLogs.firstOrNull { it.date == todayStr }
-                    val currentGlasses = todayWater?.glasses ?: 0
-
                     IconButton(
                         onClick = { viewModel.adjustWaterLog(-1) },
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                     ) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrement water", tint = BrandCyan, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Remove, contentDescription = "Decrement water", tint = BrandCyan, modifier = Modifier.size(14.dp))
                     }
                     IconButton(
                         onClick = { viewModel.adjustWaterLog(1) },
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Increment water", tint = BrandCyan, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Add, contentDescription = "Increment water", tint = BrandCyan, modifier = Modifier.size(14.dp))
                     }
                 }
             }
 
-            val todayWater = waterLogs.firstOrNull { it.date == TrackWiseUtils.getTodayString() }
-            val waterGlasses = todayWater?.glasses ?: 0
-            val waterGoal = todayWater?.goal ?: 8
-            val waterFraction = (waterGlasses.toFloat() / waterGoal).coerceIn(0f, 1f)
-
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "Water Intake Today 💧",
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "$waterGlasses/$waterGoal glasses",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
                         color = BrandCyan
                     )
                 }
+                
+                // Beautiful interactive drops
+                val displayGoal = if (waterGoal in 1..10) waterGoal else 8
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                ) {
+                    for (i in 1..displayGoal) {
+                        val isFilled = i <= waterGlasses
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isFilled) BrandCyan.copy(alpha = 0.15f)
+                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isFilled) BrandCyan.copy(alpha = 0.35f) else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    val diff = i - waterGlasses
+                                    viewModel.adjustWaterLog(diff)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WaterDrop,
+                                contentDescription = "Glass $i",
+                                tint = if (isFilled) BrandCyan else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp)
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
                             .fillMaxWidth(waterFraction)
-                            .clip(RoundedCornerShape(5.dp))
+                            .clip(RoundedCornerShape(3.dp))
                             .background(BrandCyan)
                     )
                 }
@@ -803,25 +870,34 @@ fun TodayItemsWidget(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(24.dp))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Icon(
-                    Icons.Default.CalendarToday,
-                    contentDescription = null,
-                    tint = BrandCyan,
-                    modifier = Modifier.size(18.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(BrandCyan.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = BrandCyan,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
                 Text(
-                    text = "TODAY'S FOCUS ITEMS",
+                    text = "TODAY'S FOCUS RUNWAY",
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     color = BrandCyan,
-                    modifier = Modifier.padding(start = 8.dp)
+                    modifier = Modifier.padding(start = 10.dp),
+                    letterSpacing = 1.sp
                 )
             }
 
@@ -833,75 +909,124 @@ fun TodayItemsWidget(
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     tasks.sortedBy { it.completed }.forEach { task ->
-                        Row(
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                .border(
+                                    1.dp,
+                                    if (task.completed) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                    RoundedCornerShape(16.dp)
+                                )
                                 .clickable { onToggleTask(task) }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Completion Spark/Check Simulation (Section 14)
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .border(
-                                        2.dp,
-                                        if (task.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                        CircleShape
-                                    )
-                                    .background(
-                                        if (task.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
-                                        CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (task.completed) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = BrandGreen,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                // Header Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = task.title,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                            color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${task.project} · ${task.priority.uppercase()}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    // Points capsule tag (Amanah style)
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
+                                                            else BrandCyan.copy(alpha = 0.12f)
+                                        ),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "+${task.points} PTS",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (task.completed) BrandGreen else BrandCyan,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                                // Subtle separator line inside card
+                                Spacer(
+                                    modifier = Modifier
+                                        .padding(vertical = 10.dp)
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                                )
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = task.title,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                    color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "${task.project} · ${task.priority.uppercase()} · ${task.points} pts",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                                )
-                            }
+                                // Footer Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Left: Calendar indicator / reminder
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Text(
+                                            text = if (task.reminderTime != null) "Today at ${task.reminderTime}" else "Today",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                            modifier = Modifier.padding(start = 4.dp)
+                                        )
+                                    }
 
-                            if (task.reminderTime != null) {
-                                Icon(
-                                    Icons.Default.Alarm,
-                                    contentDescription = null,
-                                    tint = BrandViolet,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = task.reminderTime,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = BrandViolet,
-                                    modifier = Modifier.padding(start = 2.dp)
-                                )
+                                    // Right: Complete Toggle Circle button
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .border(
+                                                2.dp,
+                                                if (task.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                CircleShape
+                                            )
+                                            .background(
+                                                if (task.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
+                                                CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (task.completed) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = BrandGreen,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -925,37 +1050,46 @@ fun PriorityItemsWidget(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(24.dp))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Icon(
-                    Icons.Default.PriorityHigh,
-                    contentDescription = null,
-                    tint = BrandRose,
-                    modifier = Modifier.size(18.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(BrandRose.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.PriorityHigh,
+                        contentDescription = null,
+                        tint = BrandRose,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
                 Text(
-                    text = "PRIORITY & OVERDUE ITEMS",
+                    text = "PRIORITY & OVERDUE RUNWAY",
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     color = BrandRose,
-                    modifier = Modifier.padding(start = 8.dp)
+                    modifier = Modifier.padding(start = 10.dp),
+                    letterSpacing = 1.sp
                 )
             }
 
             // Overdue Banner
             if (overdueTasks.isNotEmpty()) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandRose.copy(alpha = 0.15f)),
+                    colors = CardDefaults.cardColors(containerColor = BrandRose.copy(alpha = 0.08f)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                        .border(1.dp, BrandRose, RoundedCornerShape(12.dp))
+                        .padding(bottom = 14.dp)
+                        .border(1.dp, BrandRose.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -965,12 +1099,12 @@ fun PriorityItemsWidget(
                             Icons.Default.Warning,
                             contentDescription = null,
                             tint = BrandRose,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            text = "${overdueTasks.size} overdue task(s) detected! Complete them immediately.",
+                            text = "${overdueTasks.size} overdue task(s) on your runway!",
                             color = BrandRose,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 8.dp)
                         )
@@ -982,59 +1116,159 @@ fun PriorityItemsWidget(
                 Text(
                     text = "No urgent tasks or overdue items recorded.",
                     fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     tasks.forEach { task ->
-                        Row(
+                        val isOverdue = task.deadline < today && !task.completed
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                                else if (isOverdue) BrandRose.copy(alpha = 0.04f)
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                                .clickable { onToggleTask(task) }
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = if (task.priority == "high") BrandAmber else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = task.title,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                .border(
+                                    1.dp,
+                                    if (isOverdue) BrandRose.copy(alpha = 0.15f)
+                                    else if (task.completed) Color.Transparent
+                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                    RoundedCornerShape(16.dp)
                                 )
-                                Row {
-                                    Text(
-                                        text = "${task.deadline} · ${task.project} · ${task.priority.uppercase()}",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                                    )
-                                    if (task.deadline < today) {
+                                .clickable { onToggleTask(task) }
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                // Header Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = task.title,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                                color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            if (isOverdue) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "OVERDUE",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = BrandRose,
+                                                    modifier = Modifier
+                                                        .background(BrandRose.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
                                         Text(
-                                            text = " (overdue)",
+                                            text = "${task.project} · ${task.priority.uppercase()}",
                                             fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    // Points capsule tag
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
+                                                            else BrandRose.copy(alpha = 0.12f)
+                                        ),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "+${task.points} PTS",
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = BrandRose
+                                            color = if (task.completed) BrandGreen else BrandRose,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
                                     }
                                 }
+
                                 if (task.notes.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = "📝 ${task.notes}",
-                                        fontSize = 10.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
-                                        color = BrandViolet,
+                                        color = BrandViolet.copy(alpha = 0.8f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                }
+
+                                // Subtle separator line inside card
+                                Spacer(
+                                    modifier = Modifier
+                                        .padding(vertical = 10.dp)
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                                )
+
+                                // Footer Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Left: Calendar indicator / reminder
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Text(
+                                            text = "Due: ${task.deadline}",
+                                            fontSize = 11.sp,
+                                            color = if (isOverdue) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                            fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal,
+                                            modifier = Modifier.padding(start = 4.dp)
+                                        )
+                                    }
+
+                                    // Right: Complete Toggle Circle button (colored BrandRose)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .border(
+                                                2.dp,
+                                                if (task.completed) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                CircleShape
+                                            )
+                                            .background(
+                                                if (task.completed) BrandRose.copy(alpha = 0.2f) else Color.Transparent,
+                                                CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (task.completed) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = BrandRose,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1064,126 +1298,154 @@ fun DailyHabitsWidget(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(24.dp))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.LocalFireDepartment,
-                        contentDescription = null,
-                        tint = BrandOrange,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(BrandOrange.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.LocalFireDepartment,
+                            contentDescription = null,
+                            tint = BrandOrange,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                     Text(
                         text = "DAILY HABIT RUNWAYS",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.ExtraBold,
                         color = BrandOrange,
-                        modifier = Modifier.padding(start = 8.dp)
+                        modifier = Modifier.padding(start = 10.dp),
+                        letterSpacing = 1.sp
                     )
                 }
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandOrange.copy(alpha = 0.2f)),
+                    colors = CardDefaults.cardColors(containerColor = BrandOrange.copy(alpha = 0.12f)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "$completedToday/${filteredHabits.size} done",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = "$completedToday/${filteredHabits.size} COMPLETED",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
                         color = BrandOrange,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
 
             if (filteredHabits.isEmpty()) {
                 Text(
                     text = if (habits.isEmpty()) "Configure Habit Runways in the Workspace tab to launch daily streak multipliers." else "No active habit runways scheduled for today.",
                     fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     filteredHabits.sortedBy {
                         TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
-                    }.take(5).forEach { habit ->
+                    }.forEach { habit ->
                         val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
-                        Row(
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isDone) BrandOrange.copy(alpha = 0.05f)
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isDone) BrandOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                                 .border(
                                     1.dp,
-                                    if (isDone) BrandOrange.copy(alpha = 0.3f) else Color.Transparent,
-                                    RoundedCornerShape(12.dp)
+                                    if (isDone) BrandOrange.copy(alpha = 0.25f)
+                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                    RoundedCornerShape(16.dp)
                                 )
                                 .clickable { onToggleHabit(habit) }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .border(
-                                        2.dp,
-                                        if (isDone) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                        CircleShape
-                                    )
-                                    .background(
-                                        if (isDone) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
-                                        CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (isDone) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = BrandOrange,
-                                        modifier = Modifier.size(16.dp)
+                                // Left: Elegant check button
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .border(
+                                            2.dp,
+                                            if (isDone) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                            CircleShape
+                                        )
+                                        .background(
+                                            if (isDone) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
+                                            CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isDone) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = BrandOrange,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                // Middle: Text details
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = habit.name,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None,
+                                        color = if (isDone) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Text(
+                                        text = habit.category,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = habit.name,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None,
-                                    color = if (isDone) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
-                                )
-                                Text(
-                                    text = habit.category,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                                )
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.LocalFireDepartment,
-                                    contentDescription = null,
-                                    tint = BrandOrange,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "${habit.streak}d",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandOrange,
-                                    modifier = Modifier.padding(start = 2.dp)
-                                )
+                                // Right: Beautiful streak flame badge
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .background(
+                                            if (habit.streak > 0) BrandOrange.copy(alpha = 0.12f)
+                                            else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.04f),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocalFireDepartment,
+                                        contentDescription = null,
+                                        tint = if (habit.streak > 0) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = "${habit.streak}d",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (habit.streak > 0) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                        modifier = Modifier.padding(start = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }

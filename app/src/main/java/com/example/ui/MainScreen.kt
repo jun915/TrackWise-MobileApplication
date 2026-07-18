@@ -1,5 +1,11 @@
 package com.example.ui
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -90,6 +96,10 @@ fun MainScreen(
     val successMessage by viewModel.successMessage.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
     var leftDrawerOpen by remember { mutableStateOf(false) }
+    var showGlobalNotificationsDialog by remember { mutableStateOf(false) }
+    var showGlobalSearchDialog by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+    var showAddChoiceDialog by remember { mutableStateOf(false) }
 
     var showImportOptionDialog by remember { mutableStateOf(false) }
     var pastedJsonText by remember { mutableStateOf("") }
@@ -107,43 +117,29 @@ fun MainScreen(
     val themeAccent by viewModel.appThemeSelection.collectAsState()
     val isSystemInDark = androidx.compose.foundation.isSystemInDarkTheme()
     
-    // Auto theme calculation (Dark: <6 AM or >= 6 PM)
-    var autoIsDark by remember(currentTheme) {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        mutableStateOf(hour < 6 || hour >= 18)
-    }
-    
-    if (currentTheme == "auto") {
-        LaunchedEffect(Unit) {
-            while (true) {
-                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-                autoIsDark = hour < 6 || hour >= 18
-                kotlinx.coroutines.delay(15000)
-            }
-        }
-    }
-
     val isDark = when (currentTheme) {
         "dark" -> true
         "light" -> false
-        "auto" -> autoIsDark
         else -> isSystemInDark
     }
     val focusManager = LocalFocusManager.current
 
-    val gradientColors = com.example.ui.theme.getThemeGradientColors(themeAccent, isDark)
-    val bgGradient = Brush.verticalGradient(gradientColors)
-
-    Box(
+    com.example.ui.theme.AppBackground(
+        viewModel = viewModel,
+        isDark = isDark,
         modifier = modifier
-            .fillMaxSize()
-            .background(bgGradient)
     ) {
+        val activeSubTab by viewModel.workspaceSubTab.collectAsState()
+        val isMoreMenuActive = showMoreMenu || 
+                activeTab in listOf("health", "finance", "calendar") ||
+                (activeTab == "workspace" && activeSubTab in listOf(2, 4, 5))
+
         Scaffold(
             topBar = {
                 HeaderToolbar(
                     viewModel = viewModel,
                     activeTab = activeTab,
+                    onMenuClick = { leftDrawerOpen = !leftDrawerOpen },
                     onNavigateToDashboard = { navigateTo("dashboard") },
                     onNavigateToSubTab = { tab, subTab ->
                         navigateTo(tab)
@@ -154,13 +150,38 @@ fun MainScreen(
             bottomBar = {
                 BottomNavigationBar(
                     activeTab = activeTab,
+                    viewModel = viewModel,
                     onTabSelected = {
                         navigateTo(it)
+                        showMoreMenu = false
                         viewModel.setSettingsPanelOpen(false) // Auto-close settings on tab swap
                     },
-                    leftDrawerOpen = leftDrawerOpen,
-                    onMenuClick = { leftDrawerOpen = !leftDrawerOpen }
+                    onSubTabSelected = { tab, subTab ->
+                        navigateTo(tab)
+                        viewModel.setWorkspaceSubTab(subTab)
+                        showMoreMenu = false
+                        viewModel.setSettingsPanelOpen(false)
+                    },
+                    onMoreMenuClick = { showMoreMenu = !showMoreMenu },
+                    isMoreMenuActive = isMoreMenuActive
                 )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { showAddChoiceDialog = true },
+                    containerColor = BrandViolet,
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .offset(y = 8.dp)
+                        .testTag("floating_add_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Quick Add",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             },
             containerColor = Color.Transparent
         ) { innerPadding ->
@@ -177,13 +198,13 @@ fun MainScreen(
             ) {
                 // Main Content Switching
                 when (activeTab) {
-                    "dashboard" -> DashboardScreen(viewModel = viewModel)
+                    "dashboard" -> DashboardScreen(viewModel = viewModel, onNavigate = { navigateTo(it) })
                     "workspace" -> WorkspaceScreen(viewModel = viewModel)
                     "health" -> HealthScreen(viewModel = viewModel)
                     "calendar" -> CalendarScreen(viewModel = viewModel, onNavigateToSeerah = { navigateTo("seerah") })
                     "finance" -> FinanceScreen(viewModel = viewModel)
                     "analytics" -> AnalyticsScreen(viewModel = viewModel)
-                    "profile" -> SettingsScreen(viewModel = viewModel, onBack = { navigateBack() }, onImportClick = { showImportOptionDialog = true })
+                    "profile" -> ProfileScreen(viewModel = viewModel, onBack = { navigateBack() })
                     "settings" -> SettingsScreen(viewModel = viewModel, onBack = { navigateBack() }, onImportClick = { showImportOptionDialog = true })
                     "social" -> SocialScreen(viewModel = viewModel)
                     "help" -> HelpScreen(onBack = { navigateBack() })
@@ -243,6 +264,146 @@ fun MainScreen(
             )
         }
 
+        // --- Semi-Transparent Backdrop Scrim when More Menu is Open ---
+        if (showMoreMenu) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { showMoreMenu = false }
+            )
+        }
+
+        // --- Sliding More Menu Slider Pane ---
+        AnimatedVisibility(
+            visible = showMoreMenu,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 84.dp)
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                ),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+                    .testTag("more_menu_slider")
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "MORE TRACKERS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandViolet,
+                            letterSpacing = 1.2.sp
+                        )
+                        IconButton(
+                            onClick = { showMoreMenu = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close Menu",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    val moreItems = listOf(
+                        MoreMenuItemSpec("Health", Icons.Default.Favorite, BrandGreen, "health", -1),
+                        MoreMenuItemSpec("Finance", Icons.Default.AttachMoney, BrandOrange, "finance", -1),
+                        MoreMenuItemSpec("Calendar", Icons.Default.CalendarToday, BrandCyan, "calendar", -1),
+                        MoreMenuItemSpec("Wishlist", Icons.Default.Star, BrandPink, "workspace", 2),
+                        MoreMenuItemSpec("Timer & Stopwatch", Icons.Default.Timer, BrandIndigo, "workspace", 4),
+                        MoreMenuItemSpec("Grocery List", Icons.Default.ShoppingCart, BrandGreen, "workspace", 5)
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        for (row in 0 until 3) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                for (col in 0 until 2) {
+                                    val itemIdx = row * 2 + col
+                                    if (itemIdx < moreItems.size) {
+                                        val item = moreItems[itemIdx]
+                                        val activeSubTabVal = viewModel.workspaceSubTab.collectAsState().value
+                                        val isActive = if (item.subTab == -1) {
+                                            activeTab == item.tab
+                                        } else {
+                                            activeTab == item.tab && activeSubTabVal == item.subTab
+                                        }
+
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = if (isActive) item.color.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                            ),
+                                            shape = RoundedCornerShape(14.dp),
+                                            border = if (isActive) BorderStroke(1.dp, item.color.copy(alpha = 0.4f)) else null,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    if (item.subTab == -1) {
+                                                        navigateTo(item.tab)
+                                                    } else {
+                                                        navigateTo(item.tab)
+                                                        viewModel.setWorkspaceSubTab(item.subTab)
+                                                    }
+                                                    showMoreMenu = false
+                                                }
+                                                .testTag("more_menu_item_${item.label.lowercase().replace(" ", "_").replace("& ", "")}")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .clip(CircleShape)
+                                                        .background(item.color.copy(alpha = 0.12f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = item.icon,
+                                                        contentDescription = null,
+                                                        tint = item.color,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = item.label,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isActive) item.color else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // --- Sliding Left Drawer Pane (Drawer Left Pane overlay) ---
         AnimatedVisibility(
             visible = leftDrawerOpen,
@@ -258,7 +419,24 @@ fun MainScreen(
                 activeTab = activeTab,
                 onNavigate = { navigateTo(it) },
                 onClose = { leftDrawerOpen = false },
-                onImportClick = { showImportOptionDialog = true }
+                onImportClick = { showImportOptionDialog = true },
+                onNotificationClick = { showGlobalNotificationsDialog = true },
+                onSearchClick = { showGlobalSearchDialog = true }
+            )
+        }
+
+        if (showGlobalNotificationsDialog) {
+            NotificationsDialog(
+                viewModel = viewModel,
+                onDismiss = { showGlobalNotificationsDialog = false }
+            )
+        }
+
+        if (showGlobalSearchDialog) {
+            GlobalSearchDialog(
+                viewModel = viewModel,
+                onDismiss = { showGlobalSearchDialog = false },
+                onNavigate = { navigateTo(it) }
             )
         }
 
@@ -392,105 +570,8 @@ fun MainScreen(
             }
         )
     }
-}
 
-@Composable
-fun HeaderToolbar(
-    viewModel: TrackWiseViewModel,
-    activeTab: String,
-    onNavigateToDashboard: () -> Unit,
-    onNavigateToSubTab: (String, Int) -> Unit
-) {
-    val currentUser by viewModel.sessionUser.collectAsState()
-    val notifications by viewModel.notifications.collectAsState()
-    var showNotificationsDialog by remember { mutableStateOf(false) }
-    var showAddChoiceDialog by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Left Side: Brand Logo
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable { onNavigateToDashboard() }
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Brush.horizontalGradient(listOf(BrandViolet, BrandPink))),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.TrendingUp,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "TrackWise",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Black,
-                color = BrandViolet
-            )
-        }
-
-        // Right Side: Quick navigation (+) icon beside Notification Bell Icon
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Quick Add '+' Button
-            IconButton(
-                onClick = { showAddChoiceDialog = true },
-                modifier = Modifier.testTag("quick_add_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Quick Add",
-                    tint = BrandViolet,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-
-            // Notification Bell Icon
-            Box {
-                BadgedBox(
-                    badge = {
-                        if (notifications.isNotEmpty()) {
-                            Badge(
-                                containerColor = BrandPink,
-                                contentColor = Color.White
-                            ) {
-                                Text(notifications.size.toString())
-                            }
-                        }
-                    }
-                ) {
-                    IconButton(
-                        onClick = { showNotificationsDialog = true },
-                        modifier = Modifier.testTag("notification_bell_icon")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Notifications",
-                            tint = BrandViolet,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // Quick Add Navigation Choice Dialog
+    // Quick Add Navigation Choice Dialog in MainScreen
     if (showAddChoiceDialog) {
         AlertDialog(
             onDismissRequest = { showAddChoiceDialog = false },
@@ -532,7 +613,8 @@ fun HeaderToolbar(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    onNavigateToSubTab("workspace", index)
+                                    navigateTo("workspace")
+                                    viewModel.setWorkspaceSubTab(index)
                                     showAddChoiceDialog = false
                                 }
                         ) {
@@ -583,196 +665,283 @@ fun HeaderToolbar(
             }
         )
     }
+}
 
-    // Notifications Dialog
-    if (showNotificationsDialog) {
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val areNotificationsEnabled = remember(showNotificationsDialog) {
-            androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+private data class MoreMenuItemSpec(
+    val label: String,
+    val icon: ImageVector,
+    val color: Color,
+    val tab: String,
+    val subTab: Int
+)
+
+@Composable
+fun HeaderToolbar(
+    viewModel: TrackWiseViewModel,
+    activeTab: String,
+    onMenuClick: () -> Unit,
+    onNavigateToDashboard: () -> Unit,
+    onNavigateToSubTab: (String, Int) -> Unit
+) {
+    val activeSubTab by viewModel.workspaceSubTab.collectAsState()
+    val currentTitle = when (activeTab) {
+        "dashboard" -> "Dashboard"
+        "workspace" -> {
+            when (activeSubTab) {
+                0 -> "Task Checklist"
+                1 -> "Habit Runways"
+                2 -> "Wishlist"
+                3 -> "Occasion Log"
+                4 -> "Timer & Stopwatch"
+                5 -> "Grocery Checklist"
+                else -> "Workspace"
+            }
         }
+        "health" -> "Health"
+        "calendar" -> "Calendar"
+        "finance" -> "Finance"
+        "analytics" -> "Analytics"
+        "settings", "profile" -> "Settings"
+        "social" -> "Friends"
+        "help" -> "How It Works"
+        "archive" -> "Archive"
+        "seerah" -> "Seerah"
+        else -> "TrackWise"
+    }
 
-        AlertDialog(
-            onDismissRequest = { showNotificationsDialog = false },
-            title = {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Left Side: Hamburger Menu & Dynamic Title
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onMenuClick,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("top_hamburger_menu")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Open Drawer",
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = currentTitle,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+    }
+}
+
+@Composable
+fun NotificationsDialog(
+    viewModel: TrackWiseViewModel,
+    onDismiss: () -> Unit
+) {
+    val notifications by viewModel.notifications.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val areNotificationsEnabled = remember {
+        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Notifications",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Notifications",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    if (notifications.isNotEmpty()) {
+                        TextButton(
+                            onClick = { viewModel.clearNotifications() }
+                        ) {
+                            Text("Clear All", color = BrandRose, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (!areNotificationsEnabled) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = BrandRose.copy(alpha = 0.12f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                try {
+                                    val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = android.net.Uri.fromParts("package", context.packageName, null)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
                     ) {
-                        if (notifications.isNotEmpty()) {
-                            TextButton(
-                                onClick = { viewModel.clearNotifications() }
-                            ) {
-                                Text("Clear All", color = BrandRose, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = BrandRose,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Notifications Blocked",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = BrandRose
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Real phone push alerts require permissions. Tap here to open App Settings, choose Notifications, and turn them on.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                                    lineHeight = 15.sp
+                                )
                             }
                         }
                     }
                 }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (!areNotificationsEnabled) {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = BrandRose.copy(alpha = 0.12f)
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    try {
-                                        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                            data = android.net.Uri.fromParts("package", context.packageName, null)
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                    }
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = BrandRose,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Notifications Blocked",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        color = BrandRose
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "Real phone push alerts require permissions. Tap here to open App Settings, choose Notifications, and turn them on.",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-                                        lineHeight = 15.sp
-                                    )
-                                }
-                            }
+
+                if (notifications.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "All caught up!",
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                fontSize = 14.sp
+                            )
                         }
                     }
-
-                    if (notifications.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Default.NotificationsOff,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "All caught up!",
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f, fill = false),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(notifications) { item ->
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                    ),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(notifications) { item ->
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier.padding(12.dp)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = item.title,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp,
-                                                color = BrandViolet
-                                            )
-                                            Text(
-                                                text = item.timestamp,
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = item.message,
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                            text = item.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = BrandViolet
+                                        )
+                                        Text(
+                                            text = item.timestamp,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
                                         )
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = item.message,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                    )
                                 }
                             }
                         }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { showNotificationsDialog = false }
-                ) {
-                    Text("Close", color = BrandViolet)
-                }
-            },
-            shape = RoundedCornerShape(20.dp),
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text("Close", color = BrandViolet)
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    )
 }
 
 @Composable
 fun BottomNavigationBar(
     activeTab: String,
+    viewModel: TrackWiseViewModel,
     onTabSelected: (String) -> Unit,
-    leftDrawerOpen: Boolean,
-    onMenuClick: () -> Unit
+    onSubTabSelected: (String, Int) -> Unit,
+    onMoreMenuClick: () -> Unit,
+    isMoreMenuActive: Boolean
 ) {
+    val barBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+    val activeSubTab by viewModel.workspaceSubTab.collectAsState()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(bottom = 12.dp, start = 16.dp, end = 16.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surface) // Solid themed background
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-            .padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceAround,
+            .clip(RoundedCornerShape(24.dp))
+            .background(barBgColor)
+            .border(1.2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
         BottomTabItem(
@@ -782,32 +951,32 @@ fun BottomNavigationBar(
             onClick = { onTabSelected("dashboard") }
         )
         BottomTabItem(
-            label = "Health",
-            icon = Icons.Default.Favorite,
-            isActive = activeTab == "health",
-            isActiveColor = BrandGreen,
-            onClick = { onTabSelected("health") }
-        )
-        BottomTabItem(
-            label = "Calendar",
-            icon = Icons.Default.CalendarToday,
-            isActive = activeTab == "calendar",
-            isActiveColor = BrandCyan,
-            onClick = { onTabSelected("calendar") }
-        )
-        BottomTabItem(
-            label = "Finance",
-            icon = Icons.Default.AttachMoney,
-            isActive = activeTab == "finance",
-            isActiveColor = BrandOrange,
-            onClick = { onTabSelected("finance") }
-        )
-        BottomTabItem(
-            label = "Menu",
-            icon = Icons.Default.Menu,
-            isActive = leftDrawerOpen,
+            label = "Checklist",
+            icon = Icons.Default.Assignment,
+            isActive = activeTab == "workspace" && activeSubTab == 0,
             isActiveColor = BrandViolet,
-            onClick = onMenuClick
+            onClick = { onSubTabSelected("workspace", 0) }
+        )
+        BottomTabItem(
+            label = "Runways",
+            icon = Icons.Default.Repeat,
+            isActive = activeTab == "workspace" && activeSubTab == 1,
+            isActiveColor = BrandPink,
+            onClick = { onSubTabSelected("workspace", 1) }
+        )
+        BottomTabItem(
+            label = "Occasions",
+            icon = Icons.Default.Cake,
+            isActive = activeTab == "workspace" && activeSubTab == 3,
+            isActiveColor = BrandOrange,
+            onClick = { onSubTabSelected("workspace", 3) }
+        )
+        BottomTabItem(
+            label = "More",
+            icon = Icons.Default.MoreHoriz,
+            isActive = isMoreMenuActive,
+            isActiveColor = BrandViolet,
+            onClick = onMoreMenuClick
         )
     }
 }
@@ -820,17 +989,22 @@ fun BottomTabItem(
     isActiveColor: Color = BrandViolet,
     onClick: () -> Unit
 ) {
+    val backgroundAlpha = if (isActive) 0.15f else 0.0f
+    val backgroundColor = isActiveColor.copy(alpha = backgroundAlpha)
+    
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(backgroundColor)
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (isActive) isActiveColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            tint = if (isActive) isActiveColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
             modifier = Modifier.size(20.dp)
         )
         Text(
@@ -1043,15 +1217,26 @@ fun LeftDrawerPane(
     activeTab: String,
     onNavigate: (String) -> Unit,
     onClose: () -> Unit,
-    onImportClick: () -> Unit
+    onImportClick: () -> Unit,
+    onNotificationClick: () -> Unit,
+    onSearchClick: () -> Unit
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var profileExpanded by remember { mutableStateOf(false) }
+    val currentUser by viewModel.sessionUser.collectAsState()
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxHeight()
             .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { change, dragAmount ->
+                    if (dragAmount < -15f) {
+                        onClose()
+                    }
+                }
+            }
             .border(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
@@ -1066,35 +1251,364 @@ fun LeftDrawerPane(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // --- Drawer Header ---
+            // --- Drawer Header: Custom Modern Header with name, image, search, bell, settings ---
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { 
+                            onNavigate("profile")
+                            onClose()
+                        }
+                        .padding(4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Menu,
-                        contentDescription = "Main Menu Icon",
-                        tint = BrandViolet,
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Text(
-                        text = "Main Menu",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    val user = currentUser
+                    val nameLetter = user?.fullName?.trim()?.take(1)?.uppercase() ?: "U"
+                    val displayName = user?.fullName ?: "Guest User"
+                    val profileImageUri by viewModel.profileImageUri.collectAsState()
+
+                    // Circular Avatar placeholder or custom profile image
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (profileImageUri != null) {
+                            coil.compose.AsyncImage(
+                                model = profileImageUri,
+                                contentDescription = "Profile Image",
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Text(
+                                text = nameLetter,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                fontSize = 18.sp
+                            )
+                        }
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = displayName,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Tap to view profile & milestones 👤",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
-                IconButton(onClick = onClose) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close Left Menu",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Search icon
+                    IconButton(
+                        onClick = {
+                            onSearchClick()
+                            onClose()
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    // Notification Bell Icon with Badge
+                    val notifications by viewModel.notifications.collectAsState()
+                    BadgedBox(
+                        badge = {
+                            if (notifications.isNotEmpty()) {
+                                Badge(
+                                    containerColor = BrandPink,
+                                    contentColor = Color.White,
+                                    modifier = Modifier.offset(x = (-2).dp, y = (2).dp)
+                                ) {
+                                    Text(notifications.size.toString(), fontSize = 8.sp)
+                                }
+                            }
+                        }
+                    ) {
+                        IconButton(
+                            onClick = onNotificationClick,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // Settings icon
+                    IconButton(
+                        onClick = {
+                            onNavigate("settings")
+                            onClose()
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+
+
+
+            // Expanded Section: Detailed Form Link, Profile Image Actions, and Earned Badges Slider
+            AnimatedVisibility(
+                visible = profileExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // 1. Detailed Profile Form Link
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
+                            .clickable {
+                                onNavigate("settings")
+                                onClose()
+                            }
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Assignment,
+                            contentDescription = null,
+                            tint = BrandViolet,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Detailed Profile Form 📋",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Update full name, phone, medical & address details",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    // 2. Profile Image Actions: Upload, Delete, Edit
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "PROFILE IMAGE",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandViolet.copy(alpha = 0.8f)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val profileImageUri by viewModel.profileImageUri.collectAsState()
+
+                            // Upload / Edit Image Action
+                            Button(
+                                onClick = {
+                                    onNavigate("profile")
+                                    onClose()
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (profileImageUri == null) Icons.Default.Upload else Icons.Default.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (profileImageUri == null) "Upload Image" else "Edit Image",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // Delete Image Action
+                            if (profileImageUri != null) {
+                                OutlinedButton(
+                                    onClick = {
+                                        viewModel.setProfileImageUri(null)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Delete Image",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Earned Badges Icons Slider
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "EARNED BADGES",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandViolet.copy(alpha = 0.8f)
+                        )
+
+                        val allHabits by viewModel.allHabits.collectAsState()
+                        val standardBadges = listOf(
+                            com.example.ui.BadgeSpec(1, "The Spark", "🥉", "The Launchpad", "Ignited the habit"),
+                            com.example.ui.BadgeSpec(3, "Three's Company", "🥉", "The Launchpad", "Overcame day-two slump"),
+                            com.example.ui.BadgeSpec(5, "Workweek Warrior", "🥉", "The Launchpad", "Five consecutive days"),
+                            com.example.ui.BadgeSpec(7, "Weekly Wonder", "🥉", "The Launchpad", "Completed full week"),
+                            com.example.ui.BadgeSpec(14, "Fortnight Force", "🥈", "The Builder", "Two weeks dedication"),
+                            com.example.ui.BadgeSpec(21, "Habit Former", "🥈", "The Builder", "Avg days to lock routine"),
+                            com.example.ui.BadgeSpec(30, "Calendar Crusher", "🥈", "The Builder", "One full month"),
+                            com.example.ui.BadgeSpec(45, "Halfway Hero", "🥈", "The Builder", "Momentum past 1 month"),
+                            com.example.ui.BadgeSpec(60, "Iron Will", "🥇", "The Master", "Two months unbroken"),
+                            com.example.ui.BadgeSpec(90, "Seasoned Pro", "🥇", "The Master", "Seasonal commitment"),
+                            com.example.ui.BadgeSpec(100, "Centurion", "🥇", "The Master", "Triple-digit milestone"),
+                            com.example.ui.BadgeSpec(365, "Immortal", "🥇", "The Master", "One full year")
+                        )
+                        val earnedBadgeDays = remember(allHabits) {
+                            allHabits.flatMap { habit ->
+                                TrackWiseUtils.deserializeIntList(habit.badgesEarnedJson)
+                            }.toSet()
+                        }
+                        val userEarnedBadges = remember(earnedBadgeDays) {
+                            val earned = standardBadges.filter { earnedBadgeDays.contains(it.days) }
+                            if (earned.isEmpty()) {
+                                listOf(
+                                    com.example.ui.BadgeSpec(1, "The Spark", "🥉", "The Launchpad", "Ignited the first habit"),
+                                    com.example.ui.BadgeSpec(3, "Three's Company", "🥉", "The Launchpad", "Overcame day-two slump"),
+                                    com.example.ui.BadgeSpec(5, "Workweek Warrior", "🥉", "The Launchpad", "Five consecutive days")
+                                )
+                            } else {
+                                earned
+                            }
+                        }
+
+                        androidx.compose.foundation.lazy.LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            contentPadding = PaddingValues(horizontal = 2.dp)
+                        ) {
+                            items(userEarnedBadges) { badge ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    modifier = Modifier
+                                        .width(85.dp)
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(10.dp)),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(text = badge.medal, fontSize = 22.sp)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = badge.name,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = badge.tier,
+                                            fontSize = 7.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1186,48 +1700,6 @@ fun LeftDrawerPane(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
                                 tint = if (activeTab == "analytics") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-                }
-
-                // --- Settings Navigation Link (REPLACED Profile Card) ---
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (activeTab == "settings") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onNavigate("settings")
-                                onClose()
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Settings, contentDescription = null, tint = BrandViolet)
-                                Text(
-                                    text = "SETTINGS",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (activeTab == "settings") BrandViolet else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = if (activeTab == "settings") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     }
@@ -1664,6 +2136,505 @@ fun OnboardingOverlay(
                         .height(52.dp)
                 ) {
                     Text("COMPLETE PROFILE SETUP", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+data class SearchResult(
+    val title: String,
+    val subtitle: String,
+    val type: String, // "Task", "Habit", "Wishlist", "Occasion", "Alarm", "Grocery", "Finance", "Friend", "Medicine", "Health Issue"
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val color: androidx.compose.ui.graphics.Color,
+    val onClick: () -> Unit
+)
+
+@Composable
+fun GlobalSearchDialog(
+    viewModel: TrackWiseViewModel,
+    onDismiss: () -> Unit,
+    onNavigate: (String) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    val tasks by viewModel.allTasks.collectAsState()
+    val habits by viewModel.allHabits.collectAsState()
+    val birthdays by viewModel.allBirthdays.collectAsState()
+    val wishlist by viewModel.allWishlist.collectAsState()
+    val groceryItems by viewModel.allGroceryItems.collectAsState()
+    val financeLogs by viewModel.allFinanceLogs.collectAsState()
+    val alarms by viewModel.allAlarms.collectAsState()
+    val friends by viewModel.friendConnections.collectAsState()
+    val tabletReminders by viewModel.tabletReminders.collectAsState()
+    val healthIssues by viewModel.healthIssueLogs.collectAsState()
+
+    val filteredResults = remember(
+        searchQuery, tasks, habits, birthdays, wishlist, groceryItems, financeLogs, alarms, friends, tabletReminders, healthIssues
+    ) {
+        if (searchQuery.trim().isEmpty()) {
+            emptyList<SearchResult>()
+        } else {
+            val query = searchQuery.trim().lowercase()
+            val results = mutableListOf<SearchResult>()
+
+            // 1. Tasks
+            tasks.filter {
+                it.title.lowercase().contains(query) ||
+                it.description.lowercase().contains(query) ||
+                it.project.lowercase().contains(query) ||
+                it.notes.lowercase().contains(query)
+            }.forEach { task ->
+                results.add(
+                    SearchResult(
+                        title = task.title,
+                        subtitle = "Project: ${task.project} • Priority: ${task.priority.uppercase()}",
+                        type = "Task",
+                        icon = Icons.Default.Assignment,
+                        color = BrandViolet,
+                        onClick = {
+                            viewModel.setWorkspaceSubTab(0)
+                            onNavigate("workspace")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 2. Habits
+            habits.filter {
+                it.name.lowercase().contains(query) ||
+                it.category.lowercase().contains(query) ||
+                it.notes.lowercase().contains(query)
+            }.forEach { habit ->
+                results.add(
+                    SearchResult(
+                        title = habit.name,
+                        subtitle = "Category: ${habit.category} • Streak: ${habit.streak} days",
+                        type = "Habit Runway",
+                        icon = Icons.Default.Repeat,
+                        color = BrandPink,
+                        onClick = {
+                            viewModel.setWorkspaceSubTab(1)
+                            onNavigate("workspace")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 3. Wishlist
+            wishlist.filter {
+                it.title.lowercase().contains(query) ||
+                it.priority.lowercase().contains(query) ||
+                (it.link?.lowercase()?.contains(query) == true)
+            }.forEach { item ->
+                results.add(
+                    SearchResult(
+                        title = item.title,
+                        subtitle = "Price: $${item.price} • Priority: ${item.priority.uppercase()}",
+                        type = "Wishlist Item",
+                        icon = Icons.Default.Star,
+                        color = BrandCyan,
+                        onClick = {
+                            viewModel.setWorkspaceSubTab(2)
+                            onNavigate("workspace")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 4. Occasions / Birthdays
+            birthdays.filter {
+                it.name.lowercase().contains(query) ||
+                it.category.lowercase().contains(query) ||
+                (it.giftIdea?.lowercase()?.contains(query) == true)
+            }.forEach { birthday ->
+                results.add(
+                    SearchResult(
+                        title = birthday.name,
+                        subtitle = "Date: ${birthday.date} • ${birthday.category}",
+                        type = "Occasion",
+                        icon = Icons.Default.Cake,
+                        color = BrandOrange,
+                        onClick = {
+                            viewModel.setWorkspaceSubTab(3)
+                            onNavigate("workspace")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 5. Alarms / Timers
+            alarms.filter {
+                it.label.lowercase().contains(query)
+            }.forEach { alarm ->
+                val timeStr = String.format("%02d:%02d", alarm.hour, alarm.minute)
+                results.add(
+                    SearchResult(
+                        title = alarm.label.ifBlank { "Alarm" },
+                        subtitle = "Scheduled: $timeStr • Enabled: ${alarm.isEnabled}",
+                        type = "Timer / Alarm",
+                        icon = Icons.Default.Alarm,
+                        color = BrandIndigo,
+                        onClick = {
+                            viewModel.setWorkspaceSubTab(4)
+                            onNavigate("workspace")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 6. Grocery List
+            groceryItems.filter {
+                it.name.lowercase().contains(query) ||
+                it.category.lowercase().contains(query)
+            }.forEach { grocery ->
+                results.add(
+                    SearchResult(
+                        title = grocery.name,
+                        subtitle = "Category: ${grocery.category} • Quantity: ${grocery.quantity}",
+                        type = "Grocery Item",
+                        icon = Icons.Default.ShoppingCart,
+                        color = BrandGreen,
+                        onClick = {
+                            viewModel.setWorkspaceSubTab(5)
+                            onNavigate("workspace")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 7. Finance Logs
+            financeLogs.filter {
+                it.title.lowercase().contains(query) ||
+                it.category.lowercase().contains(query)
+            }.forEach { log ->
+                val amtPrefix = if (log.type == "expense") "-" else "+"
+                results.add(
+                    SearchResult(
+                        title = log.title,
+                        subtitle = "Category: ${log.category} • Amount: $amtPrefix$${log.amount}",
+                        type = "Finance Log",
+                        icon = Icons.Default.AttachMoney,
+                        color = BrandViolet,
+                        onClick = {
+                            onNavigate("finance")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 8. Friends
+            friends.filter {
+                it.displayName.lowercase().contains(query)
+            }.forEach { friend ->
+                results.add(
+                    SearchResult(
+                        title = friend.displayName,
+                        subtitle = "Friend Connection since ${friend.addedAt}",
+                        type = "Friend",
+                        icon = Icons.Default.Person,
+                        color = BrandPink,
+                        onClick = {
+                            viewModel.setSocialSubTab("friends")
+                            onNavigate("social")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 9. Medicines / Tablet Reminders
+            tabletReminders.filter {
+                it.tabletName.lowercase().contains(query) ||
+                (it.notes?.lowercase()?.contains(query) == true)
+            }.forEach { tab ->
+                results.add(
+                    SearchResult(
+                        title = tab.tabletName,
+                        subtitle = "Dosage: ${tab.dosage} • Time: ${tab.timeOfDay}",
+                        type = "Medicine",
+                        icon = Icons.Default.Favorite,
+                        color = BrandViolet,
+                        onClick = {
+                            viewModel.setHealthSubTab(1)
+                            onNavigate("health")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            // 10. Health Issues
+            healthIssues.filter {
+                it.issueName.lowercase().contains(query) ||
+                (it.notes?.lowercase()?.contains(query) == true)
+            }.forEach { issue ->
+                results.add(
+                    SearchResult(
+                        title = issue.issueName,
+                        subtitle = "Severity: ${issue.severity.uppercase()} • Date: ${issue.date}",
+                        type = "Health Issue",
+                        icon = Icons.Default.Info,
+                        color = BrandRose,
+                        onClick = {
+                            viewModel.setHealthSubTab(0)
+                            onNavigate("health")
+                            onDismiss()
+                        }
+                    )
+                )
+            }
+
+            results
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(16.dp)
+            ) {
+                // Top Search Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester),
+                        placeholder = {
+                            Text(
+                                "Search literally anything in the app...",
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                fontSize = 14.sp
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search icon",
+                                tint = BrandViolet
+                            )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear search",
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BrandViolet,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+
+                    // Close Button
+                    TextButton(onClick = onDismiss) {
+                        Text(
+                            "Cancel",
+                            color = BrandViolet,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+
+                // Results list
+                if (searchQuery.trim().isEmpty()) {
+                    // Empty/Idle State
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = BrandViolet.copy(alpha = 0.25f),
+                                modifier = Modifier.size(72.dp)
+                            )
+                            Text(
+                                text = "Search literally anything",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = "Type to search tasks, habits, wishlist items, grocery list, alarms, medicine, health issues, expenses, friends, etc.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp)
+                            )
+                        }
+                    }
+                } else if (filteredResults.isEmpty()) {
+                    // No results state
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Text(
+                                text = "No results found",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = "We couldn't find anything matching \"$searchQuery\"",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    // Results list
+                    Text(
+                        text = "FOUND ${filteredResults.size} MATCHING ITEMS",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = BrandViolet,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(bottom = 24.dp)
+                    ) {
+                        items(filteredResults) { result ->
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { result.onClick() }
+                                    .border(
+                                        width = 1.dp,
+                                        color = result.color.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // Custom Circular Icon with background tint
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(result.color.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = result.icon,
+                                            contentDescription = null,
+                                            tint = result.color,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = result.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = result.subtitle,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                    }
+
+                                    // Type Badge
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(result.color.copy(alpha = 0.15f))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = result.type.uppercase(),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = result.color,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

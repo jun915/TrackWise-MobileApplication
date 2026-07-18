@@ -60,7 +60,7 @@ private val LightColorScheme =
 fun getThemeGradientColors(themeAccent: String, darkTheme: Boolean): List<Color> {
     return if (darkTheme) {
         when (themeAccent) {
-            "Ocean Blue" -> listOf(Color(0xFF03395C), Color(0xFF021727), Color(0xFF01070F))
+            "Ocean Blue" -> listOf(Color(0xFF0F172A), Color(0xFF0B1120), Color(0xFF070A13))
             "Forest Green" -> listOf(Color(0xFF063A25), Color(0xFF021B10), Color(0xFF010704))
             "Sunset Orange" -> listOf(Color(0xFF4A1A05), Color(0xFF210901), Color(0xFF080200))
             "Crimson Red" -> listOf(Color(0xFF450614), Color(0xFF1C0106), Color(0xFF070001))
@@ -68,7 +68,7 @@ fun getThemeGradientColors(themeAccent: String, darkTheme: Boolean): List<Color>
         }
     } else {
         when (themeAccent) {
-            "Ocean Blue" -> listOf(Color(0xFFBAE6FD), Color(0xFFF0F9FF), Color(0xFFFFFFFF))
+            "Ocean Blue" -> listOf(Color(0xFFCBD5E1), Color(0xFFF1F5F9), Color(0xFFFFFFFF))
             "Forest Green" -> listOf(Color(0xFFA7F3D0), Color(0xFFECFDF5), Color(0xFFFFFFFF))
             "Sunset Orange" -> listOf(Color(0xFFFFEDD5), Color(0xFFFFF7ED), Color(0xFFFFFFFF))
             "Crimson Red" -> listOf(Color(0xFFFECDD3), Color(0xFFFFF1F2), Color(0xFFFFFFFF))
@@ -96,15 +96,15 @@ fun MyApplicationTheme(
   // Sync brand colors first based on user selected theme accent
   when (themeAccent) {
       "Ocean Blue" -> {
-          BrandViolet = Color(0xFF0EA5E9)
-          BrandCyan = Color(0xFF6366F1)
-          BrandPink = Color(0xFF06B6D4)
-          darkBg = Color(0xFF050B14)
-          darkSurface = Color(0xFF091424)
-          darkSurfaceCard = Color(0xFF0F1E35)
-          lightBg = Color(0xFFF0F5FA)
+          BrandViolet = Color(0xFF6366F1) // Indigo/Blue from Amanah
+          BrandCyan = Color(0xFF0EA5E9)   // Bright sky blue
+          BrandPink = Color(0xFF10B981)   // Emerald green
+          darkBg = Color(0xFF090D16)      // Deep slate dark
+          darkSurface = Color(0xFF0F172A) // Slate 900
+          darkSurfaceCard = Color(0xFF1E293B) // Slate 800
+          lightBg = Color(0xFFF1F5F9)     // Slate 100
           lightSurfaceCard = Color(0xFFFFFFFF)
-          lightBgMid = Color(0xFFE1EDF7)
+          lightBgMid = Color(0xFFE2E8F0)  // Slate 200
       }
       "Forest Green" -> {
           BrandViolet = Color(0xFF10B981)

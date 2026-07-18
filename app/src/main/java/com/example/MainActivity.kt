@@ -72,26 +72,9 @@ class MainActivity : ComponentActivity() {
 
             val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
             
-            // Auto theme calculation (Dark: <6 AM or >= 6 PM)
-            var autoIsDark by androidx.compose.runtime.remember(themeMode) {
-                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-                androidx.compose.runtime.mutableStateOf(hour < 6 || hour >= 18)
-            }
-            
-            if (themeMode == "auto") {
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    while (true) {
-                        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-                        autoIsDark = hour < 6 || hour >= 18
-                        kotlinx.coroutines.delay(15000) // check every 15 seconds to remain perfectly synced
-                    }
-                }
-            }
-
             val isDark = when (themeMode) {
                 "dark" -> true
                 "light" -> false
-                "auto" -> autoIsDark
                 else -> systemDark
             }
 

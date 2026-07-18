@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,104 +83,69 @@ fun WorkspaceScreen(
             }
         }
 
-        // --- Workspace Sub-Tabs Dropdown Menu ---
+        // --- Workspace Sub-Tabs Horizontal Pills ---
         item {
-            var workspaceDropdownExpanded by remember { mutableStateOf(false) }
-            val currentLabel = subTabs.getOrElse(activeSubTab) { "Select Section" }
-            
-            Box(
+            LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp)
             ) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, BrandViolet.copy(alpha = 0.3f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { workspaceDropdownExpanded = !workspaceDropdownExpanded }
-                ) {
-                    Row(
+                items(subTabs.size) { index ->
+                    val label = subTabs[index]
+                    val isSelected = activeSubTab == index
+                    val activeColor = when (index) {
+                        0 -> BrandViolet
+                        1 -> BrandPink
+                        2 -> BrandCyan
+                        3 -> BrandOrange
+                        4 -> BrandIndigo
+                        else -> BrandGreen
+                    }
+                    val icon = when (index) {
+                        0 -> Icons.Default.Assignment
+                        1 -> Icons.Default.Repeat
+                        2 -> Icons.Default.Star
+                        3 -> Icons.Default.Cake
+                        4 -> Icons.Default.Timer
+                        else -> Icons.Default.ShoppingCart
+                    }
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (isSelected) activeColor
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .clickable {
+                                viewModel.setWorkspaceSubTab(index)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
-                                imageVector = when (activeSubTab) {
-                                    0 -> Icons.Default.Assignment
-                                    1 -> Icons.Default.Repeat
-                                    2 -> Icons.Default.Star
-                                    3 -> Icons.Default.Cake
-                                    4 -> Icons.Default.Timer
-                                    else -> Icons.Default.ShoppingCart
-                                },
+                                imageVector = icon,
                                 contentDescription = null,
-                                tint = BrandViolet,
-                                modifier = Modifier.size(20.dp)
+                                tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = currentLabel.uppercase(),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
+                                text = label,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                             )
                         }
-                        Icon(
-                            imageVector = if (workspaceDropdownExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = "Dropdown Indicator",
-                            tint = BrandViolet,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-                
-                DropdownMenu(
-                    expanded = workspaceDropdownExpanded,
-                    onDismissRequest = { workspaceDropdownExpanded = false },
-                    modifier = Modifier
-                        .widthIn(min = 200.dp, max = 300.dp)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, BrandViolet.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                ) {
-                    subTabs.forEachIndexed { index, label ->
-                        DropdownMenuItem(
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = when (index) {
-                                        0 -> Icons.Default.Assignment
-                                        1 -> Icons.Default.Repeat
-                                        2 -> Icons.Default.Star
-                                        3 -> Icons.Default.Cake
-                                        4 -> Icons.Default.Timer
-                                        else -> Icons.Default.ShoppingCart
-                                    },
-                                    contentDescription = null,
-                                    tint = if (activeSubTab == index) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            text = {
-                                Text(
-                                    text = label,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (activeSubTab == index) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (activeSubTab == index) BrandViolet else MaterialTheme.colorScheme.onSurface
-                                )
-                            },
-                            onClick = {
-                                viewModel.setWorkspaceSubTab(index)
-                                workspaceDropdownExpanded = false
-                            }
-                        )
                     }
                 }
             }

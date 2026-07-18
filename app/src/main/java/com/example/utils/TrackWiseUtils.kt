@@ -502,7 +502,10 @@ object TrackWiseUtils {
         if (isToday && !habit.dueTime.isNullOrBlank()) {
             val nowTimeStr = SimpleDateFormat("HH:mm", Locale.US).format(Date())
             if (nowTimeStr > habit.dueTime) {
-                return false
+                val daysCompleted = deserializeStringList(habit.daysCompletedJson)
+                if (!daysCompleted.contains(dateStr)) {
+                    return false
+                }
             }
         }
 

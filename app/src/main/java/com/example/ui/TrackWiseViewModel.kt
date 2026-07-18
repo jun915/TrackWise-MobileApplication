@@ -176,6 +176,24 @@ class TrackWiseViewModel(
     private val _appThemeSelection = MutableStateFlow("Default Violet")
     val appThemeSelection: StateFlow<String> = _appThemeSelection.asStateFlow()
 
+    private val _appBgType = MutableStateFlow("gradient") // "none", "color", "gradient", "image"
+    val appBgType: StateFlow<String> = _appBgType.asStateFlow()
+
+    private val _appBgColor = MutableStateFlow("Lavender & Amethyst")
+    val appBgColor: StateFlow<String> = _appBgColor.asStateFlow()
+
+    private val _appBgGradient = MutableStateFlow("Sunset Glow")
+    val appBgGradient: StateFlow<String> = _appBgGradient.asStateFlow()
+
+    private val _appBgImage = MutableStateFlow("https://images.unsplash.com/photo-1557683316-973673baf926?w=800")
+    val appBgImage: StateFlow<String> = _appBgImage.asStateFlow()
+
+    private val _appBgCustomUri = MutableStateFlow("")
+    val appBgCustomUri: StateFlow<String> = _appBgCustomUri.asStateFlow()
+
+    private val _profileImageUri = MutableStateFlow<String?>(null)
+    val profileImageUri: StateFlow<String?> = _profileImageUri.asStateFlow()
+
     private val _settingsPanelOpen = MutableStateFlow(false)
     val settingsPanelOpen: StateFlow<Boolean> = _settingsPanelOpen.asStateFlow()
 
@@ -236,6 +254,13 @@ class TrackWiseViewModel(
 
     fun setHealthSubTab(tabIndex: Int) {
         _healthSubTab.value = tabIndex
+    }
+
+    private val _socialSubTab = MutableStateFlow("friends")
+    val socialSubTab: StateFlow<String> = _socialSubTab.asStateFlow()
+
+    fun setSocialSubTab(tab: String) {
+        _socialSubTab.value = tab
     }
 
     val allGroceryItems: StateFlow<List<GroceryItemEntity>> = _sessionUser
@@ -468,12 +493,22 @@ class TrackWiseViewModel(
         _successMessage.value = null
     }
 
+    fun showSuccessMessage(message: String) {
+        _successMessage.value = message
+    }
+
     // --- Preferences Actions ---
     fun setThemeMode(mode: String) {
         _themeMode.value = mode
         val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
         prefs.edit().putString("saved_theme_mode", mode).apply()
         updateAppWidget()
+    }
+
+    fun setProfileImageUri(uri: String?) {
+        _profileImageUri.value = uri
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("profile_image_uri", uri).apply()
     }
 
     fun setCalendarOverlay(overlay: String) {
@@ -1868,6 +1903,36 @@ class TrackWiseViewModel(
         updateAppWidget()
     }
 
+    fun setAppBgType(type: String) {
+        _appBgType.value = type
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_bg_type", type).apply()
+    }
+
+    fun setAppBgColor(colorName: String) {
+        _appBgColor.value = colorName
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_bg_color", colorName).apply()
+    }
+
+    fun setAppBgGradient(gradientName: String) {
+        _appBgGradient.value = gradientName
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_bg_gradient", gradientName).apply()
+    }
+
+    fun setAppBgImage(imageUrl: String) {
+        _appBgImage.value = imageUrl
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_bg_image", imageUrl).apply()
+    }
+
+    fun setAppBgCustomUri(uriStr: String) {
+        _appBgCustomUri.value = uriStr
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit().putString("app_bg_custom_uri", uriStr).apply()
+    }
+
     // --- Account Management ---
     fun deleteAccount() {
         _sessionUser.value = null
@@ -2906,8 +2971,16 @@ class TrackWiseViewModel(
         // Restore theme preferences
         val savedThemeMode = prefs.getString("saved_theme_mode", "light") ?: "light"
         val savedThemeAccent = prefs.getString("saved_theme_accent", "Default Violet") ?: "Default Violet"
-        _themeMode.value = savedThemeMode
+        _themeMode.value = if (savedThemeMode == "auto") "system" else savedThemeMode
         _appThemeSelection.value = savedThemeAccent
+
+        // Restore background preferences
+        _appBgType.value = prefs.getString("app_bg_type", "gradient") ?: "gradient"
+        _appBgColor.value = prefs.getString("app_bg_color", "Lavender & Amethyst") ?: "Lavender & Amethyst"
+        _appBgGradient.value = prefs.getString("app_bg_gradient", "Sunset Glow") ?: "Sunset Glow"
+        _appBgImage.value = prefs.getString("app_bg_image", "https://images.unsplash.com/photo-1557683316-973673baf926?w=800") ?: "https://images.unsplash.com/photo-1557683316-973673baf926?w=800"
+        _appBgCustomUri.value = prefs.getString("app_bg_custom_uri", "") ?: ""
+        _profileImageUri.value = prefs.getString("profile_image_uri", null)
 
         // Restore auto-backup preferences
         val savedBackupFreq = prefs.getString("auto_backup_frequency", "none") ?: "none"

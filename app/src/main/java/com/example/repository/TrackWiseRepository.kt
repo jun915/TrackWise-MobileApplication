@@ -13,11 +13,61 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
     fun getAllUsersFlow(): Flow<List<UserEntity>> = dao.getAllUsersFlow()
 
     suspend fun findUserByEmail(email: String): UserEntity? {
-        return dao.getUserByEmail(email.lowercase().trim())
+        val cleanEmail = email.lowercase().trim()
+        val found = dao.getUserByEmail(cleanEmail)
+        if (found == null && (cleanEmail == "ju" || cleanEmail == "ju@gmail.com")) {
+            val userId = "user-default-ju"
+            val passwordHash = SecurityUtils.hashPassword("1234567890")
+            val newUser = UserEntity(
+                id = userId,
+                email = cleanEmail,
+                passwordHash = passwordHash,
+                fullName = "Junaid Ju",
+                dob = "15/08/2000",
+                gender = "female",
+                waterGoalGlasses = 8,
+                religion = "islam",
+                phone = "9159159150"
+            )
+            dao.insertUser(newUser)
+            seedDemoData(userId)
+            
+            // Force user profile fields to also match user requirements: female and islam
+            val profile = dao.getUserProfile(userId)
+            if (profile != null) {
+                dao.insertUserProfile(
+                    profile.copy(
+                        firstName = "Junaid",
+                        lastName = "Ju",
+                        dob = "15/08/2000",
+                        gender = "Female",
+                        religion = "Islam"
+                    )
+                )
+            } else {
+                dao.insertUserProfile(
+                    UserProfileEntity(
+                        userId = userId,
+                        firstName = "Junaid",
+                        lastName = "Ju",
+                        dob = "15/08/2000",
+                        gender = "Female",
+                        religion = "Islam"
+                    )
+                )
+            }
+            return newUser
+        }
+        return found
     }
 
     suspend fun findUserById(userId: String): UserEntity? {
-        return dao.getUserById(userId)
+        val found = dao.getUserById(userId)
+        if (found == null && userId == "user-default-ju") {
+            findUserByEmail("ju")
+            return dao.getUserById(userId)
+        }
+        return found
     }
 
     suspend fun signUp(email: String, passwordRaw: String, fullName: String): UserEntity {
