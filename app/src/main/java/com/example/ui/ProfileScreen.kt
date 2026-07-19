@@ -56,6 +56,33 @@ fun ProfileScreen(
     val sessionUser by viewModel.sessionUser.collectAsState()
     val profileImageUri by viewModel.profileImageUri.collectAsState()
     val allHabits by viewModel.allHabits.collectAsState()
+    val allTasks by viewModel.allTasks.collectAsState()
+
+    var showDetailedFormDialog by remember { mutableStateOf(false) }
+
+    val totalCompleted = remember(allTasks, allHabits) {
+        val completedTasksCount = allTasks.count { it.completed }
+        val habitCompletionsCount = allHabits.sumOf { habit ->
+            com.example.utils.TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).size
+        }
+        completedTasksCount + habitCompletionsCount
+    }
+
+    val userLevel = remember(totalCompleted) {
+        when {
+            totalCompleted >= 50 -> "Grandmaster (Lvl ${1 + totalCompleted / 10})"
+            totalCompleted >= 30 -> "Elite (Lvl ${1 + totalCompleted / 8})"
+            totalCompleted >= 15 -> "Expert (Lvl ${1 + totalCompleted / 6})"
+            totalCompleted >= 5 -> "Novice (Lvl ${1 + totalCompleted / 4})"
+            else -> "Beginner (Lvl 1)"
+        }
+    }
+
+    val totalBadgesCollected = remember(allHabits) {
+        allHabits.flatMap { habit ->
+            com.example.utils.TrackWiseUtils.deserializeIntList(habit.badgesEarnedJson)
+        }.toSet().size
+    }
 
     // --- State Holders for Personal Information ---
     var isPersonalInfoExpanded by remember { mutableStateOf(false) }
@@ -223,81 +250,188 @@ fun ProfileScreen(
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     val displayName = if (firstName.isNotBlank()) "$firstName $lastName" else sessionUser?.fullName ?: "Guest User"
                     val nameLetter = displayName.trim().take(1).uppercase()
 
-                    Box(
-                        modifier = Modifier.size(106.dp),
-                        contentAlignment = Alignment.BottomEnd
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
-                            modifier = Modifier
-                                .size(100.dp)
-                                .align(Alignment.Center)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(themeColor, MaterialTheme.colorScheme.tertiary)
-                                    )
-                                )
-                                .border(3.dp, themeColor.copy(alpha = 0.3f), CircleShape)
-                                .clickable {
-                                    showPhotoOptionsDialog = true
-                                },
-                            contentAlignment = Alignment.Center
+                            modifier = Modifier.size(86.dp),
+                            contentAlignment = Alignment.BottomEnd
                         ) {
-                            if (profileImageUri != null) {
-                                AsyncImage(
-                                    model = profileImageUri,
-                                    contentDescription = "Profile Photo",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Text(
-                                    text = nameLetter,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White,
-                                    fontSize = 38.sp
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .align(Alignment.Center)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(themeColor, MaterialTheme.colorScheme.tertiary)
+                                        )
+                                    )
+                                    .border(3.dp, themeColor.copy(alpha = 0.3f), CircleShape)
+                                    .clickable {
+                                        showPhotoOptionsDialog = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (profileImageUri != null) {
+                                    AsyncImage(
+                                        model = profileImageUri,
+                                        contentDescription = "Profile Photo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Text(
+                                        text = nameLetter,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White,
+                                        fontSize = 32.sp
+                                    )
+                                }
+                            }
+
+                            // Camera icon overlay indicator for click-to-edit
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                    .clickable {
+                                        showPhotoOptionsDialog = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "Edit photo",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(12.dp)
                                 )
                             }
                         }
 
-                        // Camera icon overlay indicator for click-to-edit
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer)
-                                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                                .clickable {
-                                    showPhotoOptionsDialog = true
-                                },
-                            contentAlignment = Alignment.Center
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.CameraAlt,
-                                contentDescription = "Edit photo",
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(14.dp)
+                            Text(
+                                text = displayName,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
+                            Text(
+                                text = if (emailAddress.isNotBlank()) emailAddress else sessionUser?.email ?: "No email registered",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+
+                            // Tag Row: level tag & total badges collected tag
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                // Level Tag
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = userLevel,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                // Badges Tag
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f))
+                                        .border(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.EmojiEvents,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.tertiary,
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                        Text(
+                                            text = "$totalBadgesCollected Badges",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = displayName,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (emailAddress.isNotBlank()) emailAddress else sessionUser?.email ?: "No email registered",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+                    )
+
+                    // Detailed User Information Link
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                showDetailedFormDialog = true
+                            }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Detailed User Information",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = "Open Details",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
@@ -469,518 +603,569 @@ fun ProfileScreen(
                 }
             }
         }
+    }
 
-        // --- 1. Basic Personal Information ---
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                    .clickable { isPersonalInfoExpanded = !isPersonalInfoExpanded },
-                shape = RoundedCornerShape(20.dp)
+    if (showDetailedFormDialog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showDetailedFormDialog = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
             ) {
-                Column(modifier = Modifier.padding(18.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Custom Header Row
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = themeColor, modifier = Modifier.size(20.dp))
-                        Text("1. BASIC PERSONAL INFORMATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                        Spacer(modifier = Modifier.weight(1f))
-                        Icon(
-                            imageVector = if (isPersonalInfoExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Toggle Section",
-                            tint = themeColor,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    if (isPersonalInfoExpanded) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(
-                                    value = firstName,
-                                    onValueChange = { 
-                                        firstName = it
-                                        if (it.isNotBlank()) showErrors = false
-                                    },
-                                    label = { Text("First Name *") },
-                                    isError = showErrors && firstNameError != null,
-                                    supportingText = {
-                                        if (showErrors && firstNameError != null) {
-                                            Text(firstNameError, color = MaterialTheme.colorScheme.error)
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                                )
-                                OutlinedTextField(
-                                    value = middleName,
-                                    onValueChange = { middleName = it },
-                                    label = { Text("Middle Name") },
-                                    modifier = Modifier.weight(1f),
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                                )
-                            }
-                            OutlinedTextField(
-                                value = lastName,
-                                onValueChange = { lastName = it },
-                                label = { Text("Last Name") },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                            )
-                            OutlinedTextField(
-                                value = dob,
-                                onValueChange = { dob = it },
-                                label = { Text("Date of Birth (DD/MM/YYYY)") },
-                                placeholder = { Text("e.g. 15/08/1998") },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                            )
-
-                            // Gender Selector
-                            Text("Gender / Sex", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("Male", "Female", "Other", "Prefer not to say").forEach { option ->
-                                    val isSel = gender == option
-                                    ChoiceChip(text = option, isSelected = isSel, onClick = { gender = option })
-                                }
-                            }
-
-                            // Marital Status Selector
-                            Text("Marital Status", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("Single", "Married", "Divorced", "Widowed").forEach { option ->
-                                    val isSel = maritalStatus == option
-                                    ChoiceChip(text = option, isSelected = isSel, onClick = { maritalStatus = option })
-                                }
-                            }
-
-                            // Religion Selector
-                            Text("Religion", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("Islam", "Hindu", "Christian", "Sikh", "Others").forEach { option ->
-                                    val isSel = religion == option
-                                    ChoiceChip(text = option, isSelected = isSel, onClick = { religion = option })
-                                }
-                            }
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(
-                                    value = nationality,
-                                    onValueChange = { nationality = it },
-                                    label = { Text("Nationality") },
-                                    modifier = Modifier.weight(1f),
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                                )
-                                OutlinedTextField(
-                                    value = nationalId,
-                                    onValueChange = { nationalId = it },
-                                    label = { Text("National ID / Passport") },
-                                    modifier = Modifier.weight(1.2f),
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- 2. Contact & Address Records ---
-        item {
-            ProfileSectionCard(
-                title = "2. CONTACT & ADDRESS INFORMATION",
-                icon = Icons.Default.Home
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Primary Contacts", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                    OutlinedTextField(
-                        value = mobileNumber,
-                        onValueChange = {
-                            mobileNumber = it
-                            if (it.isNotBlank()) showErrors = false
-                        },
-                        label = { Text("Mobile Phone Number *") },
-                        isError = showErrors && mobileError != null,
-                        supportingText = {
-                            if (showErrors && mobileError != null) {
-                                Text(mobileError, color = MaterialTheme.colorScheme.error)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = alternatePhone,
-                        onValueChange = { alternatePhone = it },
-                        label = { Text("Alternate Phone Number") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = emailAddress,
-                        onValueChange = {
-                            emailAddress = it
-                            if (it.isNotBlank()) showErrors = false
-                        },
-                        label = { Text("Email Address *") },
-                        isError = showErrors && emailError != null,
-                        supportingText = {
-                            if (showErrors && emailError != null) {
-                                Text(emailError, color = MaterialTheme.colorScheme.error)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-
-                    Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-
-                    Text("Residential / Current Address", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                    OutlinedTextField(
-                        value = residentialStreet,
-                        onValueChange = { residentialStreet = it },
-                        label = { Text("Street Address") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = residentialCity,
-                            onValueChange = { residentialCity = it },
-                            label = { Text("City") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                        OutlinedTextField(
-                            value = residentialState,
-                            onValueChange = { residentialState = it },
-                            label = { Text("State / Province") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = residentialZip,
-                            onValueChange = { residentialZip = it },
-                            label = { Text("ZIP / Postal Code") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                        OutlinedTextField(
-                            value = residentialCountry,
-                            onValueChange = { residentialCountry = it },
-                            label = { Text("Country") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { permanentIsSame = !permanentIsSame }
-                            .padding(vertical = 4.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .statusBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(
-                            checked = permanentIsSame,
-                            onCheckedChange = { permanentIsSame = it },
-                            colors = CheckboxDefaults.colors(checkedColor = themeColor)
-                        )
+                        IconButton(onClick = { showDetailedFormDialog = false }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Permanent Address is same as Residential address",
-                            fontSize = 12.sp,
+                            text = "Detailed User Information",
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
-                    if (!permanentIsSame) {
-                        Text("Permanent Address", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                        OutlinedTextField(
-                            value = permanentStreet,
-                            onValueChange = { permanentStreet = it },
-                            label = { Text("Street Address") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = permanentCity,
-                                onValueChange = { permanentCity = it },
-                                label = { Text("City") },
-                                modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                            )
-                            OutlinedTextField(
-                                value = permanentState,
-                                onValueChange = { permanentState = it },
-                                label = { Text("State / Province") },
-                                modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = permanentZip,
-                                onValueChange = { permanentZip = it },
-                                label = { Text("ZIP / Postal Code") },
-                                modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                            )
-                            OutlinedTextField(
-                                value = permanentCountry,
-                                onValueChange = { permanentCountry = it },
-                                label = { Text("Country") },
-                                modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- 3. Emergency Contacts ---
-        item {
-            ProfileSectionCard(
-                title = "3. EMERGENCY CONTACT INFORMATION",
-                icon = Icons.Default.Phone
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = emergencyName,
-                        onValueChange = { emergencyName = it },
-                        label = { Text("Primary Emergency Contact Name") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = emergencyRelationship,
-                        onValueChange = { emergencyRelationship = it },
-                        label = { Text("Relationship to User") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = emergencyPhone,
-                        onValueChange = { emergencyPhone = it },
-                        label = { Text("Emergency Phone Number") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = alternateEmergencyPhone,
-                        onValueChange = { alternateEmergencyPhone = it },
-                        label = { Text("Alternate Emergency Phone") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                }
-            }
-        }
-
-        // --- 4. Health, Medical & Biometrics (Consolidated) ---
-        item {
-            ProfileSectionCard(
-                title = "4. HEALTH, MEDICAL & BIOMETRIC DETAILS",
-                icon = Icons.Default.Favorite
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = height,
-                            onValueChange = { height = it },
-                            label = { Text("Height (e.g., cm)") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                        OutlinedTextField(
-                            value = weight,
-                            onValueChange = { weight = it },
-                            label = { Text("Weight (e.g., kg)") },
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = primaryDoctor,
-                        onValueChange = { primaryDoctor = it },
-                        label = { Text("Primary Doctor Name") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = medicalConditions,
-                        onValueChange = { medicalConditions = it },
-                        label = { Text("Known Medical Conditions / Chronic Illnesses") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = currentMedications,
-                        onValueChange = { currentMedications = it },
-                        label = { Text("Current Active Medications") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = allergies,
-                        onValueChange = { allergies = it },
-                        label = { Text("Allergies (Food, Drug, Environment)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                    OutlinedTextField(
-                        value = dietaryRestrictions,
-                        onValueChange = { dietaryRestrictions = it },
-                        label = { Text("Dietary Restrictions / Preferences") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                    )
-                }
-            }
-        }
-
-        // --- 5. Clinical Vitals ---
-        item {
-            ProfileSectionCard(
-                title = "5. CLINICAL VITALS RECORDS",
-                icon = Icons.Default.Info
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = vitalsBloodPressure,
-                            onValueChange = { vitalsBloodPressure = it },
-                            label = { Text("Blood Pressure") },
-                            placeholder = { Text("e.g. 120/80") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                        OutlinedTextField(
-                            value = vitalsHeartRate,
-                            onValueChange = { vitalsHeartRate = it },
-                            label = { Text("Resting Heart Rate (BPM)") },
-                            placeholder = { Text("e.g. 72") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
-                        )
-                    }
-
-                    // Consolidated Blood Group Selector
-                    Text("Verified Blood Group", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    // Scrollable content inside the Dialog
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-").forEach { option ->
-                            val isSel = bloodGroup == option
-                            ChoiceChip(text = option, isSelected = isSel, onClick = { bloodGroup = option })
+                        // --- 1. Basic Personal Information ---
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                                    .clickable { isPersonalInfoExpanded = !isPersonalInfoExpanded },
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(18.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Default.Person, contentDescription = null, tint = themeColor, modifier = Modifier.size(20.dp))
+                                        Text("1. BASIC PERSONAL INFORMATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        Icon(
+                                            imageVector = if (isPersonalInfoExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = "Toggle Section",
+                                            tint = themeColor,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+
+                                    if (isPersonalInfoExpanded) {
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                OutlinedTextField(
+                                                    value = firstName,
+                                                    onValueChange = { 
+                                                        firstName = it
+                                                        if (it.isNotBlank()) showErrors = false
+                                                    },
+                                                    label = { Text("First Name *") },
+                                                    isError = showErrors && firstNameError != null,
+                                                    supportingText = {
+                                                        if (showErrors && firstNameError != null) {
+                                                            Text(firstNameError, color = MaterialTheme.colorScheme.error)
+                                                        }
+                                                    },
+                                                    modifier = Modifier.weight(1f),
+                                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                                )
+                                                OutlinedTextField(
+                                                    value = middleName,
+                                                    onValueChange = { middleName = it },
+                                                    label = { Text("Middle Name") },
+                                                    modifier = Modifier.weight(1f),
+                                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                                )
+                                            }
+                                            OutlinedTextField(
+                                                value = lastName,
+                                                onValueChange = { lastName = it },
+                                                label = { Text("Last Name") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                            )
+                                            OutlinedTextField(
+                                                value = dob,
+                                                onValueChange = { dob = it },
+                                                label = { Text("Date of Birth (DD/MM/YYYY)") },
+                                                placeholder = { Text("e.g. 15/08/1998") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                            )
+
+                                            // Gender Selector
+                                            Text("Gender / Sex", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                                            FlowRow(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                listOf("Male", "Female", "Other", "Prefer not to say").forEach { option ->
+                                                    val isSel = gender == option
+                                                    ChoiceChip(text = option, isSelected = isSel, onClick = { gender = option })
+                                                }
+                                            }
+
+                                            // Marital Status Selector
+                                            Text("Marital Status", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                                            FlowRow(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                listOf("Single", "Married", "Divorced", "Widowed").forEach { option ->
+                                                    val isSel = maritalStatus == option
+                                                    ChoiceChip(text = option, isSelected = isSel, onClick = { maritalStatus = option })
+                                                }
+                                            }
+
+                                            // Religion Selector
+                                            Text("Religion", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                                            FlowRow(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                listOf("Islam", "Hindu", "Christian", "Sikh", "Others").forEach { option ->
+                                                    val isSel = religion == option
+                                                    ChoiceChip(text = option, isSelected = isSel, onClick = { religion = option })
+                                                }
+                                            }
+
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                OutlinedTextField(
+                                                    value = nationality,
+                                                    onValueChange = { nationality = it },
+                                                    label = { Text("Nationality") },
+                                                    modifier = Modifier.weight(1f),
+                                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                                )
+                                                OutlinedTextField(
+                                                    value = nationalId,
+                                                    onValueChange = { nationalId = it },
+                                                    label = { Text("National ID / Passport") },
+                                                    modifier = Modifier.weight(1.2f),
+                                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- 2. Contact & Address Records ---
+                        item {
+                            ProfileSectionCard(
+                                title = "2. CONTACT & ADDRESS INFORMATION",
+                                icon = Icons.Default.Home
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("Primary Contacts", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                                    OutlinedTextField(
+                                        value = mobileNumber,
+                                        onValueChange = {
+                                            mobileNumber = it
+                                            if (it.isNotBlank()) showErrors = false
+                                        },
+                                        label = { Text("Mobile Phone Number *") },
+                                        isError = showErrors && mobileError != null,
+                                        supportingText = {
+                                            if (showErrors && mobileError != null) {
+                                                Text(mobileError, color = MaterialTheme.colorScheme.error)
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = alternatePhone,
+                                        onValueChange = { alternatePhone = it },
+                                        label = { Text("Alternate Phone Number") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = emailAddress,
+                                        onValueChange = {
+                                            emailAddress = it
+                                            if (it.isNotBlank()) showErrors = false
+                                        },
+                                        label = { Text("Email Address *") },
+                                        isError = showErrors && emailError != null,
+                                        supportingText = {
+                                            if (showErrors && emailError != null) {
+                                                Text(emailError, color = MaterialTheme.colorScheme.error)
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+
+                                    Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                                    Text("Residential / Current Address", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                                    OutlinedTextField(
+                                        value = residentialStreet,
+                                        onValueChange = { residentialStreet = it },
+                                        label = { Text("Street Address") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = residentialCity,
+                                            onValueChange = { residentialCity = it },
+                                            label = { Text("City") },
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                        OutlinedTextField(
+                                            value = residentialState,
+                                            onValueChange = { residentialState = it },
+                                            label = { Text("State / Province") },
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = residentialZip,
+                                            onValueChange = { residentialZip = it },
+                                            label = { Text("ZIP / Postal Code") },
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                        OutlinedTextField(
+                                            value = residentialCountry,
+                                            onValueChange = { residentialCountry = it },
+                                            label = { Text("Country") },
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { permanentIsSame = !permanentIsSame }
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        Checkbox(
+                                            checked = permanentIsSame,
+                                            onCheckedChange = { permanentIsSame = it },
+                                            colors = CheckboxDefaults.colors(checkedColor = themeColor)
+                                        )
+                                        Text(
+                                            text = "Permanent Address is same as Residential address",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    if (!permanentIsSame) {
+                                        Text("Permanent Address", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                                        OutlinedTextField(
+                                            value = permanentStreet,
+                                            onValueChange = { permanentStreet = it },
+                                            label = { Text("Street Address") },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = permanentCity,
+                                                onValueChange = { permanentCity = it },
+                                                label = { Text("City") },
+                                                modifier = Modifier.weight(1f),
+                                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                            )
+                                            OutlinedTextField(
+                                                value = permanentState,
+                                                onValueChange = { permanentState = it },
+                                                label = { Text("State / Province") },
+                                                modifier = Modifier.weight(1f),
+                                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                            )
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedTextField(
+                                                value = permanentZip,
+                                                onValueChange = { permanentZip = it },
+                                                label = { Text("ZIP / Postal Code") },
+                                                modifier = Modifier.weight(1f),
+                                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                            )
+                                            OutlinedTextField(
+                                                value = permanentCountry,
+                                                onValueChange = { permanentCountry = it },
+                                                label = { Text("Country") },
+                                                modifier = Modifier.weight(1f),
+                                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- 3. Emergency Contacts ---
+                        item {
+                            ProfileSectionCard(
+                                title = "3. EMERGENCY CONTACT INFORMATION",
+                                icon = Icons.Default.Phone
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    OutlinedTextField(
+                                        value = emergencyName,
+                                        onValueChange = { emergencyName = it },
+                                        label = { Text("Primary Emergency Contact Name") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = emergencyRelationship,
+                                        onValueChange = { emergencyRelationship = it },
+                                        label = { Text("Relationship to User") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = emergencyPhone,
+                                        onValueChange = { emergencyPhone = it },
+                                        label = { Text("Emergency Phone Number") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = alternateEmergencyPhone,
+                                        onValueChange = { alternateEmergencyPhone = it },
+                                        label = { Text("Alternate Emergency Phone") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                }
+                            }
+                        }
+
+                        // --- 4. Health, Medical & Biometrics (Consolidated) ---
+                        item {
+                            ProfileSectionCard(
+                                title = "4. HEALTH, MEDICAL & BIOMETRIC DETAILS",
+                                icon = Icons.Default.Favorite
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = height,
+                                            onValueChange = { height = it },
+                                            label = { Text("Height (e.g., cm)") },
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                        OutlinedTextField(
+                                            value = weight,
+                                            onValueChange = { weight = it },
+                                            label = { Text("Weight (e.g., kg)") },
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                    }
+
+                                    OutlinedTextField(
+                                        value = primaryDoctor,
+                                        onValueChange = { primaryDoctor = it },
+                                        label = { Text("Primary Doctor Name") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = medicalConditions,
+                                        onValueChange = { medicalConditions = it },
+                                        label = { Text("Known Medical Conditions / Chronic Illnesses") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = currentMedications,
+                                        onValueChange = { currentMedications = it },
+                                        label = { Text("Current Active Medications") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = allergies,
+                                        onValueChange = { allergies = it },
+                                        label = { Text("Allergies (Food, Drug, Environment)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                    OutlinedTextField(
+                                        value = dietaryRestrictions,
+                                        onValueChange = { dietaryRestrictions = it },
+                                        label = { Text("Dietary Restrictions / Preferences") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                    )
+                                }
+                            }
+                        }
+
+                        // --- 5. Clinical Vitals ---
+                        item {
+                            ProfileSectionCard(
+                                title = "5. CLINICAL VITALS RECORDS",
+                                icon = Icons.Default.Info
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = vitalsBloodPressure,
+                                            onValueChange = { vitalsBloodPressure = it },
+                                            label = { Text("Blood Pressure") },
+                                            placeholder = { Text("e.g. 120/80") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                        OutlinedTextField(
+                                            value = vitalsHeartRate,
+                                            onValueChange = { vitalsHeartRate = it },
+                                            label = { Text("Resting Heart Rate (BPM)") },
+                                            placeholder = { Text("e.g. 72") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                                        )
+                                    }
+
+                                    // Consolidated Blood Group Selector
+                                    Text("Verified Blood Group", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-").forEach { option ->
+                                            val isSel = bloodGroup == option
+                                            ChoiceChip(text = option, isSelected = isSel, onClick = { bloodGroup = option })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- Save Button ---
+                        item {
+                            if (showErrors && (firstNameError != null || emailError != null || mobileError != null)) {
+                                Text(
+                                    text = "Please fix required fields first (marked with *)",
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (firstNameError == null && emailError == null && mobileError == null) {
+                                        val userId = sessionUser?.id ?: "unknown-user"
+                                        val newProfile = UserProfileEntity(
+                                            userId = userId,
+                                            firstName = firstName,
+                                            middleName = middleName,
+                                            lastName = lastName,
+                                            dob = dob,
+                                            gender = gender,
+                                            maritalStatus = maritalStatus,
+                                            nationality = nationality,
+                                            nationalId = nationalId,
+                                            bloodGroup = bloodGroup,
+                                            residentialStreet = residentialStreet,
+                                            residentialCity = residentialCity,
+                                            residentialState = residentialState,
+                                            residentialZip = residentialZip,
+                                            residentialCountry = residentialCountry,
+                                            permanentStreet = permanentStreet,
+                                            permanentCity = permanentCity,
+                                            permanentState = permanentState,
+                                            permanentZip = permanentZip,
+                                            permanentCountry = permanentCountry,
+                                            permanentIsSame = permanentIsSame,
+                                            mobileNumber = mobileNumber,
+                                            alternatePhone = alternatePhone,
+                                            emailAddress = emailAddress,
+                                            emergencyName = emergencyName,
+                                            emergencyRelationship = emergencyRelationship,
+                                            emergencyPhone = emergencyPhone,
+                                            alternateEmergencyPhone = alternateEmergencyPhone,
+                                            height = height,
+                                            weight = weight,
+                                            primaryDoctor = primaryDoctor,
+                                            medicalConditions = medicalConditions,
+                                            currentMedications = currentMedications,
+                                            allergies = allergies,
+                                            dietaryRestrictions = dietaryRestrictions,
+                                            vitalsHeight = height,
+                                            vitalsWeight = weight,
+                                            vitalsBloodPressure = vitalsBloodPressure,
+                                            vitalsHeartRate = vitalsHeartRate,
+                                            vitalsBloodGroup = bloodGroup,
+                                            religion = religion
+                                        )
+                                        viewModel.saveDetailedProfile(newProfile)
+                                        viewModel.showSuccessMessage("Detailed Profile saved successfully!")
+                                        showErrors = false
+                                        showDetailedFormDialog = false
+                                    } else {
+                                        showErrors = true
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null, tint = Color.White)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("SAVE DETAILED PROFILE", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
                     }
                 }
-            }
-        }
-
-        // --- Save Button ---
-        item {
-            if (showErrors && (firstNameError != null || emailError != null || mobileError != null)) {
-                Text(
-                    text = "Please fix required fields first (marked with *)",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            Button(
-                onClick = {
-                    if (firstNameError == null && emailError == null && mobileError == null) {
-                        val userId = sessionUser?.id ?: "unknown-user"
-                        val newProfile = UserProfileEntity(
-                            userId = userId,
-                            firstName = firstName,
-                            middleName = middleName,
-                            lastName = lastName,
-                            dob = dob,
-                            gender = gender,
-                            maritalStatus = maritalStatus,
-                            nationality = nationality,
-                            nationalId = nationalId,
-                            bloodGroup = bloodGroup,
-                            residentialStreet = residentialStreet,
-                            residentialCity = residentialCity,
-                            residentialState = residentialState,
-                            residentialZip = residentialZip,
-                            residentialCountry = residentialCountry,
-                            permanentStreet = permanentStreet,
-                            permanentCity = permanentCity,
-                            permanentState = permanentState,
-                            permanentZip = permanentZip,
-                            permanentCountry = permanentCountry,
-                            permanentIsSame = permanentIsSame,
-                            mobileNumber = mobileNumber,
-                            alternatePhone = alternatePhone,
-                            emailAddress = emailAddress,
-                            emergencyName = emergencyName,
-                            emergencyRelationship = emergencyRelationship,
-                            emergencyPhone = emergencyPhone,
-                            alternateEmergencyPhone = alternateEmergencyPhone,
-                            height = height,
-                            weight = weight,
-                            primaryDoctor = primaryDoctor,
-                            medicalConditions = medicalConditions,
-                            currentMedications = currentMedications,
-                            allergies = allergies,
-                            dietaryRestrictions = dietaryRestrictions,
-                            vitalsHeight = height,
-                            vitalsWeight = weight,
-                            vitalsBloodPressure = vitalsBloodPressure,
-                            vitalsHeartRate = vitalsHeartRate,
-                            vitalsBloodGroup = bloodGroup,
-                            religion = religion
-                        )
-                        viewModel.saveDetailedProfile(newProfile)
-                        viewModel.showSuccessMessage("Detailed Profile saved successfully!")
-                        showErrors = false
-                    } else {
-                        showErrors = true
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = themeColor)
-            ) {
-                Icon(Icons.Default.Save, contentDescription = null, tint = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("SAVE DETAILED PROFILE", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }

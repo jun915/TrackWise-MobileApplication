@@ -169,7 +169,7 @@ fun MainScreen(
             floatingActionButton = {
                 FloatingActionButton(
                     onClick = { showAddChoiceDialog = true },
-                    containerColor = BrandViolet,
+                    containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                     shape = CircleShape,
                     modifier = Modifier

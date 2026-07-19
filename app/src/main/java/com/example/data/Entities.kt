@@ -98,7 +98,14 @@ data class BirthdayEntity(
     val category: String = "Others",
     val remindMe: Boolean = false,
     val reminderDate: String? = null,
-    val reminderTime: String? = null
+    val reminderTime: String? = null,
+    val isPinned: Boolean = false,
+    val customBgImage: String? = null,
+    val customTextColor: String? = null,
+    val customFontStyle: String? = null,
+    val reminderOptions: String? = null,
+    val repeatPattern: String? = null,
+    val countingMode: String? = null
 )
 
 @Entity(tableName = "wishlist")

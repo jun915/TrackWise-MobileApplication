@@ -1911,112 +1911,128 @@ fun SwipeableTaskItem(
     ) {
         // --- BACKGROUND ACTIONS ---
         // Right Swipe Actions (Mark Done, Pin) - aligned to LEFT (revealed when dragging right, i.e. positive offset)
-        Row(
-            modifier = Modifier
-                .fillMaxHeight()
-                .align(Alignment.CenterStart)
-                .padding(start = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = {
-                    coroutineScope.launch { animOffset.animateTo(0f) }
-                    onToggleTask()
-                },
+        val rightAlpha = if (animOffset.value > 0f) {
+            (animOffset.value / (15f * density)).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        if (animOffset.value > 1f) {
+            Row(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(BrandGreen.copy(alpha = 0.15f))
+                    .fillMaxHeight()
+                    .align(Alignment.CenterStart)
+                    .padding(start = 12.dp)
+                    .graphicsLayer { alpha = rightAlpha },
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Mark Done",
-                    tint = BrandGreen,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch { animOffset.animateTo(0f) }
+                        onToggleTask()
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(BrandGreen.copy(alpha = 0.15f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Mark Done",
+                        tint = BrandGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
 
-            IconButton(
-                onClick = {
-                    coroutineScope.launch { animOffset.animateTo(0f) }
-                    onPinTask()
-                },
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(BrandAmber.copy(alpha = 0.15f))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PushPin,
-                    contentDescription = "Pin to Top",
-                    tint = BrandAmber,
-                    modifier = Modifier.size(20.dp)
-                )
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch { animOffset.animateTo(0f) }
+                        onPinTask()
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(BrandAmber.copy(alpha = 0.15f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PushPin,
+                        contentDescription = "Pin to Top",
+                        tint = BrandAmber,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 
         // Left Swipe Actions (Archive, Delete, Postpone) - aligned to RIGHT (revealed when dragging left, i.e. negative offset)
-        Row(
-            modifier = Modifier
-                .fillMaxHeight()
-                .align(Alignment.CenterEnd)
-                .padding(end = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = {
-                    coroutineScope.launch { animOffset.animateTo(0f) }
-                    onArchiveTask()
-                },
+        val leftAlpha = if (animOffset.value < 0f) {
+            (animOffset.value / (-15f * density)).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        if (animOffset.value < -1f) {
+            Row(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
+                    .fillMaxHeight()
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp)
+                    .graphicsLayer { alpha = leftAlpha },
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Archive,
-                    contentDescription = "Archive",
-                    tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch { animOffset.animateTo(0f) }
+                        onArchiveTask()
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Archive,
+                        contentDescription = "Archive",
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
 
-            IconButton(
-                onClick = {
-                    coroutineScope.launch { animOffset.animateTo(0f) }
-                    onDeleteTask()
-                },
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch { animOffset.animateTo(0f) }
+                        onDeleteTask()
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
 
-            IconButton(
-                onClick = {
-                    coroutineScope.launch { animOffset.animateTo(0f) }
-                    onPostponeTask()
-                },
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(BrandOrange.copy(alpha = 0.15f))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AccessTime,
-                    contentDescription = "Postpone",
-                    tint = BrandOrange,
-                    modifier = Modifier.size(20.dp)
-                )
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch { animOffset.animateTo(0f) }
+                        onPostponeTask()
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(BrandOrange.copy(alpha = 0.15f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccessTime,
+                        contentDescription = "Postpone",
+                        tint = BrandOrange,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 

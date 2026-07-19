@@ -346,12 +346,6 @@ fun SocialScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
-                        Text(
-                            text = "Ordered by Badge Count 🏆",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandPink
-                        )
                     }
                 }
 

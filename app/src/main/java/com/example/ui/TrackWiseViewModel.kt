@@ -1016,6 +1016,13 @@ class TrackWiseViewModel(
     private fun formatOccasionName(name: String, category: String): String {
         val baseCategory = category.split("|")[0]
         var cleaned = name.trim()
+        if (baseCategory.equals("Countdown", ignoreCase = true) || baseCategory.equals("Holiday", ignoreCase = true)) {
+            val suffix = if (baseCategory.equals("Countdown", ignoreCase = true)) "Countdown" else "Holiday"
+            if (cleaned.endsWith(suffix, ignoreCase = true)) {
+                return cleaned
+            }
+            return "$cleaned $suffix"
+        }
         val suffixes = listOf(
             "'s Birthday", "' Birthday", " Birthday",
             "'s Marriage Anniversary", "' Marriage Anniversary", " Marriage Anniversary",
@@ -1051,7 +1058,13 @@ class TrackWiseViewModel(
         category: String = "Others",
         remindMe: Boolean = false,
         reminderDate: String? = null,
-        reminderTime: String? = null
+        reminderTime: String? = null,
+        customBgImage: String? = null,
+        customTextColor: String? = null,
+        customFontStyle: String? = null,
+        reminderOptions: String? = null,
+        repeatPattern: String? = null,
+        countingMode: String? = null
     ) {
         val user = _sessionUser.value ?: return
         val finalName = formatOccasionName(name, category)
@@ -1065,7 +1078,14 @@ class TrackWiseViewModel(
                 category = category,
                 remindMe = remindMe,
                 reminderDate = reminderDate,
-                reminderTime = reminderTime
+                reminderTime = reminderTime,
+                isPinned = false,
+                customBgImage = customBgImage,
+                customTextColor = customTextColor,
+                customFontStyle = customFontStyle,
+                reminderOptions = reminderOptions,
+                repeatPattern = repeatPattern,
+                countingMode = countingMode
             )
             repository.insertBirthday(birthday)
             triggerFakeSync()

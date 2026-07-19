@@ -39,6 +39,11 @@ import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.text.style.TextAlign
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -2207,79 +2212,605 @@ private fun parseInputDate(input: String, hasYear: Boolean): String? {
     return null
 }
 
+private fun parseFontStyle(fontName: String?): androidx.compose.ui.text.font.FontFamily {
+    return when (fontName) {
+        "Sans Serif" -> androidx.compose.ui.text.font.FontFamily.SansSerif
+        "Serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+        "Monospace" -> androidx.compose.ui.text.font.FontFamily.Monospace
+        "Cursive" -> androidx.compose.ui.text.font.FontFamily.Cursive
+        else -> androidx.compose.ui.text.font.FontFamily.Default
+    }
+}
+
+private fun calculateOccasionDays(bday: com.example.data.BirthdayEntity): Int {
+    val dateStr = bday.date
+    val parts = dateStr.split("-")
+    if (parts.size == 3) {
+        val year = parts[0].toIntOrNull() ?: 2000
+        val month = parts[1].toIntOrNull() ?: 1
+        val day = parts[2].toIntOrNull() ?: 1
+
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val eventDate = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month - 1)
+            set(Calendar.DAY_OF_MONTH, day)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        if (bday.countingMode == "Count Up") {
+            if (eventDate.before(today) || eventDate == today) {
+                val diffMs = today.timeInMillis - eventDate.timeInMillis
+                return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+            }
+            return 0
+        } else if (bday.countingMode == "Count Down") {
+            if (eventDate.after(today)) {
+                val diffMs = eventDate.timeInMillis - today.timeInMillis
+                return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+            }
+            return 0
+        }
+    }
+    // Default to the yearly occurrence countdown logic
+    return daysUntilBirthday(bday.date)
+}
+
+@Composable
+private fun DialogTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = BrandCyan,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+                Text(
+                    text = value,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
 @Composable
 fun BirthdaySection(viewModel: TrackWiseViewModel) {
     val focusManager = LocalFocusManager.current
     val birthdays by viewModel.allBirthdays.collectAsState()
-    var showForm by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
-    var name by remember { mutableStateOf("") }
-    var dateText by remember { mutableStateOf("") }
-    var giftIdea by remember { mutableStateOf("") }
-    var isYearSelected by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf("Birthday") }
-    var selectedRelationship by remember { mutableStateOf("Others") }
-    var listFilter by remember { mutableStateOf("All") }
-    var relationFilter by remember { mutableStateOf("All") }
-    var showError by remember { mutableStateOf(false) }
+    var showSpeedDial by remember { mutableStateOf(false) }
+    var showAddOccasionDialog by remember { mutableStateOf(false) }
+    var addOccasionType by remember { mutableStateOf("Birthday") }
     var editingBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
-    var remindMe by remember { mutableStateOf(false) }
-    var reminderDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
-    var reminderTime by remember { mutableStateOf("08:00") }
+    var detailedBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
+    var showGlobalFontDialog by remember { mutableStateOf(false) }
+    var globalFontStyle by remember { mutableStateOf("Default") }
 
-    var showErrors by remember { mutableStateOf(false) }
-    val nameError = if (name.isBlank()) "Name of Person is required" else null
-    val parsedDate = parseInputDate(dateText, isYearSelected)
-    val dateError = if (dateText.isBlank()) "Date is required" else if (parsedDate == null) (if (isYearSelected) "Use DD/MM/YYYY format (e.g. 15/10/1995)" else "Use DD/MM format (e.g. 15/10)") else null
+    val allPresets = remember {
+        com.example.ui.theme.BackgroundPresets.textures +
+        com.example.ui.theme.BackgroundPresets.abstractImages +
+        com.example.ui.theme.BackgroundPresets.cityscapes +
+        com.example.ui.theme.BackgroundPresets.landscapes
+    }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Toggle add birthday form & Seed custom list row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = { 
-                    showForm = !showForm
-                    if (showForm) showErrors = false
+    if (showAddOccasionDialog || editingBirthday != null) {
+        val bday = editingBirthday
+        val isEdit = bday != null
+
+        var nameText by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.name ?: "")
+        }
+        var dateText by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.date)
+        }
+        var isYearSelected by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.date?.split("-")?.size == 3)
+        }
+        var categoryType by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.category?.split("|")?.getOrNull(0) ?: addOccasionType)
+        }
+        var categoryRelation by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.category?.split("|")?.getOrNull(1) ?: "Others")
+        }
+        var selectedReminders by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(
+                bday?.reminderOptions?.split(",")?.toSet()
+                    ?: if (bday?.remindMe == true) setOf("On the day (9AM)") else setOf("None")
+            )
+        }
+        var customReminderDateText by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.reminderDate)
+        }
+        var repeatOption by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.repeatPattern ?: "None")
+        }
+        var countingMode by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.countingMode ?: "Count Down")
+        }
+        var customBgImage by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.customBgImage)
+        }
+        var customFontStyle by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.customFontStyle ?: "Default")
+        }
+        var noteText by remember(showAddOccasionDialog, bday) {
+            mutableStateOf(bday?.giftIdea ?: "")
+        }
+        var showDialogErrors by remember { mutableStateOf(false) }
+
+        // --- Popups/Dialogs inside showAddOccasionDialog ---
+
+        // 1. Reminder intervals multi-select popup
+        var showRemindersPopup by remember { mutableStateOf(false) }
+        if (showRemindersPopup) {
+            val reminderChoices = listOf(
+                "None",
+                "On the day (9AM)",
+                "1 day early (9AM)",
+                "2 days early (9AM)",
+                "3 days early (9AM)",
+                "1 week early",
+                "Custom (No future dates)"
+            )
+            AlertDialog(
+                onDismissRequest = { showRemindersPopup = false },
+                title = { Text("Select Reminder Intervals", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        reminderChoices.forEach { choice ->
+                            val isChecked = if (choice == "Custom (No future dates)") {
+                                selectedReminders.any { it.startsWith("Custom") }
+                            } else {
+                                selectedReminders.contains(choice)
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val newSet = selectedReminders.toMutableSet()
+                                        if (choice == "None") {
+                                            newSet.clear()
+                                            newSet.add("None")
+                                            customReminderDateText = null
+                                        } else {
+                                            newSet.remove("None")
+                                            if (isChecked) {
+                                                if (choice == "Custom (No future dates)") {
+                                                    val customItem = newSet.find { it.startsWith("Custom") }
+                                                    if (customItem != null) newSet.remove(customItem)
+                                                    customReminderDateText = null
+                                                } else {
+                                                    newSet.remove(choice)
+                                                }
+                                            } else {
+                                                if (choice == "Custom (No future dates)") {
+                                                    val calendar = Calendar.getInstance()
+                                                    val datePickerDialog = android.app.DatePickerDialog(
+                                                        context,
+                                                        { _, year, month, dayOfMonth ->
+                                                            val monthStr = String.format("%02d", month + 1)
+                                                            val dayStr = String.format("%02d", dayOfMonth)
+                                                            val pickedDate = "$year-$monthStr-$dayStr"
+                                                            customReminderDateText = pickedDate
+                                                            val oldCustom = newSet.find { it.startsWith("Custom") }
+                                                            if (oldCustom != null) newSet.remove(oldCustom)
+                                                            newSet.add("Custom ($pickedDate)")
+                                                            selectedReminders = newSet
+                                                        },
+                                                        calendar.get(Calendar.YEAR),
+                                                        calendar.get(Calendar.MONTH),
+                                                        calendar.get(Calendar.DAY_OF_MONTH)
+                                                    )
+                                                    datePickerDialog.datePicker.maxDate = System.currentTimeMillis()
+                                                    datePickerDialog.show()
+                                                } else {
+                                                    newSet.add(choice)
+                                                }
+                                            }
+                                            if (newSet.isEmpty()) {
+                                                newSet.add("None")
+                                            }
+                                        }
+                                        selectedReminders = newSet
+                                    }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        val newSet = selectedReminders.toMutableSet()
+                                        if (choice == "None") {
+                                            newSet.clear()
+                                            newSet.add("None")
+                                            customReminderDateText = null
+                                        } else {
+                                            newSet.remove("None")
+                                            if (checked == true) {
+                                                if (choice == "Custom (No future dates)") {
+                                                    val calendar = Calendar.getInstance()
+                                                    val datePickerDialog = android.app.DatePickerDialog(
+                                                        context,
+                                                        { _, year, month, dayOfMonth ->
+                                                            val monthStr = String.format("%02d", month + 1)
+                                                            val dayStr = String.format("%02d", dayOfMonth)
+                                                            val pickedDate = "$year-$monthStr-$dayStr"
+                                                            customReminderDateText = pickedDate
+                                                            val oldCustom = newSet.find { it.startsWith("Custom") }
+                                                            if (oldCustom != null) newSet.remove(oldCustom)
+                                                            newSet.add("Custom ($pickedDate)")
+                                                            selectedReminders = newSet
+                                                        },
+                                                        calendar.get(Calendar.YEAR),
+                                                        calendar.get(Calendar.MONTH),
+                                                        calendar.get(Calendar.DAY_OF_MONTH)
+                                                    )
+                                                    datePickerDialog.datePicker.maxDate = System.currentTimeMillis()
+                                                    datePickerDialog.show()
+                                                } else {
+                                                    newSet.add(choice)
+                                                }
+                                            } else {
+                                                if (choice == "Custom (No future dates)") {
+                                                    val customItem = newSet.find { it.startsWith("Custom") }
+                                                    if (customItem != null) newSet.remove(customItem)
+                                                    customReminderDateText = null
+                                                } else {
+                                                    newSet.remove(choice)
+                                                }
+                                            }
+                                            if (newSet.isEmpty()) {
+                                                newSet.add("None")
+                                            }
+                                        }
+                                        selectedReminders = newSet
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val labelText = if (choice == "Custom (No future dates)" && customReminderDateText != null) {
+                                    "Custom: $customReminderDateText"
+                                } else {
+                                    choice
+                                }
+                                Text(labelText, fontSize = 14.sp)
+                            }
+                        }
+                    }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
-                Text(if (showForm) "Close Form" else "Add Occasion", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp), maxLines = 1)
-            }
+                confirmButton = {
+                    Button(onClick = { showRemindersPopup = false }, colors = ButtonDefaults.buttonColors(containerColor = BrandCyan)) {
+                        Text("OK", color = Color.White)
+                    }
+                }
+            )
         }
 
-        if (showForm) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("ADD OCCASION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
-
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { 
-                            name = it 
-                            if (it.isNotBlank()) showErrors = false
-                        },
-                        label = { Text("Name of Person * (e.g. Syed)") },
-                        singleLine = true,
-                        isError = showErrors && nameError != null,
-                        supportingText = {
-                            if (showErrors && nameError != null) {
-                                Text(nameError, color = MaterialTheme.colorScheme.error)
+        // 2. Repeat Setting popup
+        var showRepeatPopup by remember { mutableStateOf(false) }
+        if (showRepeatPopup) {
+            val repeatChoices = listOf(
+                "None",
+                "Daily",
+                "Weekly (on same day as of selected date)",
+                "Monthly (same date every month as selected)",
+                "Yearly (same date every year)",
+                "Custom"
+            )
+            AlertDialog(
+                onDismissRequest = { showRepeatPopup = false },
+                title = { Text("Select Repeat Pattern", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        repeatChoices.forEach { choice ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        repeatOption = choice
+                                        showRepeatPopup = false
+                                    }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                RadioButton(
+                                    selected = repeatOption == choice,
+                                    onClick = {
+                                        repeatOption = choice
+                                        showRepeatPopup = false
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(choice, fontSize = 14.sp)
                             }
-                        },
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showRepeatPopup = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // 3. Occasion Type popup
+        var showTypePopup by remember { mutableStateOf(false) }
+        if (showTypePopup) {
+            val typeChoices = listOf("Birthday", "Marriage Anniversary", "Death Anniversary", "Countdown", "Holiday")
+            AlertDialog(
+                onDismissRequest = { showTypePopup = false },
+                title = { Text("Select Occasion Type", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        typeChoices.forEach { choice ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        categoryType = choice
+                                        showTypePopup = false
+                                    }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                RadioButton(
+                                    selected = categoryType == choice,
+                                    onClick = {
+                                        categoryType = choice
+                                        showTypePopup = false
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(choice, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showTypePopup = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // 4. Counting Mode popup
+        var showCountingModePopup by remember { mutableStateOf(false) }
+        if (showCountingModePopup) {
+            AlertDialog(
+                onDismissRequest = { showCountingModePopup = false },
+                title = { Text("Select Counting Mode", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Choose to count down to the event, or count up since the event occurred:")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Button(
+                                onClick = {
+                                    countingMode = "Count Down"
+                                    showCountingModePopup = false
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (countingMode == "Count Down") BrandCyan else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Text("Count Down", color = if (countingMode == "Count Down") Color.White else MaterialTheme.colorScheme.onSurface)
+                            }
+                            Button(
+                                onClick = {
+                                    countingMode = "Count Up"
+                                    showCountingModePopup = false
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (countingMode == "Count Up") BrandCyan else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Text("Count Up", color = if (countingMode == "Count Up") Color.White else MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showCountingModePopup = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+
+        // 5. Background Image preset row popup
+        var showBgImagePopup by remember { mutableStateOf(false) }
+        if (showBgImagePopup) {
+            AlertDialog(
+                onDismissRequest = { showBgImagePopup = false },
+                title = { Text("Select Background Image Preset", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text("Swipe horizontally to select a high-quality preset background style:", fontSize = 13.sp)
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .border(
+                                            width = if (customBgImage.isNullOrEmpty()) 2.dp else 1.dp,
+                                            color = if (customBgImage.isNullOrEmpty()) BrandCyan else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            customBgImage = null
+                                            showBgImagePopup = false
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("None", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            items(allPresets) { imageUrl ->
+                                val isSelected = customBgImage == imageUrl
+                                AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .border(
+                                            width = if (isSelected) 2.dp else 0.dp,
+                                            color = if (isSelected) BrandCyan else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            customBgImage = imageUrl
+                                            showBgImagePopup = false
+                                        }
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showBgImagePopup = false }, colors = ButtonDefaults.buttonColors(containerColor = BrandCyan)) {
+                        Text("Done", color = Color.White)
+                    }
+                }
+            )
+        }
+
+        // 6. Font Style popup
+        var showFontStylePopup by remember { mutableStateOf(false) }
+        if (showFontStylePopup) {
+            val fontChoices = listOf("Default", "Sans Serif", "Serif", "Monospace", "Cursive")
+            AlertDialog(
+                onDismissRequest = { showFontStylePopup = false },
+                title = { Text("Select Font Style", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        fontChoices.forEach { font ->
+                            val isSelected = customFontStyle == font
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        customFontStyle = font
+                                        showFontStylePopup = false
+                                    }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = {
+                                        customFontStyle = font
+                                        showFontStylePopup = false
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = font,
+                                    fontFamily = parseFontStyle(font),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showFontStylePopup = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        AlertDialog(
+            onDismissRequest = {
+                showAddOccasionDialog = false
+                editingBirthday = null
+            },
+            title = {
+                Text(
+                    text = if (isEdit) "EDIT OCCASION" else "ADD OCCASION",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandCyan
+                )
+            },
+            text = {
+                val scrollState = rememberScrollState()
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(scrollState)
+                ) {
+                    OutlinedTextField(
+                        value = nameText,
+                        onValueChange = { nameText = it },
+                        label = { Text("Name of Occasion / Person *") },
+                        singleLine = true,
+                        isError = showDialogErrors && nameText.isBlank(),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Format toggle
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        label = { Text("Note / Gift Idea") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
                             text = "CHOOSE DATE FORMAT",
@@ -2294,23 +2825,23 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 .padding(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            listOf(false to "DD/MM", true to "DD/MM/YYYY").forEach { (hasYearOption, labelText) ->
+                            listOf(false to "MM-DD (No Year)", true to "YYYY-MM-DD (With Year)").forEach { (hasYearOption, labelText) ->
                                 val isSel = isYearSelected == hasYearOption
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isSel) BrandCyan else Color.Transparent)
-                                        .clickable { 
+                                        .clickable {
                                             isYearSelected = hasYearOption
-                                            showError = false
+                                            dateText = null
                                         }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = labelText,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -2319,698 +2850,1079 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         }
                     }
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DatePickerField(
-                            dateStr = dateText,
-                            label = if (isYearSelected) "Date (DD/MM/YYYY) *" else "Date (DD/MM) *",
-                            onDateSelected = { selectedDate ->
-                                val parts = selectedDate.split("-")
-                                if (parts.size == 3) {
-                                    val y = parts[0]
-                                    val m = parts[1]
-                                    val d = parts[2]
-                                    dateText = if (isYearSelected) "$d/$m/$y" else "$d/$m"
-                                    showErrors = false
-                                    showError = false
-                                }
-                            },
-                            tintColor = BrandCyan,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        CompactTextField(
-                            value = giftIdea,
-                            onValueChange = { giftIdea = it },
-                            label = "Gift Idea / Note",
-                            placeholder = "e.g. Watch",
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Occasion Type Selection
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "OCCASION TYPE",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("EVENT DATE *", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf("Birthday", "Marriage Anniversary", "Death Anniversary").forEach { cat ->
-                                val isSel = selectedCategory == cat
-                                val catColor = when (cat) {
-                                    "Birthday" -> BrandCyan
-                                    "Marriage Anniversary" -> BrandPink
-                                    "Death Anniversary" -> BrandViolet
-                                    else -> BrandAmber
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(if (isSel) catColor.copy(alpha = 0.15f) else Color.Transparent)
-                                        .border(1.dp, if (isSel) catColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                                        .clickable { selectedCategory = cat }
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                  ) {
-                                    Text(
-                                        text = cat,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (isSel) catColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .clickable {
+                                    val calendar = Calendar.getInstance()
+                                    val datePickerDialog = android.app.DatePickerDialog(
+                                        context,
+                                        { _, year, month, dayOfMonth ->
+                                            val monthStr = String.format("%02d", month + 1)
+                                            val dayStr = String.format("%02d", dayOfMonth)
+                                            dateText = if (isYearSelected) "$year-$monthStr-$dayStr" else "$monthStr-$dayStr"
+                                        },
+                                        calendar.get(Calendar.YEAR),
+                                        calendar.get(Calendar.MONTH),
+                                        calendar.get(Calendar.DAY_OF_MONTH)
                                     )
+                                    if (categoryType == "Birthday" || categoryType == "Marriage Anniversary" || categoryType == "Death Anniversary") {
+                                        datePickerDialog.datePicker.maxDate = System.currentTimeMillis()
+                                    }
+                                    datePickerDialog.show()
                                 }
-                            }
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Icon(Icons.Default.DateRange, contentDescription = null, tint = BrandCyan)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (dateText.isNullOrEmpty()) "Select Date *" else formatBirthdayDate(dateText!!),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (dateText.isNullOrEmpty() && showDialogErrors) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
 
-                    // Relationship Selection
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "RELATIONSHIP",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("RELATIONSHIP", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             listOf("Friend", "Family", "Relative", "Others").forEach { rel ->
-                                val isSel = selectedRelationship == rel
-                                val relColor = when (rel) {
+                                val isSel = categoryRelation == rel
+                                val color = when (rel) {
                                     "Friend" -> BrandCyan
                                     "Family" -> BrandPink
                                     "Relative" -> BrandViolet
                                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(if (isSel) relColor.copy(alpha = 0.15f) else Color.Transparent)
-                                        .border(1.dp, if (isSel) relColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                                        .clickable { selectedRelationship = rel }
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = rel,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (isSel) relColor else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Checkbox(
-                            checked = remindMe,
-                            onCheckedChange = { remindMe = it },
-                            colors = CheckboxDefaults.colors(checkedColor = BrandCyan)
-                        )
-                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                    }
-
-                    if (remindMe) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            DatePickerField(
-                                dateStr = reminderDate,
-                                label = "Reminder Date",
-                                onDateSelected = { reminderDate = it },
-                                modifier = Modifier.weight(1f),
-                                tintColor = BrandCyan
-                            )
-                            TimePickerField(
-                                timeStr = reminderTime,
-                                label = "Reminder Time",
-                                onTimeSelected = { reminderTime = it },
-                                modifier = Modifier.weight(1f),
-                                tintColor = BrandCyan
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = {
-                            if (nameError == null && dateError == null) {
-                                val parsed = parsedDate ?: parseInputDate(dateText, isYearSelected)
-                                if (parsed != null) {
-                                    viewModel.addBirthday(
-                                        name = name.trim(),
-                                        date = parsed,
-                                        giftIdea = if (giftIdea.isBlank()) null else giftIdea.trim(),
-                                        category = "$selectedCategory|$selectedRelationship",
-                                        remindMe = remindMe,
-                                        reminderDate = if (remindMe) reminderDate else null,
-                                        reminderTime = if (remindMe) reminderTime else null
-                                    )
-                                    name = ""
-                                    dateText = ""
-                                    giftIdea = ""
-                                    selectedRelationship = "Others"
-                                    remindMe = false
-                                    reminderDate = TrackWiseUtils.getTodayString()
-                                    reminderTime = "08:00"
-                                    showError = false
-                                    showErrors = false
-                                    showForm = false
-                                } else {
-                                    showErrors = true
-                                    showError = true
-                                }
-                            } else {
-                                showErrors = true
-                                showError = true
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Add Occasion", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        // Segregated Filter list
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Type:",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                listOf("All", "Birthday", "Marriage Anniversary", "Death Anniversary").forEach { filter ->
-                    val isSel = listFilter == filter
-                    val catColor = when (filter) {
-                        "All" -> BrandCyan
-                        "Birthday" -> BrandCyan
-                        "Marriage Anniversary" -> BrandPink
-                        "Death Anniversary" -> BrandViolet
-                        else -> BrandAmber
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(if (isSel) catColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .clickable { listFilter = filter }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = filter,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Relation:",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                listOf("All", "Friends", "Family", "Relatives", "Others").forEach { filter ->
-                    val isSel = relationFilter == filter
-                    val catColor = when (filter) {
-                        "All" -> BrandCyan
-                        "Friends" -> BrandCyan
-                        "Family" -> BrandPink
-                        "Relatives" -> BrandViolet
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(if (isSel) catColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .clickable { relationFilter = filter }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = filter,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            if (birthdays.isEmpty()) {
-                Text("No occasions registered. Store dates to track countdowns!")
-            } else {
-                val filteredBirthdays = birthdays.filter { bday ->
-                    val bdayType = bday.category.split("|")[0]
-                    val matchesType = if (listFilter == "All") {
-                        true
-                    } else if (listFilter == "Birthday") {
-                        !bdayType.equals("Marriage Anniversary", ignoreCase = true) && !bdayType.equals("Death Anniversary", ignoreCase = true)
-                    } else {
-                        bdayType.equals(listFilter, ignoreCase = true)
-                    }
-
-                    val bdayRelation = bday.category.split("|").getOrNull(1) ?: "Others"
-                    val matchesRelation = if (relationFilter == "All") {
-                        true
-                    } else {
-                        val relationKey = when (relationFilter) {
-                            "Friends" -> "Friend"
-                            "Relatives" -> "Relative"
-                            else -> relationFilter // "Family", "Others"
-                        }
-                        bdayRelation.equals(relationKey, ignoreCase = true)
-                    }
-
-                    matchesType && matchesRelation
-                }
-                val sortedBirthdays = filteredBirthdays.sortedBy { daysUntilBirthday(it.date) }
-
-                if (sortedBirthdays.isEmpty()) {
-                    Text(
-                        text = "No occasions in current filter criteria.",
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                } else {
-                    sortedBirthdays.forEach { bday ->
-                        val bdayType = bday.category.split("|")[0]
-                        val daysLeft = daysUntilBirthday(bday.date)
-                        val age = calculateAge(bday.date)
-                        val catColor = when (bdayType) {
-                            "Marriage Anniversary" -> BrandPink
-                            "Death Anniversary" -> BrandViolet
-                            else -> BrandCyan
-                        }
-                        val occasionIcon = when (bdayType) {
-                            "Marriage Anniversary" -> Icons.Default.Favorite
-                            "Death Anniversary" -> Icons.Default.LocalFlorist
-                            else -> Icons.Default.Cake
-                        }
-
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    width = if (daysLeft == 0) 2.dp else 1.dp,
-                                    color = if (daysLeft == 0) BrandAmber else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(16.dp)
-                                )
-                                .clickable { editingBirthday = bday }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(occasionIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(24.dp))
-                                
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            text = bday.name,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onBackground,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    Text(
-                                        text = buildString {
-                                            append("Date: ${formatBirthdayDate(bday.date)}")
-                                            if (age != null) {
-                                                if (bdayType == "Death Anniversary") {
-                                                    append(" (Years passed: $age)")
-                                                } else if (bdayType == "Marriage Anniversary") {
-                                                    append(" (Years: $age)")
-                                                } else {
-                                                    append(" (Age: $age)")
-                                                }
-                                            }
-                                            if (bday.giftIdea != null) {
-                                                append(" · Note: ${bday.giftIdea}")
-                                            }
-                                        },
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            color = if (daysLeft == 0) BrandAmber.copy(alpha = 0.15f)
-                                            else if (daysLeft <= 7) BrandRose.copy(alpha = 0.1f)
-                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-                                            shape = RoundedCornerShape(20.dp)
-                                        )
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = when (daysLeft) {
-                                            0 -> {
-                                                if (bdayType == "Death Anniversary") "TODAY 🕯️"
-                                                else if (bdayType == "Marriage Anniversary") "TODAY! 💖"
-                                                else "TODAY! 🎂"
-                                            }
-                                            1 -> "Tomorrow"
-                                            else -> "In $daysLeft days"
-                                        },
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (daysLeft == 0) BrandAmber
-                                        else if (daysLeft <= 7) BrandRose
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(4.dp))
-
-                                IconButton(onClick = { viewModel.deleteBirthday(bday.id) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (editingBirthday != null) {
-        val bday = editingBirthday!!
-        var editName by remember(bday) { mutableStateOf(bday.name) }
-        val parts = remember(bday) { bday.date.split("-") }
-        var editIsYearSelected by remember(bday) { mutableStateOf(parts.size == 3) }
-        var editDateText by remember(bday) {
-            mutableStateOf(
-                if (parts.size == 3) "${parts[2]}/${parts[1]}/${parts[0]}"
-                else if (parts.size == 2) "${parts[1]}/${parts[0]}"
-                else bday.date
-            )
-        }
-        var editGiftIdea by remember(bday) { mutableStateOf(bday.giftIdea ?: "") }
-        val bdayCategoryType = remember(bday) { bday.category.split("|")[0] }
-        val bdayCategoryRelation = remember(bday) { bday.category.split("|").getOrNull(1) ?: "Others" }
-        var editCategoryType by remember(bday) { mutableStateOf(bdayCategoryType) }
-        var editCategoryRelation by remember(bday) { mutableStateOf(bdayCategoryRelation) }
-        var editShowError by remember { mutableStateOf(false) }
-        var editRemindMe by remember(bday) { mutableStateOf(bday.remindMe) }
-        var editReminderDate by remember(bday) { mutableStateOf(bday.reminderDate ?: TrackWiseUtils.getTodayString()) }
-        var editReminderTime by remember(bday) { mutableStateOf(bday.reminderTime ?: "08:00") }
-
-        val scrollState = rememberScrollState()
-        LaunchedEffect(scrollState.isScrollInProgress) {
-            if (scrollState.isScrollInProgress) {
-                focusManager.clearFocus()
-            }
-        }
-
-        AlertDialog(
-            onDismissRequest = { editingBirthday = null },
-            title = {
-                Text(
-                    text = "EDIT OCCASION",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandCyan
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            focusManager.clearFocus()
-                        }
-                ) {
-                    OutlinedTextField(
-                        value = editName,
-                        onValueChange = { editName = it },
-                        label = { Text("Name *") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "CHOOSE DATE FORMAT",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            listOf(false to "DD/MM", true to "DD/MM/YYYY").forEach { (hasYearOption, labelText) ->
-                                val isSel = editIsYearSelected == hasYearOption
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSel) BrandCyan else Color.Transparent)
-                                        .clickable { 
-                                            editIsYearSelected = hasYearOption
-                                            editShowError = false
-                                        }
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSel) color.copy(alpha = 0.15f) else Color.Transparent)
+                                        .border(1.dp, if (isSel) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                        .clickable { categoryRelation = rel }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = labelText,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    DatePickerField(
-                        dateStr = editDateText,
-                        label = if (editIsYearSelected) "Date (DD/MM/YYYY) *" else "Date (DD/MM) *",
-                        onDateSelected = { selectedDate ->
-                            val pParts = selectedDate.split("-")
-                            if (pParts.size == 3) {
-                                val y = pParts[0]
-                                val m = pParts[1]
-                                val d = pParts[2]
-                                editDateText = if (editIsYearSelected) "$d/$m/$y" else "$d/$m"
-                                editShowError = false
-                            }
-                        },
-                        tintColor = BrandCyan,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    OutlinedTextField(
-                        value = editGiftIdea,
-                        onValueChange = { editGiftIdea = it },
-                        label = { Text("Gift Idea / Note") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "OCCASION TYPE",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf("Birthday", "Marriage Anniversary", "Death Anniversary").forEach { cat ->
-                                val isSel = editCategoryType == cat
-                                val catColor = when (cat) {
-                                    "Birthday" -> BrandCyan
-                                    "Marriage Anniversary" -> BrandPink
-                                    "Death Anniversary" -> BrandViolet
-                                    else -> BrandAmber
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(if (isSel) catColor.copy(alpha = 0.15f) else Color.Transparent)
-                                        .border(1.dp, if (isSel) catColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                                        .clickable { editCategoryType = cat }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = cat,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (isSel) catColor else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "RELATIONSHIP",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf("Friend", "Family", "Relative", "Others").forEach { rel ->
-                                val isSel = editCategoryRelation == rel
-                                val relColor = when (rel) {
-                                    "Friend" -> BrandCyan
-                                    "Family" -> BrandPink
-                                    "Relative" -> BrandViolet
-                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(if (isSel) relColor.copy(alpha = 0.15f) else Color.Transparent)
-                                        .border(1.dp, if (isSel) relColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                                        .clickable { editCategoryRelation = rel }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Text(
                                         text = rel,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = if (isSel) relColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (isSel) color else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Checkbox(
-                            checked = editRemindMe,
-                            onCheckedChange = { editRemindMe = it },
-                            colors = CheckboxDefaults.colors(checkedColor = BrandCyan)
-                        )
-                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "ADDITIONAL DETAILS & CUSTOMIZATION",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
 
-                    if (editRemindMe) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            DatePickerField(
-                                dateStr = editReminderDate,
-                                label = "Reminder Date",
-                                onDateSelected = { editReminderDate = it },
-                                modifier = Modifier.weight(1f),
-                                tintColor = BrandCyan
-                            )
-                            TimePickerField(
-                                timeStr = editReminderTime,
-                                label = "Reminder Time",
-                                onTimeSelected = { editReminderTime = it },
-                                modifier = Modifier.weight(1f),
-                                tintColor = BrandCyan
-                            )
-                        }
-                    }
+                    // 1. Reminder Settings Tile
+                    DialogTile(
+                        icon = Icons.Default.Notifications,
+                        title = "REMINDER INTERVALS",
+                        value = if (selectedReminders.isEmpty() || selectedReminders == setOf("None")) "None" else selectedReminders.map {
+                            if (it.startsWith("Custom")) "Custom: $customReminderDateText" else it
+                        }.joinToString(", "),
+                        onClick = { showRemindersPopup = true }
+                    )
 
-                    if (editShowError) {
-                        Text(
-                            text = if (editIsYearSelected) "Please enter a valid date in DD/MM/YYYY format" 
-                                   else "Please enter a date in DD/MM format",
-                            color = BrandRose,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    // 2. Repeat Pattern Tile
+                    DialogTile(
+                        icon = Icons.Default.Repeat,
+                        title = "REPEAT PATTERN",
+                        value = repeatOption,
+                        onClick = { showRepeatPopup = true }
+                    )
+
+                    // 3. Select Type Tile
+                    DialogTile(
+                        icon = Icons.Default.Category,
+                        title = "OCCASION TYPE",
+                        value = categoryType,
+                        onClick = { showTypePopup = true }
+                    )
+
+                    // 4. Counting Mode Tile
+                    DialogTile(
+                        icon = Icons.Default.HourglassTop,
+                        title = "COUNTING MODE",
+                        value = countingMode,
+                        onClick = { showCountingModePopup = true }
+                    )
+
+                    // 5. Select Background Image Tile
+                    DialogTile(
+                        icon = Icons.Default.Image,
+                        title = "BACKGROUND PRESET",
+                        value = if (customBgImage.isNullOrEmpty()) "None" else "Selected Preset",
+                        onClick = { showBgImagePopup = true }
+                    )
+
+                    // 6. Select Font Style Tile
+                    DialogTile(
+                        icon = Icons.Default.TextFields,
+                        title = "FONT STYLE",
+                        value = customFontStyle,
+                        onClick = { showFontStylePopup = true }
+                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        val parsed = parseInputDate(editDateText, editIsYearSelected)
-                        if (editName.isNotBlank() && parsed != null) {
-                            viewModel.updateBirthday(
-                                bday.copy(
-                                    name = editName.trim(),
-                                    date = parsed,
-                                    giftIdea = if (editGiftIdea.isBlank()) null else editGiftIdea.trim(),
-                                    category = "$editCategoryType|$editCategoryRelation",
-                                    remindMe = editRemindMe,
-                                    reminderDate = if (editRemindMe) editReminderDate else null,
-                                    reminderTime = if (editRemindMe) editReminderTime else null
+                        if (nameText.isNotBlank() && dateText != null) {
+                            if (isEdit) {
+                                viewModel.updateBirthday(
+                                    bday!!.copy(
+                                        name = nameText.trim(),
+                                        date = dateText!!,
+                                        giftIdea = if (noteText.isBlank()) null else noteText.trim(),
+                                        category = "$categoryType|$categoryRelation",
+                                        remindMe = !selectedReminders.contains("None") && selectedReminders.isNotEmpty(),
+                                        reminderOptions = selectedReminders.joinToString(","),
+                                        reminderDate = customReminderDateText,
+                                        repeatPattern = repeatOption,
+                                        countingMode = countingMode,
+                                        customBgImage = customBgImage,
+                                        customFontStyle = customFontStyle
+                                    )
                                 )
-                            )
+                            } else {
+                                viewModel.addBirthday(
+                                    name = nameText.trim(),
+                                    date = dateText!!,
+                                    giftIdea = if (noteText.isBlank()) null else noteText.trim(),
+                                    category = "$categoryType|$categoryRelation",
+                                    remindMe = !selectedReminders.contains("None") && selectedReminders.isNotEmpty(),
+                                    reminderDate = customReminderDateText,
+                                    reminderTime = "09:00",
+                                    customBgImage = customBgImage,
+                                    customTextColor = null,
+                                    customFontStyle = customFontStyle,
+                                    reminderOptions = selectedReminders.joinToString(","),
+                                    repeatPattern = repeatOption,
+                                    countingMode = countingMode
+                                )
+                            }
+                            showAddOccasionDialog = false
                             editingBirthday = null
                         } else {
-                            editShowError = true
+                            showDialogErrors = true
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(if (isEdit) "Save" else "Add", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { editingBirthday = null }) {
+                TextButton(
+                    onClick = {
+                        showAddOccasionDialog = false
+                        editingBirthday = null
+                    }
+                ) {
                     Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
+            if (birthdays.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No occasions registered. Store dates to track countdowns!",
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    )
+                }
+            } else {
+                val sortedBirthdays = birthdays.sortedWith(
+                    compareByDescending<com.example.data.BirthdayEntity> { it.isPinned }
+                        .thenBy { calculateOccasionDays(it) }
+                )
+
+                sortedBirthdays.forEach { bday ->
+                    val bdayType = bday.category.split("|")[0]
+                    val daysLeft = calculateOccasionDays(bday)
+                    val age = calculateAge(bday.date)
+                    val catColor = when (bdayType) {
+                        "Marriage Anniversary" -> MaterialTheme.colorScheme.tertiary
+                        "Death Anniversary" -> MaterialTheme.colorScheme.primary
+                        "Countdown" -> MaterialTheme.colorScheme.secondary
+                        "Holiday" -> BrandAmber
+                        else -> MaterialTheme.colorScheme.secondary
+                    }
+                    val occasionIcon = when (bdayType) {
+                        "Marriage Anniversary" -> Icons.Default.Favorite
+                        "Death Anniversary" -> Icons.Default.LocalFlorist
+                        "Countdown" -> Icons.Default.HourglassEmpty
+                        "Holiday" -> Icons.Default.Star
+                        else -> Icons.Default.Cake
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = if (daysLeft == 0) 2.dp else if (bday.isPinned) 1.5.dp else 1.dp,
+                                color = if (daysLeft == 0) BrandAmber else if (bday.isPinned) BrandAmber.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .clickable { detailedBirthday = bday }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(occasionIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(24.dp))
+                            
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    if (bday.isPinned) {
+                                        Icon(
+                                            imageVector = Icons.Default.PushPin,
+                                            contentDescription = "Pinned",
+                                            tint = BrandAmber,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = bday.name,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = parseFontStyle(bday.customFontStyle),
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Text(
+                                    text = buildString {
+                                        append("Date: ${formatBirthdayDate(bday.date)}")
+                                        if (age != null) {
+                                            if (bdayType == "Death Anniversary") {
+                                                append(" (Years passed: $age)")
+                                            } else if (bdayType == "Marriage Anniversary") {
+                                                append(" (Years: $age)")
+                                            } else if (bdayType == "Birthday") {
+                                                append(" (Age: $age)")
+                                            }
+                                        }
+                                        if (bday.giftIdea != null) {
+                                            append(" · Note: ${bday.giftIdea}")
+                                        }
+                                    },
+                                    fontSize = 12.sp,
+                                    fontFamily = parseFontStyle(bday.customFontStyle),
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            val displayDaysText = when {
+                                daysLeft == 0 -> {
+                                    if (bdayType == "Death Anniversary") "TODAY 🕯"
+                                    else if (bdayType == "Marriage Anniversary") "TODAY 💖"
+                                    else if (bdayType == "Holiday") "TODAY 🎄"
+                                    else if (bdayType == "Countdown") "TODAY 🚀"
+                                    else "TODAY 🎂"
+                                }
+                                daysLeft == 1 -> "Tomorrow"
+                                bday.countingMode == "Count Up" -> "$daysLeft Days ago"
+                                bday.countingMode == "Count Down" -> "$daysLeft Days left"
+                                else -> "In $daysLeft days"
+                            }
+                            val boxBg = when {
+                                daysLeft == 0 -> BrandAmber.copy(alpha = 0.12f)
+                                daysLeft <= 7 -> BrandRose.copy(alpha = 0.12f)
+                                else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                            }
+                            val boxText = when {
+                                daysLeft == 0 -> BrandAmber
+                                daysLeft <= 7 -> BrandRose
+                                else -> MaterialTheme.colorScheme.onSecondaryContainer
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(boxBg)
+                                    .border(
+                                        width = 1.dp,
+                                        color = boxText.copy(alpha = 0.3f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    if (daysLeft == 0) {
+                                        val emoji = when (bdayType) {
+                                            "Death Anniversary" -> "🕯"
+                                            "Marriage Anniversary" -> "💖"
+                                            "Holiday" -> "🎄"
+                                            "Countdown" -> "🚀"
+                                            else -> "🎂"
+                                        }
+                                        Text(
+                                            text = emoji,
+                                            fontSize = 20.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Text(
+                                            text = "TODAY",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = boxText,
+                                            fontFamily = parseFontStyle(bday.customFontStyle),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "$daysLeft",
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = boxText,
+                                            fontFamily = parseFontStyle(bday.customFontStyle),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        val label = when {
+                                            daysLeft == 1 -> "TOMORROW"
+                                            bday.countingMode == "Count Up" -> "DAYS AGO"
+                                            else -> "DAYS LEFT"
+                                        }
+                                        Text(
+                                            text = label,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = boxText.copy(alpha = 0.8f),
+                                            fontFamily = parseFontStyle(bday.customFontStyle),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showSpeedDial) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { showSpeedDial = false }
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 16.dp, end = 16.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (showSpeedDial) {
+                val speedDialOptions = listOf(
+                    Triple("holiday", "Holiday", Icons.Default.Star),
+                    Triple("birthday", "Birthday", Icons.Default.Cake),
+                    Triple("death anniversary", "Death Anniversary", Icons.Default.LocalFlorist),
+                    Triple("marriage anniversary", "Marriage Anniversary", Icons.Default.Favorite),
+                    Triple("countdown", "Countdown", Icons.Default.HourglassEmpty)
+                )
+
+                speedDialOptions.forEach { (key, label, icon) ->
+                    val color = when (key) {
+                        "countdown" -> MaterialTheme.colorScheme.secondary
+                        "marriage anniversary" -> MaterialTheme.colorScheme.tertiary
+                        "death anniversary" -> MaterialTheme.colorScheme.primary
+                        "birthday" -> BrandAmber
+                        else -> MaterialTheme.colorScheme.primary
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.clickable {
+                            addOccasionType = label
+                            showSpeedDial = false
+                            showAddOccasionDialog = true
+                        }
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 4.dp,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        FloatingActionButton(
+                            onClick = {
+                                addOccasionType = label
+                                showSpeedDial = false
+                                showAddOccasionDialog = true
+                            },
+                            containerColor = color,
+                            contentColor = Color.White,
+                            modifier = Modifier.size(44.dp),
+                            shape = CircleShape
+                        ) {
+                            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+
+            FloatingActionButton(
+                onClick = { showSpeedDial = !showSpeedDial },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = if (showSpeedDial) Icons.Default.Close else Icons.Default.Add,
+                    contentDescription = "Add Occasion",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        // Global font style selector button positioned at the bottom center
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp)
+        ) {
+            FloatingActionButton(
+                onClick = { showGlobalFontDialog = true },
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                shape = CircleShape,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.TextFields,
+                    contentDescription = "Select Global Font Style",
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        if (showGlobalFontDialog) {
+            AlertDialog(
+                onDismissRequest = { showGlobalFontDialog = false },
+                title = { Text("Choose Global Font Style") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Choose a font style to apply to all registered occasions:", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        listOf("Default", "Sans Serif", "Serif", "Monospace", "Cursive").forEach { font ->
+                            val isSelected = globalFontStyle == font
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        globalFontStyle = font
+                                        birthdays.forEach { bday ->
+                                            viewModel.updateBirthday(bday.copy(customFontStyle = font))
+                                        }
+                                        showGlobalFontDialog = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = {
+                                        globalFontStyle = font
+                                        birthdays.forEach { bday ->
+                                            viewModel.updateBirthday(bday.copy(customFontStyle = font))
+                                        }
+                                        showGlobalFontDialog = false
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = font,
+                                    fontFamily = parseFontStyle(font),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showGlobalFontDialog = false }) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            )
+        }
+    }
+
+    if (detailedBirthday != null) {
+        val bday = detailedBirthday!!
+        val activeBday = birthdays.find { it.id == bday.id } ?: bday
+        val bdayType = activeBday.category.split("|")[0]
+        val daysLeft = daysUntilBirthday(activeBday.date)
+        val formattedDate = formatBirthdayDate(activeBday.date)
+        val age = calculateAge(activeBday.date)
+
+        // States for Editing Note / Appearance
+        var showNoteDialog by remember { mutableStateOf(false) }
+        var currentNoteText by remember(activeBday) { mutableStateOf(activeBday.giftIdea ?: "") }
+        var showAppearanceDialog by remember { mutableStateOf(false) }
+        
+        // UI Theme color
+        val themeColor = MaterialTheme.colorScheme.primary
+
+        // Custom background image and text color
+        val textColor = parseHexColor(activeBday.customTextColor, MaterialTheme.colorScheme.onBackground)
+        val adaptiveTextColor = if (!activeBday.customBgImage.isNullOrEmpty()) textColor else MaterialTheme.colorScheme.onBackground
+
+        val presetImages = remember {
+            com.example.ui.theme.BackgroundPresets.textures +
+            com.example.ui.theme.BackgroundPresets.abstractImages +
+            com.example.ui.theme.BackgroundPresets.cityscapes +
+            com.example.ui.theme.BackgroundPresets.landscapes
+        }
+
+        val colorOptions = listOf(
+            Pair("White", "#FFFFFF"),
+            Pair("Black", "#000000"),
+            Pair("Gold", "#FFD700"),
+            Pair("Sky Blue", "#0EA5E9"),
+            Pair("Mint Green", "#10B981"),
+            Pair("Coral Red", "#EF4444"),
+            Pair("Amethyst", "#7C3AED"),
+            Pair("Soft Rose", "#EC4899"),
+            Pair("Vivid Amber", "#F59E0B")
+        )
+
+        Dialog(
+            onDismissRequest = { detailedBirthday = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Background image
+                    if (!activeBday.customBgImage.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = activeBday.customBgImage,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // Scrim overlay
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.5f))
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Top Bar
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { detailedBirthday = null }) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = adaptiveTextColor
+                                )
+                            }
+
+                            // 3 Dots Options Menu
+                            var showMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { showMenu = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Options",
+                                        tint = adaptiveTextColor
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                        onClick = {
+                                            showMenu = false
+                                            editingBirthday = activeBday
+                                            detailedBirthday = null
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose) },
+                                        onClick = {
+                                            showMenu = false
+                                            viewModel.deleteBirthday(activeBday.id)
+                                            detailedBirthday = null
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (activeBday.isPinned) "Unpin from Top" else "Pin to Top") },
+                                        leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber) },
+                                        onClick = {
+                                            showMenu = false
+                                            val updated = activeBday.copy(isPinned = !activeBday.isPinned)
+                                            viewModel.updateBirthday(updated)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Center Content (Name, Big Days, Date)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val activeFont = parseFontStyle(activeBday.customFontStyle)
+                            val adaptiveTextColor = if (!activeBday.customBgImage.isNullOrEmpty()) textColor else MaterialTheme.colorScheme.onBackground
+
+                            // Occasion Name
+                            Text(
+                                text = activeBday.name,
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontFamily = activeFont,
+                                color = adaptiveTextColor,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Big Days Number
+                            val daysLabel = if (daysLeft == 0) {
+                                if (bdayType == "Death Anniversary") "TODAY 🕯️"
+                                else if (bdayType == "Marriage Anniversary") "TODAY! 💖"
+                                else if (bdayType == "Holiday") "TODAY! 🎄"
+                                else "TODAY! 🎂"
+                            } else if (daysLeft == 1 && activeBday.countingMode != "Count Up") {
+                                "Tomorrow"
+                            } else if (activeBday.countingMode == "Count Up") {
+                                "$daysLeft Days ago"
+                            } else {
+                                "In $daysLeft Days"
+                            }
+                            Text(
+                                text = daysLabel,
+                                fontSize = 44.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = activeFont,
+                                color = if (!activeBday.customBgImage.isNullOrEmpty()) textColor else themeColor,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Date
+                            Text(
+                                text = buildString {
+                                    append("Date: $formattedDate")
+                                    if (age != null) {
+                                        if (bdayType == "Death Anniversary") {
+                                            append(" · Years passed: $age")
+                                        } else if (bdayType == "Marriage Anniversary") {
+                                            append(" · Years: $age")
+                                        } else {
+                                            append(" · Age: $age")
+                                        }
+                                    }
+                                },
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = activeFont,
+                                color = if (!activeBday.customBgImage.isNullOrEmpty()) textColor.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
+                            )
+
+                            // Note if present
+                            if (!activeBday.giftIdea.isNullOrEmpty()) {
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (!activeBday.customBgImage.isNullOrEmpty()) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Note,
+                                            contentDescription = null,
+                                            tint = if (!activeBday.customBgImage.isNullOrEmpty()) textColor else themeColor
+                                        )
+                                        Text(
+                                            text = activeBday.giftIdea ?: "",
+                                            fontSize = 14.sp,
+                                            fontFamily = activeFont,
+                                            color = if (!activeBday.customBgImage.isNullOrEmpty()) textColor else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Bottom Bar with Note, Font Style, and Appearance icon
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .navigationBarsPadding(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val iconColor = if (!activeBday.customBgImage.isNullOrEmpty()) textColor else MaterialTheme.colorScheme.onSurface
+                            val buttonBg = if (!activeBday.customBgImage.isNullOrEmpty()) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant
+
+                            // Note Icon Button
+                            IconButton(
+                                onClick = { showNoteDialog = true },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(
+                                        color = buttonBg,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NoteAdd,
+                                    contentDescription = "Add Note",
+                                    tint = iconColor
+                                )
+                            }
+
+                            // Font Style Selector Button
+                            var showFontDialog by remember { mutableStateOf(false) }
+                            IconButton(
+                                onClick = { showFontDialog = true },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(
+                                        color = buttonBg,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TextFields,
+                                    contentDescription = "Select Font Style",
+                                    tint = iconColor
+                                )
+                            }
+
+                            if (showFontDialog) {
+                                AlertDialog(
+                                    onDismissRequest = { showFontDialog = false },
+                                    title = { Text("Choose Font Style") },
+                                    text = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            listOf("Default", "Sans Serif", "Serif", "Monospace", "Cursive").forEach { font ->
+                                                val isSelected = activeBday.customFontStyle == font
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            viewModel.updateBirthday(activeBday.copy(customFontStyle = font))
+                                                            showFontDialog = false
+                                                        }
+                                                        .padding(vertical = 8.dp)
+                                                ) {
+                                                    RadioButton(
+                                                        selected = isSelected,
+                                                        onClick = {
+                                                            viewModel.updateBirthday(activeBday.copy(customFontStyle = font))
+                                                            showFontDialog = false
+                                                        }
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = font,
+                                                        fontFamily = parseFontStyle(font),
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 16.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
+                                    confirmButton = {
+                                        TextButton(onClick = { showFontDialog = false }) {
+                                            Text("Cancel")
+                                        }
+                                    }
+                                )
+                            }
+
+                            // Appearance Icon Button
+                            IconButton(
+                                onClick = { showAppearanceDialog = true },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(
+                                        color = buttonBg,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Palette,
+                                    contentDescription = "Appearance Settings",
+                                    tint = iconColor
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // dialog to edit note
+        if (showNoteDialog) {
+            AlertDialog(
+                onDismissRequest = { showNoteDialog = false },
+                title = { Text("Occasion Note") },
+                text = {
+                    OutlinedTextField(
+                        value = currentNoteText,
+                        onValueChange = { currentNoteText = it },
+                        label = { Text("Add note or gift idea") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showNoteDialog = false
+                            val updated = activeBday.copy(giftIdea = currentNoteText)
+                            viewModel.updateBirthday(updated)
+                        }
+                    ) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNoteDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Dialog/BottomSheet to edit appearance
+        if (showAppearanceDialog) {
+            AlertDialog(
+                onDismissRequest = { showAppearanceDialog = false },
+                title = { Text("Customize Appearance", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Background Image", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        
+                        // Preset backgrounds horizontal list
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            item {
+                                // None/Default Background
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .border(
+                                            width = if (activeBday.customBgImage.isNullOrEmpty()) 2.dp else 1.dp,
+                                            color = if (activeBday.customBgImage.isNullOrEmpty()) themeColor else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            val updated = activeBday.copy(customBgImage = null)
+                                            viewModel.updateBirthday(updated)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("None", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            items(presetImages) { imageUrl ->
+                                val isSelected = activeBday.customBgImage == imageUrl
+                                AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .border(
+                                            width = if (isSelected) 2.dp else 0.dp,
+                                            color = if (isSelected) themeColor else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            val updated = activeBday.copy(customBgImage = imageUrl)
+                                            viewModel.updateBirthday(updated)
+                                        }
+                                )
+                            }
+                        }
+
+                        Text("Text Color", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        
+                        // Text color selections
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(colorOptions) { colorOpt ->
+                                val isSelected = activeBday.customTextColor == colorOpt.second
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(android.graphics.Color.parseColor(colorOpt.second)))
+                                        .border(
+                                            width = if (isSelected) 2.dp else 1.dp,
+                                            color = if (isSelected) themeColor else Color.Gray.copy(alpha = 0.5f),
+                                            shape = CircleShape
+                                        )
+                                        .clickable {
+                                            val updated = activeBday.copy(customTextColor = colorOpt.second)
+                                            viewModel.updateBirthday(updated)
+                                        }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Font Style", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val fonts = listOf("Default", "Sans Serif", "Serif", "Monospace", "Cursive")
+                            items(fonts) { font ->
+                                val isSelected = activeBday.customFontStyle == font
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSelected) themeColor.copy(alpha = 0.15f) else Color.Transparent)
+                                        .border(1.dp, if (isSelected) themeColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            val updated = activeBday.copy(customFontStyle = font)
+                                            viewModel.updateBirthday(updated)
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = font,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = parseFontStyle(font),
+                                        color = if (isSelected) themeColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { showAppearanceDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                    ) {
+                        Text("Done", color = Color.White)
+                    }
+                }
+            )
+        }
+    }
+}
+
+private fun parseHexColor(hex: String?, default: Color): Color {
+    if (hex.isNullOrEmpty()) return default
+    return try {
+        Color(android.graphics.Color.parseColor(hex))
+    } catch (e: Exception) {
+        default
     }
 }
 
