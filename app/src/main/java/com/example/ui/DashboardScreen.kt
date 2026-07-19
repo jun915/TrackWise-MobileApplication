@@ -141,7 +141,7 @@ fun DashboardScreen(
         if (isPreLaunch) {
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandCyan.copy(alpha = 0.15f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp)
@@ -203,7 +203,7 @@ fun DashboardScreen(
 
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = BrandPink.copy(alpha = 0.08f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
@@ -212,7 +212,7 @@ fun DashboardScreen(
                     }
                     .border(
                         1.dp,
-                        BrandPink.copy(alpha = 0.25f),
+                        BrandPink.copy(alpha = 0.5f),
                         RoundedCornerShape(20.dp)
                     )
             ) {
@@ -427,10 +427,10 @@ fun StatTile(
 ) {
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = modifier.border(
             1.dp,
-            color.copy(alpha = 0.25f),
+            color.copy(alpha = 0.5f),
             RoundedCornerShape(20.dp)
         )
     ) {
@@ -678,10 +678,10 @@ fun HabitStreaksWidget(
                         val color = getHabitColor(allHabits.indexOf(habit), habit.category)
                         Card(
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             modifier = Modifier
                                 .width(115.dp)
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
                         ) {
                             Column(
                                 modifier = Modifier
@@ -755,10 +755,10 @@ fun WaterIntakeWidget(
 
     Card(
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.22f), RoundedCornerShape(24.dp))
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
@@ -965,8 +965,8 @@ fun TodayItemsWidget(
                             Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant
+                                                    else MaterialTheme.colorScheme.surface
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1140,12 +1140,12 @@ fun PriorityItemsWidget(
             // Overdue Banner
             if (overdueTasks.isNotEmpty()) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandRose.copy(alpha = 0.08f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 14.dp)
-                        .border(1.dp, BrandRose.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        .border(1.dp, BrandRose.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -1190,9 +1190,8 @@ fun PriorityItemsWidget(
                             Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                                                    else if (isOverdue) BrandRose.copy(alpha = 0.04f)
-                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant
+                                                    else MaterialTheme.colorScheme.surface
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1396,7 +1395,7 @@ fun DailyHabitsWidget(
                     )
                 }
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandOrange.copy(alpha = 0.12f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
@@ -1965,11 +1964,7 @@ fun SwipeableTaskItem(
         }
 
         // Left Swipe Actions (Archive, Delete, Postpone) - aligned to RIGHT (revealed when dragging left, i.e. negative offset)
-        val leftAlpha = if (animOffset.value < 0f) {
-            (animOffset.value / (-15f * density)).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
+        val leftAlpha = 1f
         if (animOffset.value < -1f) {
             Row(
                 modifier = Modifier

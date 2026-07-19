@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 import com.example.data.*
@@ -95,11 +96,73 @@ fun MainScreen(
     val syncMessage by viewModel.syncMessage.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
+
+    var isRefreshing by remember { mutableStateOf(false) }
+    var pullOffset by remember { mutableStateOf(0f) }
+
+    val nestedScrollConnection = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(
+                available: androidx.compose.ui.geometry.Offset,
+                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
+            ): androidx.compose.ui.geometry.Offset {
+                return if (available.y < 0 && pullOffset > 0f) {
+                    val consumed = pullOffset.coerceAtMost(-available.y)
+                    pullOffset -= consumed
+                    androidx.compose.ui.geometry.Offset(0f, -consumed)
+                } else {
+                    androidx.compose.ui.geometry.Offset.Zero
+                }
+            }
+
+            override fun onPostScroll(
+                consumed: androidx.compose.ui.geometry.Offset,
+                available: androidx.compose.ui.geometry.Offset,
+                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
+            ): androidx.compose.ui.geometry.Offset {
+                return if (available.y > 0 && !isRefreshing) {
+                    pullOffset += available.y * 0.45f
+                    androidx.compose.ui.geometry.Offset(0f, available.y)
+                } else {
+                    androidx.compose.ui.geometry.Offset.Zero
+                }
+            }
+
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                if (pullOffset > 150f && !isRefreshing) {
+                    isRefreshing = true
+                    viewModel.syncDeviceState()
+                }
+                pullOffset = 0f
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+
+            override suspend fun onPostFling(
+                consumed: androidx.compose.ui.unit.Velocity,
+                available: androidx.compose.ui.unit.Velocity
+            ): androidx.compose.ui.unit.Velocity {
+                if (pullOffset > 150f && !isRefreshing) {
+                    isRefreshing = true
+                    viewModel.syncDeviceState()
+                }
+                pullOffset = 0f
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+        }
+    }
+
+    LaunchedEffect(isSyncing) {
+        if (!isSyncing) {
+            isRefreshing = false
+            pullOffset = 0f
+        }
+    }
     var leftDrawerOpen by remember { mutableStateOf(false) }
     var showGlobalNotificationsDialog by remember { mutableStateOf(false) }
     var showGlobalSearchDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showAddChoiceDialog by remember { mutableStateOf(false) }
+    var showOccasionSpeedDial by remember { mutableStateOf(false) }
 
     var showImportOptionDialog by remember { mutableStateOf(false) }
     var pastedJsonText by remember { mutableStateOf("") }
@@ -167,20 +230,98 @@ fun MainScreen(
                 )
             },
             floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { showAddChoiceDialog = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
-                    shape = CircleShape,
-                    modifier = Modifier
-                        .offset(y = 8.dp)
-                        .testTag("floating_add_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Quick Add",
-                        modifier = Modifier.size(24.dp)
-                    )
+                if (activeTab == "workspace" && activeSubTab == 3) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (showOccasionSpeedDial) {
+                            val speedDialOptions = listOf(
+                                Triple("countdown", "Countdown", Icons.Default.HourglassEmpty),
+                                Triple("marriage anniversary", "Marriage Anniversary", Icons.Default.Favorite),
+                                Triple("death anniversary", "Death Anniversary", Icons.Default.LocalFlorist),
+                                Triple("birthday", "Birthday", Icons.Default.Cake),
+                                Triple("holiday", "Holiday", Icons.Default.Star)
+                            )
+
+                            speedDialOptions.forEach { (key, label, icon) ->
+                                val color = when (key) {
+                                    "countdown" -> MaterialTheme.colorScheme.secondary
+                                    "marriage anniversary" -> MaterialTheme.colorScheme.tertiary
+                                    "death anniversary" -> MaterialTheme.colorScheme.primary
+                                    "birthday" -> BrandAmber
+                                    else -> MaterialTheme.colorScheme.primary
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.clickable {
+                                        viewModel.triggerAddOccasion(label)
+                                        showOccasionSpeedDial = false
+                                    }
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 4.dp,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    FloatingActionButton(
+                                        onClick = {
+                                            viewModel.triggerAddOccasion(label)
+                                            showOccasionSpeedDial = false
+                                        },
+                                        containerColor = color,
+                                        contentColor = Color.White,
+                                        modifier = Modifier.size(44.dp),
+                                        shape = CircleShape
+                                    ) {
+                                        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        FloatingActionButton(
+                            onClick = { showOccasionSpeedDial = !showOccasionSpeedDial },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .testTag("occasion_speed_dial_button")
+                        ) {
+                            Icon(
+                                imageVector = if (showOccasionSpeedDial) Icons.Default.Close else Icons.Default.Add,
+                                contentDescription = "Add Occasion",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                } else {
+                    FloatingActionButton(
+                        onClick = { showAddChoiceDialog = true },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .offset(y = 8.dp)
+                            .testTag("floating_add_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Quick Add",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             },
             containerColor = Color.Transparent
@@ -189,6 +330,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .nestedScroll(nestedScrollConnection)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -214,6 +356,57 @@ fun MainScreen(
                     "help" -> HelpScreen(onBack = { navigateBack() })
                     "archive" -> ArchiveScreen(viewModel = viewModel, onBack = { navigateBack() })
                     "seerah" -> SeerahScreen(viewModel = viewModel, onBack = { navigateBack() })
+                }
+
+                // Global Pull to Refresh circle indicator overlay
+                AnimatedVisibility(
+                    visible = pullOffset > 10f || isRefreshing || isSyncing,
+                    enter = fadeIn() + slideInVertically(),
+                    exit = fadeOut() + slideOutVertically(),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 16.dp)
+                ) {
+                    Card(
+                        shape = CircleShape,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isRefreshing || isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.5.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Pull to Refresh",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .rotate((pullOffset * 2).coerceIn(0f, 360f))
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (showOccasionSpeedDial) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showOccasionSpeedDial = false }
+                    )
                 }
 
                 // In-App Toast alerts (Section 13.4)
@@ -599,11 +792,11 @@ fun MainScreen(
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
 
-                    val choices = listOf(
+                        val choices = listOf(
                         Triple("Task Checklist", "Manage daily to-dos & milestones", Icons.Default.Assignment),
                         Triple("Habit Runways", "Track daily routines & streaks", Icons.Default.Repeat),
                         Triple("Wishlist Items", "Plan personal purchases & products", Icons.Default.Star),
-                        Triple("Occasions Log", "Keep track of friends & special days", Icons.Default.Cake),
+                        Triple("Countdown", "Keep track of friends & special days", Icons.Default.HourglassEmpty),
                         Triple("Timer & Stopwatch", "Manage precise intervals & timings", Icons.Default.Timer),
                         Triple("Grocery Check List", "Surgical shopping checklist & qty", Icons.Default.ShoppingCart)
                     )
@@ -695,7 +888,7 @@ fun HeaderToolbar(
                 0 -> "Task Checklist"
                 1 -> "Habit Runways"
                 2 -> "Wishlist"
-                3 -> "Occasion Log"
+                3 -> "Countdown"
                 4 -> "Timer & Stopwatch"
                 5 -> "Grocery Checklist"
                 else -> "Workspace"
@@ -969,8 +1162,8 @@ fun BottomNavigationBar(
             onClick = { onSubTabSelected("workspace", 1) }
         )
         BottomTabItem(
-            label = "Occasions",
-            icon = Icons.Default.Cake,
+            label = "Countdown",
+            icon = Icons.Default.HourglassEmpty,
             isActive = activeTab == "workspace" && activeSubTab == 3,
             isActiveColor = BrandOrange,
             onClick = { onSubTabSelected("workspace", 3) }
@@ -2256,7 +2449,7 @@ fun GlobalSearchDialog(
                         title = birthday.name,
                         subtitle = "Date: ${birthday.date} • ${birthday.category}",
                         type = "Occasion",
-                        icon = Icons.Default.Cake,
+                        icon = Icons.Default.HourglassEmpty,
                         color = BrandOrange,
                         onClick = {
                             viewModel.setWorkspaceSubTab(3)

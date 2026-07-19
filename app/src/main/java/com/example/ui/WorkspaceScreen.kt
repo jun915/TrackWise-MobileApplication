@@ -54,7 +54,7 @@ fun WorkspaceScreen(
     modifier: Modifier = Modifier
 ) {
     val activeSubTab by viewModel.workspaceSubTab.collectAsState()
-    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Occasions", "Timer & Stopwatch", "Grocery List")
+    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Countdown", "Timer & Stopwatch", "Grocery List")
     val focusManager = LocalFocusManager.current
 
     LazyColumn(
@@ -70,86 +70,72 @@ fun WorkspaceScreen(
         contentPadding = PaddingValues(bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // --- Header Section ---
-        item {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                Text(
-                    text = "Workspace",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Manage tasks, habit runways, wishlist, and birthdays in one place.",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                )
-            }
-        }
+
 
         // --- Workspace Sub-Tabs Horizontal Pills ---
-        item {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 2.dp)
-            ) {
-                items(subTabs.size) { index ->
-                    val label = subTabs[index]
-                    val isSelected = activeSubTab == index
-                    val activeColor = when (index) {
-                        0 -> BrandViolet
-                        1 -> BrandPink
-                        2 -> BrandCyan
-                        3 -> BrandOrange
-                        4 -> BrandIndigo
-                        else -> BrandGreen
-                    }
-                    val icon = when (index) {
-                        0 -> Icons.Default.Assignment
-                        1 -> Icons.Default.Repeat
-                        2 -> Icons.Default.Star
-                        3 -> Icons.Default.Cake
-                        4 -> Icons.Default.Timer
-                        else -> Icons.Default.ShoppingCart
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                if (isSelected) activeColor
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                shape = RoundedCornerShape(16.dp)
-                            )
-                            .clickable {
-                                viewModel.setWorkspaceSubTab(index)
-                            }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        if (activeSubTab != 3) {
+            item {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp)
+                ) {
+                    items(subTabs.size) { index ->
+                        val label = subTabs[index]
+                        val isSelected = activeSubTab == index
+                        val activeColor = when (index) {
+                            0 -> BrandViolet
+                            1 -> BrandPink
+                            2 -> BrandCyan
+                            3 -> BrandOrange
+                            4 -> BrandIndigo
+                            else -> BrandGreen
+                        }
+                        val icon = when (index) {
+                            0 -> Icons.Default.Assignment
+                            1 -> Icons.Default.Repeat
+                            2 -> Icons.Default.Star
+                            3 -> Icons.Default.HourglassEmpty
+                            4 -> Icons.Default.Timer
+                            else -> Icons.Default.ShoppingCart
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    if (isSelected) activeColor
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .clickable {
+                                    viewModel.setWorkspaceSubTab(index)
+                                }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = label,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
-                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                )
+                            }
                         }
                     }
                 }
@@ -2312,19 +2298,70 @@ private fun DialogTile(
     }
 }
 
+private fun getDynamicRepeatLabel(choice: String, dateStr: String?): String {
+    val cleanChoice = when {
+        choice.startsWith("Weekly") -> "Weekly"
+        choice.startsWith("Monthly") -> "Monthly"
+        choice.startsWith("Yearly") -> "Yearly"
+        else -> choice
+    }
+    val cal = Calendar.getInstance()
+    if (!dateStr.isNullOrBlank()) {
+        val parts = dateStr.split("-")
+        try {
+            if (parts.size == 3) {
+                val y = parts[0].toInt()
+                val m = parts[1].toInt() - 1
+                val d = parts[2].toInt()
+                cal.set(y, m, d)
+            } else if (parts.size == 2) {
+                val m = parts[0].toInt() - 1
+                val d = parts[1].toInt()
+                cal.set(Calendar.getInstance().get(Calendar.YEAR), m, d)
+            }
+        } catch (e: Exception) {
+            // use current system date
+        }
+    }
+
+    return when (cleanChoice) {
+        "Weekly" -> {
+            val dayOfWeek = SimpleDateFormat("EEE", Locale.US).format(cal.time)
+            "Weekly($dayOfWeek)"
+        }
+        "Monthly" -> {
+            val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
+            "Monthly(The $dayOfMonth day)"
+        }
+        "Yearly" -> {
+            val monthAndDay = SimpleDateFormat("MMM dd", Locale.US).format(cal.time)
+            "Yearly (on $monthAndDay)"
+        }
+        else -> cleanChoice
+    }
+}
+
 @Composable
 fun BirthdaySection(viewModel: TrackWiseViewModel) {
     val focusManager = LocalFocusManager.current
     val birthdays by viewModel.allBirthdays.collectAsState()
     val context = LocalContext.current
 
-    var showSpeedDial by remember { mutableStateOf(false) }
     var showAddOccasionDialog by remember { mutableStateOf(false) }
     var addOccasionType by remember { mutableStateOf("Birthday") }
     var editingBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
     var detailedBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
     var showGlobalFontDialog by remember { mutableStateOf(false) }
     var globalFontStyle by remember { mutableStateOf("Default") }
+
+    val triggeredCategory by viewModel.triggerAddOccasion.collectAsState()
+    LaunchedEffect(triggeredCategory) {
+        triggeredCategory?.let { category ->
+            addOccasionType = category
+            showAddOccasionDialog = true
+            viewModel.clearTriggerAddOccasion()
+        }
+    }
 
     val allPresets = remember {
         com.example.ui.theme.BackgroundPresets.textures +
@@ -2364,6 +2401,20 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
         var repeatOption by remember(showAddOccasionDialog, bday) {
             mutableStateOf(bday?.repeatPattern ?: "None")
         }
+
+        // Dynamically update repeat option when dateText changes
+        LaunchedEffect(dateText) {
+            if (!dateText.isNullOrBlank()) {
+                if (repeatOption.startsWith("Weekly")) {
+                    repeatOption = getDynamicRepeatLabel("Weekly", dateText)
+                } else if (repeatOption.startsWith("Monthly")) {
+                    repeatOption = getDynamicRepeatLabel("Monthly", dateText)
+                } else if (repeatOption.startsWith("Yearly")) {
+                    repeatOption = getDynamicRepeatLabel("Yearly", dateText)
+                }
+            }
+        }
+
         var countingMode by remember(showAddOccasionDialog, bday) {
             mutableStateOf(bday?.countingMode ?: "Count Down")
         }
@@ -2390,7 +2441,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 "2 days early (9AM)",
                 "3 days early (9AM)",
                 "1 week early",
-                "Custom (No future dates)"
+                "Custom"
             )
             AlertDialog(
                 onDismissRequest = { showRemindersPopup = false },
@@ -2398,7 +2449,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         reminderChoices.forEach { choice ->
-                            val isChecked = if (choice == "Custom (No future dates)") {
+                            val isChecked = if (choice == "Custom") {
                                 selectedReminders.any { it.startsWith("Custom") }
                             } else {
                                 selectedReminders.contains(choice)
@@ -2416,7 +2467,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                         } else {
                                             newSet.remove("None")
                                             if (isChecked) {
-                                                if (choice == "Custom (No future dates)") {
+                                                if (choice == "Custom") {
                                                     val customItem = newSet.find { it.startsWith("Custom") }
                                                     if (customItem != null) newSet.remove(customItem)
                                                     customReminderDateText = null
@@ -2424,7 +2475,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                                     newSet.remove(choice)
                                                 }
                                             } else {
-                                                if (choice == "Custom (No future dates)") {
+                                                if (choice == "Custom") {
                                                     val calendar = Calendar.getInstance()
                                                     val datePickerDialog = android.app.DatePickerDialog(
                                                         context,
@@ -2442,7 +2493,6 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                                         calendar.get(Calendar.MONTH),
                                                         calendar.get(Calendar.DAY_OF_MONTH)
                                                     )
-                                                    datePickerDialog.datePicker.maxDate = System.currentTimeMillis()
                                                     datePickerDialog.show()
                                                 } else {
                                                     newSet.add(choice)
@@ -2467,7 +2517,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                         } else {
                                             newSet.remove("None")
                                             if (checked == true) {
-                                                if (choice == "Custom (No future dates)") {
+                                                if (choice == "Custom") {
                                                     val calendar = Calendar.getInstance()
                                                     val datePickerDialog = android.app.DatePickerDialog(
                                                         context,
@@ -2485,13 +2535,12 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                                         calendar.get(Calendar.MONTH),
                                                         calendar.get(Calendar.DAY_OF_MONTH)
                                                     )
-                                                    datePickerDialog.datePicker.maxDate = System.currentTimeMillis()
                                                     datePickerDialog.show()
                                                 } else {
                                                     newSet.add(choice)
                                                 }
                                             } else {
-                                                if (choice == "Custom (No future dates)") {
+                                                if (choice == "Custom") {
                                                     val customItem = newSet.find { it.startsWith("Custom") }
                                                     if (customItem != null) newSet.remove(customItem)
                                                     customReminderDateText = null
@@ -2507,7 +2556,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                     }
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                val labelText = if (choice == "Custom (No future dates)" && customReminderDateText != null) {
+                                val labelText = if (choice == "Custom" && customReminderDateText != null) {
                                     "Custom: $customReminderDateText"
                                 } else {
                                     choice
@@ -2531,9 +2580,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
             val repeatChoices = listOf(
                 "None",
                 "Daily",
-                "Weekly (on same day as of selected date)",
-                "Monthly (same date every month as selected)",
-                "Yearly (same date every year)",
+                "Weekly",
+                "Monthly",
+                "Yearly",
                 "Custom"
             )
             AlertDialog(
@@ -2542,25 +2591,27 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         repeatChoices.forEach { choice ->
+                            val dynamicLabel = getDynamicRepeatLabel(choice, dateText)
+                            val isSelected = repeatOption == dynamicLabel || (choice == "None" && repeatOption == "None") || (choice == "Daily" && repeatOption == "Daily") || (choice == "Custom" && repeatOption == "Custom")
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        repeatOption = choice
+                                        repeatOption = dynamicLabel
                                         showRepeatPopup = false
                                     }
                                     .padding(vertical = 4.dp)
                             ) {
                                 RadioButton(
-                                    selected = repeatOption == choice,
+                                    selected = isSelected,
                                     onClick = {
-                                        repeatOption = choice
+                                        repeatOption = dynamicLabel
                                         showRepeatPopup = false
                                     }
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(choice, fontSize = 14.sp)
+                                Text(dynamicLabel, fontSize = 14.sp)
                             }
                         }
                     }
@@ -2825,7 +2876,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 .padding(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            listOf(false to "MM-DD (No Year)", true to "YYYY-MM-DD (With Year)").forEach { (hasYearOption, labelText) ->
+                            listOf(false to "MM-DD", true to "YYYY-MM-DD").forEach { (hasYearOption, labelText) ->
                                 val isSel = isYearSelected == hasYearOption
                                 Box(
                                     modifier = Modifier
@@ -3120,33 +3171,12 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                     }
                                     Text(
                                         text = bday.name,
-                                        fontSize = 14.sp,
+                                        fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold,
-                                        fontFamily = parseFontStyle(bday.customFontStyle),
                                         color = MaterialTheme.colorScheme.onBackground,
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
-                                Text(
-                                    text = buildString {
-                                        append("Date: ${formatBirthdayDate(bday.date)}")
-                                        if (age != null) {
-                                            if (bdayType == "Death Anniversary") {
-                                                append(" (Years passed: $age)")
-                                            } else if (bdayType == "Marriage Anniversary") {
-                                                append(" (Years: $age)")
-                                            } else if (bdayType == "Birthday") {
-                                                append(" (Age: $age)")
-                                            }
-                                        }
-                                        if (bday.giftIdea != null) {
-                                            append(" · Note: ${bday.giftIdea}")
-                                        }
-                                    },
-                                    fontSize = 12.sp,
-                                    fontFamily = parseFontStyle(bday.customFontStyle),
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                )
                             }
 
                             Spacer(modifier = Modifier.width(8.dp))
@@ -3208,7 +3238,6 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = boxText,
-                                            fontFamily = parseFontStyle(bday.customFontStyle),
                                             textAlign = TextAlign.Center
                                         )
                                     } else {
@@ -3217,7 +3246,6 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                             fontSize = 20.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = boxText,
-                                            fontFamily = parseFontStyle(bday.customFontStyle),
                                             textAlign = TextAlign.Center
                                         )
                                         val label = when {
@@ -3230,7 +3258,6 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = boxText.copy(alpha = 0.8f),
-                                            fontFamily = parseFontStyle(bday.customFontStyle),
                                             textAlign = TextAlign.Center
                                         )
                                     }
@@ -3240,171 +3267,6 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                     }
                 }
             }
-        }
-
-        if (showSpeedDial) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { showSpeedDial = false }
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 16.dp, end = 16.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (showSpeedDial) {
-                val speedDialOptions = listOf(
-                    Triple("holiday", "Holiday", Icons.Default.Star),
-                    Triple("birthday", "Birthday", Icons.Default.Cake),
-                    Triple("death anniversary", "Death Anniversary", Icons.Default.LocalFlorist),
-                    Triple("marriage anniversary", "Marriage Anniversary", Icons.Default.Favorite),
-                    Triple("countdown", "Countdown", Icons.Default.HourglassEmpty)
-                )
-
-                speedDialOptions.forEach { (key, label, icon) ->
-                    val color = when (key) {
-                        "countdown" -> MaterialTheme.colorScheme.secondary
-                        "marriage anniversary" -> MaterialTheme.colorScheme.tertiary
-                        "death anniversary" -> MaterialTheme.colorScheme.primary
-                        "birthday" -> BrandAmber
-                        else -> MaterialTheme.colorScheme.primary
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.clickable {
-                            addOccasionType = label
-                            showSpeedDial = false
-                            showAddOccasionDialog = true
-                        }
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 4.dp,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        ) {
-                            Text(
-                                text = label,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        FloatingActionButton(
-                            onClick = {
-                                addOccasionType = label
-                                showSpeedDial = false
-                                showAddOccasionDialog = true
-                            },
-                            containerColor = color,
-                            contentColor = Color.White,
-                            modifier = Modifier.size(44.dp),
-                            shape = CircleShape
-                        ) {
-                            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            }
-
-            FloatingActionButton(
-                onClick = { showSpeedDial = !showSpeedDial },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.size(56.dp)
-            ) {
-                Icon(
-                    imageVector = if (showSpeedDial) Icons.Default.Close else Icons.Default.Add,
-                    contentDescription = "Add Occasion",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        // Global font style selector button positioned at the bottom center
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
-        ) {
-            FloatingActionButton(
-                onClick = { showGlobalFontDialog = true },
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                shape = CircleShape,
-                modifier = Modifier.size(56.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.TextFields,
-                    contentDescription = "Select Global Font Style",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        if (showGlobalFontDialog) {
-            AlertDialog(
-                onDismissRequest = { showGlobalFontDialog = false },
-                title = { Text("Choose Global Font Style") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Choose a font style to apply to all registered occasions:", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        listOf("Default", "Sans Serif", "Serif", "Monospace", "Cursive").forEach { font ->
-                            val isSelected = globalFontStyle == font
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        globalFontStyle = font
-                                        birthdays.forEach { bday ->
-                                            viewModel.updateBirthday(bday.copy(customFontStyle = font))
-                                        }
-                                        showGlobalFontDialog = false
-                                    }
-                                    .padding(vertical = 8.dp)
-                            ) {
-                                RadioButton(
-                                    selected = isSelected,
-                                    onClick = {
-                                        globalFontStyle = font
-                                        birthdays.forEach { bday ->
-                                            viewModel.updateBirthday(bday.copy(customFontStyle = font))
-                                        }
-                                        showGlobalFontDialog = false
-                                    }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = font,
-                                    fontFamily = parseFontStyle(font),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showGlobalFontDialog = false }) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            )
         }
     }
 
@@ -3425,8 +3287,8 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
         val themeColor = MaterialTheme.colorScheme.primary
 
         // Custom background image and text color
-        val textColor = parseHexColor(activeBday.customTextColor, MaterialTheme.colorScheme.onBackground)
-        val adaptiveTextColor = if (!activeBday.customBgImage.isNullOrEmpty()) textColor else MaterialTheme.colorScheme.onBackground
+        val textColor = if (!activeBday.customBgImage.isNullOrEmpty()) Color.White else MaterialTheme.colorScheme.onBackground
+        val adaptiveTextColor = textColor
 
         val presetImages = remember {
             com.example.ui.theme.BackgroundPresets.textures +
@@ -3844,33 +3706,6 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                             }
                         }
 
-                        Text("Text Color", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        
-                        // Text color selections
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(colorOptions) { colorOpt ->
-                                val isSelected = activeBday.customTextColor == colorOpt.second
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(android.graphics.Color.parseColor(colorOpt.second)))
-                                        .border(
-                                            width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) themeColor else Color.Gray.copy(alpha = 0.5f),
-                                            shape = CircleShape
-                                        )
-                                        .clickable {
-                                            val updated = activeBday.copy(customTextColor = colorOpt.second)
-                                            viewModel.updateBirthday(updated)
-                                        }
-                                )
-                            }
-                        }
-
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Font Style", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         
@@ -4185,7 +4020,7 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
         // --- Add Item Form ---
         if (showForm) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -4474,7 +4309,7 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
 
         if (filteredList.isEmpty()) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -4650,7 +4485,7 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
         // --- Pricing Cost Summary Card ---
         if (totalCost > 0.0) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -4786,11 +4621,11 @@ fun RecurrenceSelector(
 
         if (repeatType == "custom") {
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),

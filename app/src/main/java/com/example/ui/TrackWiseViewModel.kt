@@ -291,6 +291,17 @@ class TrackWiseViewModel(
         _workspaceSubTab.value = tabIndex
     }
 
+    private val _triggerAddOccasion = MutableStateFlow<String?>(null)
+    val triggerAddOccasion: StateFlow<String?> = _triggerAddOccasion.asStateFlow()
+
+    fun triggerAddOccasion(category: String) {
+        _triggerAddOccasion.value = category
+    }
+
+    fun clearTriggerAddOccasion() {
+        _triggerAddOccasion.value = null
+    }
+
     private val _healthSubTab = MutableStateFlow(0)
     val healthSubTab: StateFlow<Int> = _healthSubTab.asStateFlow()
 
@@ -488,6 +499,21 @@ class TrackWiseViewModel(
                 addNotification("Account Created", "Welcome to TrackWise, ${user.fullName}!")
             } catch (e: Exception) {
                 _authError.value = e.message ?: "Account creation failed."
+            }
+        }
+    }
+
+    val allUsers: StateFlow<List<com.example.data.UserEntity>> = repository.getAllUsersFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun switchAccount(userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val user = repository.findUserById(userId)
+            if (user != null) {
+                _sessionUser.value = user
+                val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+                prefs.edit().putString("saved_user_id", user.id).apply()
+                addNotification("Account Switched", "Switched to account: ${user.fullName}")
             }
         }
     }
@@ -3138,7 +3164,7 @@ class TrackWiseViewModel(
                     
                     // Check Tasks
                     allTasks.value.forEach { task ->
-                        if (task.remindMe && !task.completed) {
+                        if (task.remindMe && !task.completed && !task.notes.contains("[ARCHIVED]")) {
                             val rDate = task.reminderDate?.take(10) ?: task.deadline.take(10)
                             val rTime = task.reminderTime?.trim()
                             if (rDate == todayStr && rTime == currentTimeStr) {

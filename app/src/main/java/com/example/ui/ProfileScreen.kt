@@ -59,6 +59,8 @@ fun ProfileScreen(
     val allTasks by viewModel.allTasks.collectAsState()
 
     var showDetailedFormDialog by remember { mutableStateOf(false) }
+    val allUsers by viewModel.allUsers.collectAsState()
+    var showAddAccountDialog by remember { mutableStateOf(false) }
 
     val totalCompleted = remember(allTasks, allHabits) {
         val completedTasksCount = allTasks.count { it.completed }
@@ -603,6 +605,284 @@ fun ProfileScreen(
                 }
             }
         }
+
+        // --- Multi-Account Management Section ---
+        item {
+            var showManageAccountsDialog by remember { mutableStateOf(false) }
+
+            ProfileSectionCard(
+                title = "MANAGE ACCOUNTS",
+                icon = Icons.Default.Settings
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // "+ Add Account" row
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showAddAccountDialog = true
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add Account",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Add Account",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // "Manage Account" row
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showManageAccountsDialog = true
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.People,
+                                contentDescription = "Manage Account",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Manage Account",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Dialog to select which account should be active
+                    if (showManageAccountsDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showManageAccountsDialog = false },
+                            title = {
+                                Text(
+                                    text = "Select Active Account",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                            },
+                            text = {
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    allUsers.forEach { user ->
+                                        val isActive = user.id == sessionUser?.id
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = if (isActive) {
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                }
+                                            ),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .border(
+                                                    width = if (isActive) 1.5.dp else 1.dp,
+                                                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                    shape = RoundedCornerShape(12.dp)
+                                                )
+                                                .clickable {
+                                                    if (!isActive) {
+                                                        viewModel.switchAccount(user.id)
+                                                    }
+                                                    showManageAccountsDialog = false
+                                                }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    // Initials avatar
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(36.dp)
+                                                            .clip(CircleShape)
+                                                            .background(
+                                                                if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                                                            ),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(
+                                                            text = user.fullName.take(1).uppercase(),
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 14.sp
+                                                        )
+                                                    }
+
+                                                    Column {
+                                                        Text(
+                                                            text = user.fullName,
+                                                            fontSize = 14.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                        Text(
+                                                            text = user.email,
+                                                            fontSize = 11.sp,
+                                                            color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                        )
+                                                    }
+                                                }
+
+                                                if (isActive) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Active",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showManageAccountsDialog = false }) {
+                                    Text("CLOSE")
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddAccountDialog) {
+        var addName by remember { mutableStateOf("") }
+        var addEmail by remember { mutableStateOf("") }
+        var addPassword by remember { mutableStateOf("") }
+        var addErrorMsg by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { showAddAccountDialog = false },
+            title = {
+                Text(
+                    text = "Add New Account",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(
+                        text = "Create another user profile on this device. This profile will have its own independent sandbox database.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = addName,
+                        onValueChange = { addName = it },
+                        label = { Text("Full Name") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                    )
+
+                    OutlinedTextField(
+                        value = addEmail,
+                        onValueChange = { addEmail = it },
+                        label = { Text("Email Address") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                    )
+
+                    OutlinedTextField(
+                        value = addPassword,
+                        onValueChange = { addPassword = it },
+                        label = { Text("Password") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = themeColor, focusedLabelColor = themeColor)
+                    )
+
+                    if (addErrorMsg != null) {
+                        Text(
+                            text = addErrorMsg!!,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (addName.isBlank() || addEmail.isBlank() || addPassword.isBlank()) {
+                            addErrorMsg = "All fields are required."
+                        } else if (!addEmail.contains("@")) {
+                            addErrorMsg = "Please enter a valid email address."
+                        } else {
+                            viewModel.signUp(addEmail, addPassword, addName)
+                            showAddAccountDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                ) {
+                    Text("CREATE ACCOUNT")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddAccountDialog = false }) {
+                    Text("CANCEL")
+                }
+            }
+        )
     }
 
     if (showDetailedFormDialog) {

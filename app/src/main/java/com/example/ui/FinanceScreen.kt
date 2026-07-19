@@ -558,7 +558,7 @@ fun FinanceScreen(
 
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
@@ -1249,7 +1249,7 @@ fun FinanceScreen(
             } else {
                 items(filteredMonthLogs, key = { it.id }) { log ->
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1472,7 +1472,7 @@ fun FinanceScreen(
             // Quick Info Banner
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = BrandViolet.copy(alpha = 0.05f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -1845,7 +1845,7 @@ fun NetWorthItemRow(
     onClick: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
