@@ -162,6 +162,7 @@ fun MainScreen(
     var showGlobalSearchDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showAddChoiceDialog by remember { mutableStateOf(false) }
+    var showCustomAddTaskSheet by remember { mutableStateOf(false) }
     var showOccasionSpeedDial by remember { mutableStateOf(false) }
 
     var showImportOptionDialog by remember { mutableStateOf(false) }
@@ -308,7 +309,13 @@ fun MainScreen(
                     }
                 } else {
                     FloatingActionButton(
-                        onClick = { showAddChoiceDialog = true },
+                        onClick = {
+                            if (activeTab == "workspace" && activeSubTab == 0) {
+                                showCustomAddTaskSheet = true
+                            } else {
+                                showAddChoiceDialog = true
+                            }
+                        },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White,
                         shape = CircleShape,
@@ -862,6 +869,24 @@ fun MainScreen(
             }
         )
     }
+
+    CustomAddTaskBottomSheet(
+        visible = showCustomAddTaskSheet,
+        onDismiss = { showCustomAddTaskSheet = false },
+        onAddTask = { titleVal, descVal, projVal, priorityVal, deadlineVal, reminderTimeVal, repeatTypeVal ->
+            viewModel.addTask(
+                title = titleVal,
+                description = descVal,
+                project = projVal,
+                priority = priorityVal,
+                points = 0,
+                deadline = deadlineVal,
+                reminderTime = reminderTimeVal,
+                repeatType = repeatTypeVal
+            )
+            showCustomAddTaskSheet = false
+        }
+    )
 }
 
 private data class MoreMenuItemSpec(
