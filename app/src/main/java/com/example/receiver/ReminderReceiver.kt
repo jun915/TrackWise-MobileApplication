@@ -440,17 +440,21 @@ class ReminderReceiver : BroadcastReceiver() {
             actionFlags
         )
 
-        val notification = NotificationCompat.Builder(context, channelId)
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(smallIcon)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .addAction(0, "Complete", completePendingIntent)
-            .addAction(0, "Snooze (5 min)", snoozePendingIntent)
-            .addAction(0, "Dismiss", dismissPendingIntent)
-            .build()
+
+        if (taskId != null || tabletId != null) {
+            builder.addAction(0, "Complete", completePendingIntent)
+        }
+        builder.addAction(0, "Snooze (5 min)", snoozePendingIntent)
+        builder.addAction(0, "Dismiss", dismissPendingIntent)
+
+        val notification = builder.build()
 
         notificationManager.notify(notificationId, notification)
     }

@@ -72,75 +72,7 @@ fun WorkspaceScreen(
     ) {
 
 
-        // --- Workspace Sub-Tabs Horizontal Pills ---
-        if (activeSubTab != 3) {
-            item {
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 2.dp)
-                ) {
-                    items(subTabs.size) { index ->
-                        val label = subTabs[index]
-                        val isSelected = activeSubTab == index
-                        val activeColor = when (index) {
-                            0 -> BrandViolet
-                            1 -> BrandPink
-                            2 -> BrandCyan
-                            3 -> BrandOrange
-                            4 -> BrandIndigo
-                            else -> BrandGreen
-                        }
-                        val icon = when (index) {
-                            0 -> Icons.Default.Assignment
-                            1 -> Icons.Default.Repeat
-                            2 -> Icons.Default.Star
-                            3 -> Icons.Default.HourglassEmpty
-                            4 -> Icons.Default.Timer
-                            else -> Icons.Default.ShoppingCart
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    if (isSelected) activeColor
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                    shape = RoundedCornerShape(16.dp)
-                                )
-                                .clickable {
-                                    viewModel.setWorkspaceSubTab(index)
-                                }
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = label,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+
 
         // --- Sub-Tab Content Rendering ---
         when (activeSubTab) {
@@ -194,20 +126,6 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
     val priorities = listOf("low", "medium", "high")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Toggle add task card
-        Button(
-            onClick = { 
-                showForm = !showForm
-                if (showForm) showErrors = false
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
-            Text(if (showForm) "Close Form" else "Add New Task", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
-        }
-
         if (showForm) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -2557,7 +2475,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 val labelText = if (choice == "Custom" && customReminderDateText != null) {
-                                    "Custom: $customReminderDateText"
+                                    "$customReminderDateText"
                                 } else {
                                     choice
                                 }
@@ -2988,7 +2906,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         icon = Icons.Default.Notifications,
                         title = "REMINDER INTERVALS",
                         value = if (selectedReminders.isEmpty() || selectedReminders == setOf("None")) "None" else selectedReminders.map {
-                            if (it.startsWith("Custom")) "Custom: $customReminderDateText" else it
+                            if (it.startsWith("Custom")) "$customReminderDateText" else it
                         }.joinToString(", "),
                         onClick = { showRemindersPopup = true }
                     )

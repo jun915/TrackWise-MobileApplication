@@ -70,21 +70,7 @@ fun SocialScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // --- Header ---
-        Column(modifier = Modifier.padding(top = 8.dp)) {
-            Text(
-                text = "Social & Progress",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Text(
-                text = "Challenge friends, share habits, and track milestones.",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            )
-        }
+
 
         // --- Custom Sub-Tab Toggle Row ---
         Row(

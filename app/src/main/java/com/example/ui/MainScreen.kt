@@ -873,7 +873,7 @@ fun MainScreen(
     CustomAddTaskBottomSheet(
         visible = showCustomAddTaskSheet,
         onDismiss = { showCustomAddTaskSheet = false },
-        onAddTask = { titleVal, descVal, projVal, priorityVal, deadlineVal, reminderTimeVal, repeatTypeVal ->
+        onAddTask = { titleVal, descVal, projVal, priorityVal, deadlineVal, reminderTimeVal, repeatTypeVal, reminderDateVal, notesVal ->
             viewModel.addTask(
                 title = titleVal,
                 description = descVal,
@@ -882,7 +882,9 @@ fun MainScreen(
                 points = 0,
                 deadline = deadlineVal,
                 reminderTime = reminderTimeVal,
-                repeatType = repeatTypeVal
+                repeatType = repeatTypeVal,
+                reminderDate = reminderDateVal,
+                notes = notesVal
             )
             showCustomAddTaskSheet = false
         }

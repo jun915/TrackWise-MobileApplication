@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
                 contract = ActivityResultContracts.RequestPermission()
             ) { isGranted ->
                 if (isGranted) {
-                    viewModel.addNotification("Notifications Configured", "You will now receive alerts for completed items, goals, and alarms.")
+                    viewModel.addNotification("Notifications Configured", "You will now receive alerts for completed items, goals, and alarms.", showSystem = true)
                 }
             }
 

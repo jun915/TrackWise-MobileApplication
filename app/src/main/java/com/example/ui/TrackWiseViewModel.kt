@@ -47,7 +47,14 @@ class TrackWiseViewModel(
         _notificationNavigateTab.value = tab
     }
 
-    fun addNotification(title: String, message: String) {
+    fun addNotification(
+        title: String,
+        message: String,
+        showSystem: Boolean = false,
+        taskId: String? = null,
+        tabletId: String? = null,
+        canSnooze: Boolean = false
+    ) {
         val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
         val timeStr = sdf.format(Date())
         val newNotification = AppNotification(
@@ -57,10 +64,18 @@ class TrackWiseViewModel(
             timestamp = timeStr
         )
         _notifications.value = listOf(newNotification) + _notifications.value
-        showSystemNotification(title, message)
+        if (showSystem) {
+            showSystemNotification(title, message, taskId, tabletId, canSnooze)
+        }
     }
 
-    private fun showSystemNotification(title: String, message: String) {
+    private fun showSystemNotification(
+        title: String,
+        message: String,
+        taskId: String? = null,
+        tabletId: String? = null,
+        canSnooze: Boolean = false
+    ) {
         try {
             val context = getApplication<Application>().applicationContext
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
@@ -168,8 +183,28 @@ class TrackWiseViewModel(
                 .setVibrate(longArrayOf(0, 250, 100, 250))
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent)
-                .addAction(0, "Snooze (5 min)", snoozePendingIntent)
-                .addAction(0, "Dismiss", dismissPendingIntent)
+
+            // Complete action
+            if (taskId != null || tabletId != null) {
+                val completeIntent = android.content.Intent(context, com.example.receiver.ReminderReceiver::class.java).apply {
+                    action = "com.example.action.NOTIFICATION_COMPLETE"
+                    putExtra("notification_id", notificationId)
+                    putExtra("task_id", taskId)
+                    putExtra("tablet_id", tabletId)
+                }
+                val completePendingIntent = android.app.PendingIntent.getBroadcast(
+                    context,
+                    notificationId + 2000,
+                    completeIntent,
+                    actionFlags
+                )
+                builder.addAction(0, "Complete", completePendingIntent)
+            }
+
+            if (canSnooze) {
+                builder.addAction(0, "Snooze (5 min)", snoozePendingIntent)
+            }
+            builder.addAction(0, "Dismiss", dismissPendingIntent)
                 
             notificationManager.notify(notificationId, builder.build())
         } catch (e: Exception) {
@@ -545,7 +580,7 @@ class TrackWiseViewModel(
                     val updated = user.copy(passwordHash = hashed)
                     repository.updateUserProfile(updated)
                     _successMessage.value = "Password reset successfully! Please log in."
-                    addNotification("Security Alert", "Password was reset for $email.")
+                    addNotification("Security Alert", "Password was reset for $email.", showSystem = true)
                 }
             } catch (e: Exception) {
                 _authError.value = e.message ?: "Failed to reset password."
@@ -599,7 +634,7 @@ class TrackWiseViewModel(
                 }
                 if (isSuccess) {
                     _successMessage.value = "Password changed successfully!"
-                    addNotification("Security Update", "Your password has been changed successfully.")
+                    addNotification("Security Update", "Your password has been changed successfully.", showSystem = true)
                     onSuccess()
                 } else {
                     onError("Current password is incorrect.")
@@ -729,7 +764,8 @@ class TrackWiseViewModel(
         startDate: String? = null,
         endDate: String? = null,
         notes: String = "",
-        dueTime: String? = null
+        dueTime: String? = null,
+        reminderDate: String? = null
     ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
@@ -756,7 +792,9 @@ class TrackWiseViewModel(
                 startDate = startDate,
                 endDate = endDate,
                 notes = notes,
-                dueTime = dueTime
+                dueTime = dueTime,
+                remindMe = reminderTime != null,
+                reminderDate = reminderDate ?: (if (reminderTime != null) deadline else null)
             )
             repository.insertTask(task)
             triggerFakeSync()
@@ -3127,7 +3165,7 @@ class TrackWiseViewModel(
             if (dayOfMonth == 28) {
                 prefs.edit().remove("saved_user_id").apply()
                 _authError.value = "Monthly security check: Please log in again (28th of the month)."
-                addNotification("Security Check", "Session expired on the 28th for monthly re-login.")
+                addNotification("Security Check", "Session expired on the 28th for monthly re-login.", showSystem = true)
             } else {
                 viewModelScope.launch(Dispatchers.IO) {
                     val user = repository.findUserById(savedUserId)
@@ -3173,7 +3211,10 @@ class TrackWiseViewModel(
                                     triggeredReminders.add(key)
                                     addNotification(
                                         title = "Task Reminder: ${task.title}",
-                                        message = "Deadline: ${task.deadline}. Don't forget to complete it!"
+                                        message = "Deadline: ${task.deadline}. Don't forget to complete it!",
+                                        showSystem = true,
+                                        taskId = task.id,
+                                        canSnooze = true
                                     )
                                 }
                             }
@@ -3191,7 +3232,9 @@ class TrackWiseViewModel(
                                     triggeredReminders.add(key)
                                     addNotification(
                                         title = "Habit Runway: ${habit.name}",
-                                        message = "It's time for your habit: ${habit.category}!"
+                                        message = "It's time for your habit: ${habit.category}!",
+                                        showSystem = true,
+                                        canSnooze = true
                                     )
                                 }
                             }
@@ -3209,7 +3252,9 @@ class TrackWiseViewModel(
                                     triggeredReminders.add(key)
                                     addNotification(
                                         title = "Wishlist Reminder: ${item.title}",
-                                        message = "Check out your item: ${item.title} (₹${item.price})"
+                                        message = "Check out your item: ${item.title} (₹${item.price})",
+                                        showSystem = true,
+                                        canSnooze = true
                                     )
                                 }
                             }
@@ -3227,7 +3272,9 @@ class TrackWiseViewModel(
                                     triggeredReminders.add(key)
                                     addNotification(
                                         title = "Occasion Reminder: ${bday.name}",
-                                        message = "Event: ${bday.name} is scheduled for today!"
+                                        message = "Event: ${bday.name} is scheduled for today!",
+                                        showSystem = true,
+                                        canSnooze = true
                                     )
                                 }
                             }

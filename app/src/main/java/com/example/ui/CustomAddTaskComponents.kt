@@ -4,6 +4,8 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,12 +38,37 @@ import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val persistentTags = mutableStateListOf("#daily routine", "#work", "#fitness", "#learning")
+private val persistentProjects = mutableStateListOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome")
+
+@Composable
+fun SuggestionChip(
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = BrandCyan.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f)),
+        modifier = Modifier.padding(vertical = 2.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = BrandCyan,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomAddTaskBottomSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
-    onAddTask: (title: String, desc: String, project: String, priority: String, deadline: String, reminderTime: String?, repeatType: String) -> Unit
+    onAddTask: (title: String, desc: String, project: String, priority: String, deadline: String, reminderTime: String?, repeatType: String, reminderDate: String?, notes: String) -> Unit
 ) {
     if (!visible) return
 
@@ -53,7 +80,10 @@ fun CustomAddTaskBottomSheet(
     val todayStr = remember { TrackWiseUtils.getTodayString() }
     var deadline by remember { mutableStateOf(todayStr) }
     var reminderTime by remember { mutableStateOf<String?>(null) }
+    var reminderDate by remember { mutableStateOf<String?>(null) }
     var repeatType by remember { mutableStateOf("none") }
+
+    var isFullScreen by remember { mutableStateOf(false) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var priorityMenuExpanded by remember { mutableStateOf(false) }
@@ -81,38 +111,60 @@ fun CustomAddTaskBottomSheet(
     ) {
         // Sheet Content Container
         Card(
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            shape = if (isFullScreen) RoundedCornerShape(0.dp) else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
+            modifier = (if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {} // Consume clicks to avoid closing
                 )
-                .navigationBarsPadding()
-                .imePadding()
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                    shape = if (isFullScreen) RoundedCornerShape(0.dp) else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
                 )
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Drag Handle
-                Box(
-                    modifier = Modifier
-                        .width(36.dp)
-                        .height(4.dp)
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
-                        .align(Alignment.CenterHorizontally)
-                )
+                if (isFullScreen) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Create Task Runway 🚀",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandViolet
+                        )
+                        IconButton(
+                            onClick = { isFullScreen = false }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Exit Fullscreen",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                } else {
+                    // Drag Handle
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
+                            .align(Alignment.CenterHorizontally)
+                    )
+                }
 
                 // 1. Title Input
                 BasicTextField(
@@ -174,6 +226,82 @@ fun CustomAddTaskBottomSheet(
                         }
                     }
                 )
+
+                // Suggestion Row for #tags and ~projects
+                val words = title.split(" ", "\n")
+                val activeWord = words.lastOrNull() ?: ""
+                if (activeWord.startsWith("#") || activeWord.startsWith("~")) {
+                    val isTag = activeWord.startsWith("#")
+                    val query = activeWord.substring(1).lowercase()
+                    val suggestions = if (isTag) {
+                        persistentTags.filter { it.substring(1).lowercase().contains(query) }
+                    } else {
+                        persistentProjects.filter { it.lowercase().contains(query) }
+                    }
+
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val exactMatch = suggestions.any {
+                            if (isTag) it.substring(1).lowercase() == query else it.lowercase() == query
+                        }
+                        if (query.isNotEmpty() && !exactMatch) {
+                            item {
+                                val displayLabel = if (isTag) "#$query" else "~$query"
+                                SuggestionChip(
+                                    label = "+ Create '$displayLabel'",
+                                    onClick = {
+                                        if (isTag) {
+                                            val newTag = "#$query"
+                                            if (!persistentTags.contains(newTag)) {
+                                                persistentTags.add(newTag)
+                                            }
+                                            val lastIdx = title.lastIndexOf(activeWord)
+                                            if (lastIdx >= 0) {
+                                                title = title.substring(0, lastIdx) + newTag + " "
+                                            }
+                                        } else {
+                                            val capitalizedProj = query.replaceFirstChar { it.uppercase() }
+                                            if (!persistentProjects.contains(capitalizedProj)) {
+                                                persistentProjects.add(capitalizedProj)
+                                            }
+                                            project = capitalizedProj
+                                            val lastIdx = title.lastIndexOf(activeWord)
+                                            if (lastIdx >= 0) {
+                                                title = title.substring(0, lastIdx) + "~$capitalizedProj "
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        items(suggestions) { item ->
+                            val chipLabel = if (isTag) item else "~$item"
+                            SuggestionChip(
+                                label = chipLabel,
+                                onClick = {
+                                    if (isTag) {
+                                        val lastIdx = title.lastIndexOf(activeWord)
+                                        if (lastIdx >= 0) {
+                                            title = title.substring(0, lastIdx) + item + " "
+                                        }
+                                    } else {
+                                        project = item
+                                        val lastIdx = title.lastIndexOf(activeWord)
+                                        if (lastIdx >= 0) {
+                                            title = title.substring(0, lastIdx) + "~$item "
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -324,7 +452,7 @@ fun CustomAddTaskBottomSheet(
                                     .background(MaterialTheme.colorScheme.surface)
                                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
                             ) {
-                                listOf("#daily routine", "#DailyRoutine", "#work", "#fitness", "#learning").forEach { t ->
+                                persistentTags.forEach { t ->
                                     DropdownMenuItem(
                                         text = { Text(t, fontSize = 13.sp) },
                                         onClick = {
@@ -372,7 +500,7 @@ fun CustomAddTaskBottomSheet(
                                     .background(MaterialTheme.colorScheme.surface)
                                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
                             ) {
-                                listOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome").forEach { proj ->
+                                persistentProjects.forEach { proj ->
                                     DropdownMenuItem(
                                         text = {
                                             Row(
@@ -395,16 +523,16 @@ fun CustomAddTaskBottomSheet(
                             }
                         }
 
-                        // E. Ellipses (More) Icon
+                        // E. Fullscreen Toggle Icon
                         IconButton(
-                            onClick = { /* Additional advanced settings could go here */ },
-                            modifier = Modifier.size(36.dp)
+                            onClick = { isFullScreen = !isFullScreen },
+                            modifier = Modifier.size(36.dp).testTag("fullscreen_toggle_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.MoreHoriz,
-                                contentDescription = "More options",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(18.dp)
+                                imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = "Toggle Fullscreen",
+                                tint = BrandCyan,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -413,7 +541,42 @@ fun CustomAddTaskBottomSheet(
                     Button(
                         onClick = {
                             if (title.isNotBlank()) {
-                                onAddTask(title, description, project, priority, deadline, reminderTime, repeatType)
+                                // Extract any ~project and #tag from title
+                                var finalProject = project
+                                val wordsList = title.split(" ", "\n")
+                                val tagsFound = mutableListOf<String>()
+
+                                for (word in wordsList) {
+                                    if (word.startsWith("~") && word.length > 1) {
+                                        val projName = word.substring(1).replaceFirstChar { it.uppercase() }
+                                        finalProject = projName
+                                        if (!persistentProjects.contains(projName)) {
+                                            persistentProjects.add(projName)
+                                        }
+                                    } else if (word.startsWith("#") && word.length > 1) {
+                                        tagsFound.add(word)
+                                        if (!persistentTags.contains(word)) {
+                                            persistentTags.add(word)
+                                        }
+                                    }
+                                }
+
+                                // Clean the title (remove all ~words and #words)
+                                val cleanedWords = wordsList.filter {
+                                    !it.startsWith("~") && !it.startsWith("#")
+                                }
+                                var cleanedTitle = cleanedWords.joinToString(" ").trim()
+                                if (cleanedTitle.isBlank()) {
+                                    cleanedTitle = "Untitled Task"
+                                }
+
+                                val finalNotes = if (tagsFound.isNotEmpty()) {
+                                    tagsFound.joinToString(" ")
+                                } else {
+                                    ""
+                                }
+
+                                onAddTask(cleanedTitle, description, finalProject, priority, deadline, reminderTime, repeatType, reminderDate, finalNotes)
                                 onDismiss()
                             }
                         },
@@ -441,17 +604,84 @@ fun CustomAddTaskBottomSheet(
             visible = showDatePicker,
             currentDate = deadline,
             currentTime = reminderTime,
-            currentReminder = if (reminderTime != null) "On the day" else "None",
+            currentReminder = reconstructReminderOption(deadline, reminderDate, reminderTime),
             currentRepeat = repeatType,
             onDismiss = { showDatePicker = false },
-            onConfirm = { date, time, reminder, repeat ->
+            onConfirm = { date, time, reminder, repeat, customRemDate, customRemTime ->
                 deadline = date
-                reminderTime = time
+                if (reminder == "Custom") {
+                    reminderTime = customRemTime
+                    reminderDate = customRemDate
+                } else if (reminder == "None") {
+                    reminderTime = null
+                    reminderDate = null
+                } else {
+                    reminderTime = time ?: "09:00"
+                    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                    val cal = Calendar.getInstance()
+                    try {
+                        val d = sdf.parse(date)
+                        if (d != null) {
+                            cal.time = d
+                            when (reminder) {
+                                "On the day" -> {}
+                                "1 day early" -> cal.add(Calendar.DAY_OF_YEAR, -1)
+                                "2 days early" -> cal.add(Calendar.DAY_OF_YEAR, -2)
+                                "3 days early" -> cal.add(Calendar.DAY_OF_YEAR, -3)
+                                "1 week early" -> cal.add(Calendar.DAY_OF_YEAR, -7)
+                            }
+                        }
+                    } catch (e: Exception) {}
+                    reminderDate = sdf.format(cal.time)
+                }
                 repeatType = repeat
                 showDatePicker = false
             }
         )
     }
+}
+
+fun getReminderDate(selectedDate: String, option: String): String? {
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    val cal = java.util.Calendar.getInstance()
+    try {
+        val d = sdf.parse(selectedDate) ?: return null
+        cal.time = d
+        when (option) {
+            "On the day" -> {}
+            "1 day early" -> cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+            "2 days early" -> cal.add(java.util.Calendar.DAY_OF_YEAR, -2)
+            "3 days early" -> cal.add(java.util.Calendar.DAY_OF_YEAR, -3)
+            "1 week early" -> cal.add(java.util.Calendar.DAY_OF_YEAR, -7)
+            else -> return null
+        }
+        return sdf.format(cal.time)
+    } catch (e: Exception) {
+        return null
+    }
+}
+
+fun reconstructReminderOption(deadline: String, reminderDate: String?, reminderTime: String?): String {
+    if (reminderTime == null || reminderDate == null) return "None"
+    if (reminderDate == deadline) return "On the day"
+    
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    try {
+        val dDead = sdf.parse(deadline)
+        val dRem = sdf.parse(reminderDate)
+        if (dDead != null && dRem != null) {
+            val diffMs = dDead.time - dRem.time
+            val diffDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diffMs)
+            return when (diffDays) {
+                1L -> "1 day early"
+                2L -> "2 days early"
+                3L -> "3 days early"
+                7L -> "1 week early"
+                else -> "Custom"
+            }
+        }
+    } catch (e: Exception) {}
+    return "Custom"
 }
 
 @Composable
@@ -462,11 +692,11 @@ fun CustomDatePickerSheet(
     currentReminder: String,
     currentRepeat: String,
     onDismiss: () -> Unit,
-    onConfirm: (date: String, time: String?, reminder: String, repeat: String) -> Unit
+    onConfirm: (date: String, time: String?, reminder: String, repeat: String, customReminderDate: String?, customReminderTime: String?) -> Unit
 ) {
     if (!visible) return
 
-    var activeTab by remember { mutableStateOf("date") } // "date" or "duration"
+    val context = LocalContext.current
     var selectedDateStr by remember { mutableStateOf(currentDate) }
     var selectedTimeStr by remember { mutableStateOf(currentTime) }
     var selectedReminder by remember { mutableStateOf(currentReminder) }
@@ -475,6 +705,11 @@ fun CustomDatePickerSheet(
     var showTimePickerDialog by remember { mutableStateOf(false) }
     var showReminderDialog by remember { mutableStateOf(false) }
     var showRepeatDialog by remember { mutableStateOf(false) }
+
+    var showCustomReminderDatePicker by remember { mutableStateOf(false) }
+    var showCustomReminderTimePicker by remember { mutableStateOf(false) }
+    var customReminderDate by remember { mutableStateOf<String?>(null) }
+    var customReminderTime by remember { mutableStateOf<String?>(null) }
 
     val calendar = remember(selectedDateStr) {
         val cal = Calendar.getInstance()
@@ -526,61 +761,16 @@ fun CustomDatePickerSheet(
                         Icon(Icons.Default.Close, contentDescription = "Cancel", tint = MaterialTheme.colorScheme.onSurface)
                     }
 
-                    // Tabs
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clickable { activeTab = "date" }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Text(
-                                "Date",
-                                fontSize = 16.sp,
-                                fontWeight = if (activeTab == "date") FontWeight.Bold else FontWeight.Normal,
-                                color = if (activeTab == "date") BrandCyan else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (activeTab == "date") {
-                                Box(
-                                    modifier = Modifier
-                                        .width(32.dp)
-                                        .height(2.dp)
-                                        .background(BrandCyan)
-                                        .padding(top = 2.dp)
-                                )
-                            }
-                        }
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clickable { activeTab = "duration" }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Text(
-                                "Duration",
-                                fontSize = 16.sp,
-                                fontWeight = if (activeTab == "duration") FontWeight.Bold else FontWeight.Normal,
-                                color = if (activeTab == "duration") BrandCyan else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (activeTab == "duration") {
-                                Box(
-                                    modifier = Modifier
-                                        .width(50.dp)
-                                        .height(2.dp)
-                                        .background(BrandCyan)
-                                        .padding(top = 2.dp)
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = "Set Date & Time",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
                     IconButton(
                         onClick = {
-                            onConfirm(selectedDateStr, selectedTimeStr, selectedReminder, selectedRepeat)
+                            onConfirm(selectedDateStr, selectedTimeStr, selectedReminder, selectedRepeat, customReminderDate, customReminderTime)
                         }
                     ) {
                         Icon(Icons.Default.Check, contentDescription = "Confirm", tint = BrandCyan)
@@ -616,10 +806,15 @@ fun CustomDatePickerSheet(
                             Triple("Today", today, Icons.Default.CalendarToday),
                             Triple("Tomorrow", tomorrow, Icons.Default.WbSunny),
                             Triple("Next Mon", nextMonday, Icons.Default.Event),
-                            Triple("Tom Morning", tomorrow, Icons.Default.LightMode)
+                            Triple("Tonight", today, Icons.Default.NightsStay)
                         ).forEach { (label, cal, icon) ->
-                            val isSelected = selectedDateStr == sdf.format(cal.time) &&
-                                    (label != "Tom Morning" || selectedTimeStr == "09:00")
+                            val isSelected = when (label) {
+                                "Today" -> selectedDateStr == sdf.format(cal.time) && selectedTimeStr == "09:00"
+                                "Tonight" -> selectedDateStr == sdf.format(cal.time) && selectedTimeStr == "21:00"
+                                "Tomorrow" -> selectedDateStr == sdf.format(cal.time) && selectedTimeStr == "09:00"
+                                "Next Mon" -> selectedDateStr == sdf.format(cal.time) && selectedTimeStr == "09:00"
+                                else -> false
+                            }
 
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -629,7 +824,10 @@ fun CustomDatePickerSheet(
                                     .weight(1f)
                                     .clickable {
                                         selectedDateStr = sdf.format(cal.time)
-                                        if (label == "Tom Morning") {
+                                        if (label == "Tonight") {
+                                            selectedTimeStr = "21:00"
+                                            selectedReminder = "On the day"
+                                        } else {
                                             selectedTimeStr = "09:00"
                                             selectedReminder = "On the day"
                                         }
@@ -841,7 +1039,9 @@ fun CustomDatePickerSheet(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = selectedReminder,
+                                        text = if (selectedReminder == "Custom") {
+                                            if (customReminderDate != null && customReminderTime != null) "$customReminderDate $customReminderTime" else "Custom"
+                                        } else selectedReminder,
                                         fontSize = 13.sp,
                                         color = if (selectedReminder != "None") BrandCyan else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -886,73 +1086,115 @@ fun CustomDatePickerSheet(
         }
     }
 
-    // Time Picker Modal Dialog
+    // Time Picker Modal Dialog using Native Clock
     if (showTimePickerDialog) {
         val currentHour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
         val currentMin = remember { Calendar.getInstance().get(Calendar.MINUTE) }
         
-        var hourVal by remember { mutableStateOf(currentHour) }
-        var minVal by remember { mutableStateOf(currentMin) }
-
-        AlertDialog(
-            onDismissRequest = { showTimePickerDialog = false },
-            title = { Text("Select Time", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-            text = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Simple custom spinner layout for time selection
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = { hourVal = (hourVal + 1) % 24 }) {
-                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Up")
-                        }
-                        Text(String.format("%02d", hourVal), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
-                        IconButton(onClick = { hourVal = if (hourVal == 0) 23 else hourVal - 1 }) {
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Down")
-                        }
-                    }
-                    Text(" : ", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = BrandCyan, modifier = Modifier.padding(horizontal = 12.dp))
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = { minVal = (minVal + 5) % 60 }) {
-                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Up")
-                        }
-                        Text(String.format("%02d", minVal), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
-                        IconButton(onClick = { minVal = if (minVal < 5) 55 else minVal - 5 }) {
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Down")
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        selectedTimeStr = String.format("%02d:%02d", hourVal, minVal)
-                        showTimePickerDialog = false
-                    }
-                ) {
-                    Text("OK", color = BrandCyan, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        selectedTimeStr = null
-                        showTimePickerDialog = false
-                    }
-                ) {
-                    Text("Clear", color = MaterialTheme.colorScheme.error)
-                }
+        DisposableEffect(Unit) {
+            val tpd = android.app.TimePickerDialog(
+                context,
+                { _, h, m ->
+                    selectedTimeStr = String.format(Locale.US, "%02d:%02d", h, m)
+                    showTimePickerDialog = false
+                },
+                currentHour,
+                currentMin,
+                false // Use 12h clock
+            )
+            tpd.setOnCancelListener {
+                showTimePickerDialog = false
             }
-        )
+            tpd.setOnDismissListener {
+                showTimePickerDialog = false
+            }
+            tpd.show()
+            onDispose {
+                tpd.dismiss()
+            }
+        }
+    }
+
+    // Custom Reminder Date Picker
+    if (showCustomReminderDatePicker) {
+        val today = Calendar.getInstance()
+        DisposableEffect(Unit) {
+            val dpd = android.app.DatePickerDialog(
+                context,
+                { _, y, m, d ->
+                    val cal = Calendar.getInstance().apply {
+                        set(Calendar.YEAR, y)
+                        set(Calendar.MONTH, m)
+                        set(Calendar.DAY_OF_MONTH, d)
+                    }
+                    customReminderDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+                    showCustomReminderDatePicker = false
+                    showCustomReminderTimePicker = true // Show clock right after calendar
+                },
+                today.get(Calendar.YEAR),
+                today.get(Calendar.MONTH),
+                today.get(Calendar.DAY_OF_MONTH)
+            )
+            dpd.setOnCancelListener {
+                showCustomReminderDatePicker = false
+            }
+            dpd.setOnDismissListener {
+                showCustomReminderDatePicker = false
+            }
+            dpd.show()
+            onDispose {
+                dpd.dismiss()
+            }
+        }
+    }
+
+    // Custom Reminder Time Picker (Clock)
+    if (showCustomReminderTimePicker) {
+        val today = Calendar.getInstance()
+        DisposableEffect(Unit) {
+            val tpd = android.app.TimePickerDialog(
+                context,
+                { _, h, m ->
+                    customReminderTime = String.format(Locale.US, "%02d:%02d", h, m)
+                    showCustomReminderTimePicker = false
+                    selectedReminder = "Custom"
+                },
+                today.get(Calendar.HOUR_OF_DAY),
+                today.get(Calendar.MINUTE),
+                false
+            )
+            tpd.setOnCancelListener {
+                showCustomReminderTimePicker = false
+            }
+            tpd.setOnDismissListener {
+                showCustomReminderTimePicker = false
+            }
+            tpd.show()
+            onDispose {
+                tpd.dismiss()
+            }
+        }
     }
 
     // Reminder Option Selector Dialog
     if (showReminderDialog) {
-        val reminderOptions = listOf("None", "On the day", "1 day early", "2 days early", "3 days early", "1 week early")
+        val today = com.example.utils.TrackWiseUtils.getTodayString()
+        val allOptions = listOf("None", "On the day", "1 day early", "2 days early", "3 days early", "1 week early", "Custom")
+        val reminderOptions = allOptions.filter { opt ->
+            if (opt == "None" || opt == "Custom") {
+                true
+            } else {
+                val remDate = getReminderDate(selectedDateStr, opt)
+                remDate != null && remDate >= today
+            }
+        }
         var localReminderSelection by remember { mutableStateOf(selectedReminder) }
-        var constantReminderEnabled by remember { mutableStateOf(false) }
+
+        LaunchedEffect(reminderOptions) {
+            if (localReminderSelection !in reminderOptions) {
+                localReminderSelection = "None"
+            }
+        }
 
         AlertDialog(
             onDismissRequest = { showReminderDialog = false },
@@ -966,7 +1208,12 @@ fun CustomDatePickerSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { localReminderSelection = opt }
+                                .clickable { 
+                                    localReminderSelection = opt 
+                                    if (opt == "Custom") {
+                                        showCustomReminderDatePicker = true
+                                    }
+                                }
                                 .padding(vertical = 10.dp, horizontal = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -976,26 +1223,6 @@ fun CustomDatePickerSheet(
                                 Icon(Icons.Default.Check, contentDescription = "Selected", tint = BrandCyan, modifier = Modifier.size(16.dp))
                             }
                         }
-                    }
-
-                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), modifier = Modifier.padding(vertical = 6.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Constant Reminder 👑", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Switch(
-                            checked = constantReminderEnabled,
-                            onCheckedChange = { constantReminderEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = BrandCyan, checkedTrackColor = BrandCyan.copy(alpha = 0.3f))
-                        )
                     }
                 }
             },
