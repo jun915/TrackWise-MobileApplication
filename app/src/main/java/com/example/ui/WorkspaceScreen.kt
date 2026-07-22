@@ -343,7 +343,7 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
     val subtasks = TrackWiseUtils.deserializeSubTasks(task.subtasksJson)
 
     var showEditDialog by remember { mutableStateOf(false) }
-    if (showEditDialog) {
+    if (false) {
         var editTitle by remember { mutableStateOf(task.title) }
         var editDesc by remember { mutableStateOf(task.description) }
         var editNotes by remember { mutableStateOf(task.notes) }
@@ -513,37 +513,45 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
         )
     }
 
+    val priorityColor = when (task.priority) {
+        "high" -> BrandRose
+        "medium" -> BrandOrange
+        "low" -> Color(0xFF1E40AF)
+        else -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+    }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-            .clickable { showEditDialog = true }
+            .clickable { viewModel.openEditTaskSheet(task) }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 // Task Checkbox
                 Box(
                     modifier = Modifier
                         .size(24.dp)
                         .border(
                             2.dp,
-                            if (task.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                            priorityColor,
                             CircleShape
                         )
                         .background(
-                            if (task.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
+                            if (task.completed) priorityColor.copy(alpha = 0.2f) else Color.Transparent,
                             CircleShape
                         )
                         .clickable { viewModel.toggleTaskCompletion(task) },
                     contentAlignment = Alignment.Center
                 ) {
                     if (task.completed) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Check, contentDescription = null, tint = priorityColor, modifier = Modifier.size(16.dp))
                     }
                 }
 
@@ -566,20 +574,15 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                         )
                     }
-                    if (task.notes.isNotBlank()) {
+                    if (task.notes.isNotBlank() && !task.notes.contains("[PINNED]")) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "📝 ${task.notes}",
+                            text = "📝 ${task.notes.replace("[PINNED]", "")}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             color = BrandViolet
                         )
                     }
-                }
-
-                // Delete Button
-                IconButton(onClick = { viewModel.deleteTask(task.id) }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = BrandRose)
                 }
             }
 
@@ -588,51 +591,93 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(BrandViolet.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                // Category/Project Pill
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(task.project, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = "Project",
+                        tint = BrandViolet,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = task.project,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandViolet
+                    )
                 }
 
-                val priorityColor = when (task.priority) {
-                    "high" -> BrandRose
-                    "medium" -> BrandViolet
-                    else -> BrandCyan
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(priorityColor.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                // Priority flag (colored flag icon instead of bulky text pill)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(task.priority.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = priorityColor)
+                    Icon(
+                        imageVector = Icons.Default.Flag,
+                        contentDescription = "Priority",
+                        tint = priorityColor,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = when (task.priority) {
+                            "high" -> "High"
+                            "medium" -> "Medium"
+                            "low" -> "Low"
+                            else -> "None"
+                        },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = priorityColor
+                    )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                // Deadline
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("📅 ${task.deadline}", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = "Deadline",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = task.deadline,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
                 }
 
+                // Reminder Time
                 if (task.reminderTime != null) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(BrandOrange.copy(alpha = 0.15f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("⏰ ${task.reminderTime}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                        Icon(
+                            imageVector = Icons.Default.AccessTime,
+                            contentDescription = "Reminder Time",
+                            tint = BrandOrange,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = task.reminderTime,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandOrange
+                        )
                     }
                 }
 
+                // Repeat Type
                 if (task.repeatType != "none") {
                     val repeatLabel = when (task.repeatType) {
                         "daily" -> "Daily"
@@ -654,13 +699,22 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                         }
                         else -> task.repeatType
                     }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(BrandGreen.copy(alpha = 0.15f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("🔁 $repeatLabel", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                        Icon(
+                            imageVector = Icons.Default.Autorenew,
+                            contentDescription = "Repeat",
+                            tint = BrandGreen,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = repeatLabel,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandGreen
+                        )
                     }
                 }
             }

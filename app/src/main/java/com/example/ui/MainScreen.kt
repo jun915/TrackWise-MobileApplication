@@ -162,8 +162,10 @@ fun MainScreen(
     var showGlobalSearchDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showAddChoiceDialog by remember { mutableStateOf(false) }
-    var showCustomAddTaskSheet by remember { mutableStateOf(false) }
     var showOccasionSpeedDial by remember { mutableStateOf(false) }
+
+    val showCustomTaskSheet by viewModel.showCustomTaskSheet.collectAsState()
+    val taskToEdit by viewModel.taskToEdit.collectAsState()
 
     var showImportOptionDialog by remember { mutableStateOf(false) }
     var pastedJsonText by remember { mutableStateOf("") }
@@ -311,7 +313,7 @@ fun MainScreen(
                     FloatingActionButton(
                         onClick = {
                             if (activeTab == "workspace" && activeSubTab == 0) {
-                                showCustomAddTaskSheet = true
+                                viewModel.openAddTaskSheet()
                             } else {
                                 showAddChoiceDialog = true
                             }
@@ -871,22 +873,44 @@ fun MainScreen(
     }
 
     CustomAddTaskBottomSheet(
-        visible = showCustomAddTaskSheet,
-        onDismiss = { showCustomAddTaskSheet = false },
-        onAddTask = { titleVal, descVal, projVal, priorityVal, deadlineVal, reminderTimeVal, repeatTypeVal, reminderDateVal, notesVal ->
-            viewModel.addTask(
-                title = titleVal,
-                description = descVal,
-                project = projVal,
-                priority = priorityVal,
-                points = 0,
-                deadline = deadlineVal,
-                reminderTime = reminderTimeVal,
-                repeatType = repeatTypeVal,
-                reminderDate = reminderDateVal,
-                notes = notesVal
-            )
-            showCustomAddTaskSheet = false
+        visible = showCustomTaskSheet,
+        onDismiss = { viewModel.closeCustomTaskSheet() },
+        onAddTask = { titleVal, descVal, projVal, priorityVal, deadlineVal, reminderTimeVal, repeatTypeVal, reminderDateVal, notesVal, subtasksJsonVal ->
+            if (taskToEdit != null) {
+                val updatedTask = taskToEdit!!.copy(
+                    title = titleVal,
+                    description = descVal,
+                    project = projVal,
+                    priority = priorityVal,
+                    deadline = deadlineVal,
+                    reminderTime = reminderTimeVal,
+                    repeatType = repeatTypeVal,
+                    reminderDate = reminderDateVal,
+                    notes = notesVal,
+                    subtasksJson = subtasksJsonVal
+                )
+                viewModel.updateTask(updatedTask)
+            } else {
+                viewModel.addTask(
+                    title = titleVal,
+                    description = descVal,
+                    project = projVal,
+                    priority = priorityVal,
+                    points = 0,
+                    deadline = deadlineVal,
+                    reminderTime = reminderTimeVal,
+                    repeatType = repeatTypeVal,
+                    reminderDate = reminderDateVal,
+                    notes = notesVal,
+                    subtasksJson = subtasksJsonVal
+                )
+            }
+            viewModel.closeCustomTaskSheet()
+        },
+        taskToEdit = taskToEdit,
+        onDeleteTask = { taskId ->
+            viewModel.deleteTask(taskId)
+            viewModel.closeCustomTaskSheet()
         }
     )
 }

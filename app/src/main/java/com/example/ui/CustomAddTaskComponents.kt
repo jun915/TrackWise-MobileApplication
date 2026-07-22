@@ -36,6 +36,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.PopupProperties
 import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
+import com.example.data.SubTask
+import com.example.data.TaskEntity
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -64,16 +66,19 @@ fun SuggestionChip(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun CustomAddTaskBottomSheet(
     visible: Boolean,
     onDismiss: () -> Unit,
-    onAddTask: (title: String, desc: String, project: String, priority: String, deadline: String, reminderTime: String?, repeatType: String, reminderDate: String?, notes: String) -> Unit
+    onAddTask: (title: String, desc: String, project: String, priority: String, deadline: String, reminderTime: String?, repeatType: String, reminderDate: String?, notes: String, subtasksJson: String) -> Unit,
+    taskToEdit: TaskEntity? = null,
+    onDeleteTask: ((String) -> Unit)? = null
 ) {
     if (!visible) return
 
     var title by remember { mutableStateOf("") }
+    var titleValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("")) }
     var description by remember { mutableStateOf("") }
     var project by remember { mutableStateOf("Inbox") }
     var priority by remember { mutableStateOf("none") } // "none", "low", "medium", "high"
@@ -92,6 +97,65 @@ fun CustomAddTaskBottomSheet(
     var tagMenuExpanded by remember { mutableStateOf(false) }
 
     val focusRequester = remember { FocusRequester() }
+
+    var isPinned by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+
+    // Subtasks State
+    var subtasksList by remember { mutableStateOf(emptyList<SubTask>()) }
+    var showAddSubtaskDialog by remember { mutableStateOf(false) }
+    var subtaskTitleInput by remember { mutableStateOf("") }
+    var subtaskDateInput by remember { mutableStateOf("") }
+    var subtaskTimeInput by remember { mutableStateOf<String?>(null) }
+    var showSubtaskDatePicker by remember { mutableStateOf(false) }
+
+    // Description text-field-value state for selection-aware formatting
+    var descriptionValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(description)) }
+
+    // Helper function for rich text formatting
+    val applyFormatting: (String) -> Unit = { tag ->
+        val text = descriptionValue.text
+        val selection = descriptionValue.selection
+        val start = selection.start
+        val end = selection.end
+        
+        val newText: String
+        val newSelection: androidx.compose.ui.text.TextRange
+        
+        if (start != end) {
+            val selectedText = text.substring(start, end)
+            val formatted = when (tag) {
+                "bold" -> "**$selectedText**"
+                "italic" -> "*$selectedText*"
+                "code" -> "`$selectedText`"
+                "list" -> "\n- $selectedText"
+                "header" -> "\n# $selectedText"
+                else -> selectedText
+            }
+            newText = text.replaceRange(start, end, formatted)
+            newSelection = androidx.compose.ui.text.TextRange(start + formatted.length)
+        } else {
+            val prefix = when (tag) {
+                "bold" -> "**"
+                "italic" -> "*"
+                "code" -> "`"
+                "list" -> "\n- "
+                "header" -> "\n# "
+                else -> ""
+            }
+            val suffix = when (tag) {
+                "bold" -> "**"
+                "italic" -> "*"
+                "code" -> "`"
+                else -> ""
+            }
+            val insertText = prefix + suffix
+            newText = text.replaceRange(start, start, insertText)
+            newSelection = androidx.compose.ui.text.TextRange(start + prefix.length)
+        }
+        descriptionValue = androidx.compose.ui.text.input.TextFieldValue(text = newText, selection = newSelection)
+        description = newText
+    }
 
     val optionsRow: @Composable () -> Unit = {
         Row(
@@ -161,7 +225,7 @@ fun CustomAddTaskBottomSheet(
                     val flagColor = when (priority) {
                         "high" -> BrandRose
                         "medium" -> BrandOrange
-                        "low" -> BrandCyan
+                        "low" -> Color(0xFF1E40AF)
                         else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     }
                     IconButton(
@@ -198,7 +262,7 @@ fun CustomAddTaskBottomSheet(
                         listOf(
                             Triple("high", "High Priority", BrandRose),
                             Triple("medium", "Medium Priority", BrandOrange),
-                            Triple("low", "Low Priority", BrandCyan),
+                            Triple("low", "Low Priority", Color(0xFF1E40AF)),
                             Triple("none", "No Priority", MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         ).forEach { (key, label, color) ->
                             DropdownMenuItem(
@@ -367,7 +431,15 @@ fun CustomAddTaskBottomSheet(
                             ""
                         }
 
-                        onAddTask(cleanedTitle, description, finalProject, priority, deadline, reminderTime, repeatType, reminderDate, finalNotes)
+                        val notesWithPin = if (isPinned) {
+                            if (finalNotes.isEmpty()) "[PINNED]" else "$finalNotes [PINNED]"
+                        } else {
+                            finalNotes
+                        }
+
+                        val subtasksJson = TrackWiseUtils.serializeSubTasks(subtasksList)
+
+                        onAddTask(cleanedTitle, description, finalProject, priority, deadline, reminderTime, repeatType, reminderDate, notesWithPin, subtasksJson)
                         onDismiss()
                     }
                 },
@@ -389,8 +461,40 @@ fun CustomAddTaskBottomSheet(
         }
     }
 
-    LaunchedEffect(visible) {
+    LaunchedEffect(visible, taskToEdit) {
         if (visible) {
+            if (taskToEdit != null) {
+                title = taskToEdit.title
+                titleValue = androidx.compose.ui.text.input.TextFieldValue(
+                    text = taskToEdit.title,
+                    selection = androidx.compose.ui.text.TextRange(taskToEdit.title.length)
+                )
+                description = taskToEdit.description
+                descriptionValue = androidx.compose.ui.text.input.TextFieldValue(taskToEdit.description)
+                project = taskToEdit.project
+                priority = taskToEdit.priority
+                deadline = taskToEdit.deadline
+                reminderTime = taskToEdit.reminderTime
+                reminderDate = taskToEdit.reminderDate ?: taskToEdit.deadline
+                repeatType = taskToEdit.repeatType
+                isFullScreen = false
+                isPinned = taskToEdit.notes.contains("[PINNED]")
+                subtasksList = TrackWiseUtils.deserializeSubTasks(taskToEdit.subtasksJson)
+            } else {
+                title = ""
+                titleValue = androidx.compose.ui.text.input.TextFieldValue("")
+                description = ""
+                descriptionValue = androidx.compose.ui.text.input.TextFieldValue("")
+                project = "Inbox"
+                priority = "none"
+                deadline = todayStr
+                reminderTime = null
+                reminderDate = null
+                repeatType = "none"
+                isFullScreen = false
+                isPinned = false
+                subtasksList = emptyList()
+            }
             focusRequester.requestFocus()
         }
     }
@@ -412,6 +516,7 @@ fun CustomAddTaskBottomSheet(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
             modifier = (if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                .imePadding()
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -423,28 +528,70 @@ fun CustomAddTaskBottomSheet(
                     shape = if (isFullScreen) RoundedCornerShape(0.dp) else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
                 )
         ) {
+            val bottomInset = if (WindowInsets.isImeVisible) {
+                WindowInsets(0, 0, 0, 0)
+            } else {
+                WindowInsets.navigationBars
+            }
+
+            val bottomPadding = if (WindowInsets.isImeVisible) 0.dp else 20.dp
+
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(20.dp),
+                    .then(if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                    .windowInsetsPadding(bottomInset)
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = bottomPadding),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 if (isFullScreen) {
+                    // Header Bar (Back button + Title + 3 dots)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            optionsRow()
-                        }
                         IconButton(
                             onClick = { isFullScreen = false }
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Exit Fullscreen",
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (taskToEdit != null) "Edit Task" else "New Task",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (isPinned) {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = "Pinned",
+                                    tint = BrandAmber,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+                        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+                        IconButton(
+                            onClick = { 
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                                showMoreMenu = true 
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More options",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -460,66 +607,145 @@ fun CustomAddTaskBottomSheet(
                     )
                 }
 
-                // 1. Title Input
-                BasicTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    textStyle = TextStyle(
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    ),
-                    cursorBrush = SolidColor(BrandCyan),
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Next
-                    ),
+                // Scrollable inputs area
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .testTag("task_title_input"),
-                    decorationBox = { innerTextField ->
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            if (title.isEmpty()) {
-                                Text(
-                                    text = "What would you like to do?",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
+                        .then(if (isFullScreen) Modifier.weight(1f) else Modifier.wrapContentHeight())
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Title Input
+                    BasicTextField(
+                        value = titleValue,
+                        onValueChange = { 
+                            titleValue = it
+                            title = it.text
+                        },
+                        textStyle = TextStyle(
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        cursorBrush = SolidColor(BrandCyan),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Next
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester)
+                            .testTag("task_title_input"),
+                        decorationBox = { innerTextField ->
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                if (title.isEmpty()) {
+                                    Text(
+                                        text = "What would you like to do?",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                                innerTextField()
                             }
-                            innerTextField()
                         }
-                    }
-                )
+                    )
 
-                // 2. Description Input
-                BasicTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    textStyle = TextStyle(
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                    ),
-                    cursorBrush = SolidColor(BrandCyan),
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Done
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("task_description_input"),
-                    decorationBox = { innerTextField ->
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            if (description.isEmpty()) {
-                                Text(
-                                    text = "Description",
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                )
+                    // Description Input
+                    BasicTextField(
+                        value = descriptionValue,
+                        onValueChange = {
+                            descriptionValue = it
+                            description = it.text
+                        },
+                        textStyle = TextStyle(
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        ),
+                        cursorBrush = SolidColor(BrandCyan),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (isFullScreen) Modifier.heightIn(min = 120.dp) else Modifier.wrapContentHeight())
+                            .testTag("task_description_input"),
+                        decorationBox = { innerTextField ->
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                if (descriptionValue.text.isEmpty()) {
+                                    Text(
+                                        text = "Description",
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    )
+                                }
+                                innerTextField()
                             }
-                            innerTextField()
+                        }
+                    )
+
+                    // Subtasks Checklist Listing (Only in Full Screen)
+                    if (isFullScreen && subtasksList.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Subtasks Checklist",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandViolet
+                        )
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            subtasksList.forEach { sub ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SubdirectoryArrowRight,
+                                            contentDescription = null,
+                                            tint = BrandViolet,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Column {
+                                            Text(
+                                                text = sub.title,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (!sub.dueDate.isNullOrBlank()) {
+                                                Text(
+                                                    text = "Due: ${sub.dueDate} ${sub.dueTime ?: ""}",
+                                                    fontSize = 11.sp,
+                                                    color = BrandCyan
+                                                )
+                                            }
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            subtasksList = subtasksList.filter { it.id != sub.id }
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Subtask",
+                                            tint = BrandRose,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
-                )
+                }
 
                 // Suggestion Row for #tags and ~projects
                 val words = title.split(" ", "\n")
@@ -556,7 +782,12 @@ fun CustomAddTaskBottomSheet(
                                             }
                                             val lastIdx = title.lastIndexOf(activeWord)
                                             if (lastIdx >= 0) {
-                                                title = title.substring(0, lastIdx) + newTag + " "
+                                                val newText = title.substring(0, lastIdx) + newTag + " "
+                                                titleValue = androidx.compose.ui.text.input.TextFieldValue(
+                                                    text = newText,
+                                                    selection = androidx.compose.ui.text.TextRange(newText.length)
+                                                )
+                                                title = newText
                                             }
                                         } else {
                                             val capitalizedProj = query.replaceFirstChar { it.uppercase() }
@@ -566,7 +797,12 @@ fun CustomAddTaskBottomSheet(
                                             project = capitalizedProj
                                             val lastIdx = title.lastIndexOf(activeWord)
                                             if (lastIdx >= 0) {
-                                                title = title.substring(0, lastIdx) + "~$capitalizedProj "
+                                                val newText = title.substring(0, lastIdx) + "~$capitalizedProj "
+                                                titleValue = androidx.compose.ui.text.input.TextFieldValue(
+                                                    text = newText,
+                                                    selection = androidx.compose.ui.text.TextRange(newText.length)
+                                                )
+                                                title = newText
                                             }
                                         }
                                     }
@@ -582,13 +818,23 @@ fun CustomAddTaskBottomSheet(
                                     if (isTag) {
                                         val lastIdx = title.lastIndexOf(activeWord)
                                         if (lastIdx >= 0) {
-                                            title = title.substring(0, lastIdx) + item + " "
+                                            val newText = title.substring(0, lastIdx) + item + " "
+                                            titleValue = androidx.compose.ui.text.input.TextFieldValue(
+                                                text = newText,
+                                                selection = androidx.compose.ui.text.TextRange(newText.length)
+                                            )
+                                            title = newText
                                         }
                                     } else {
                                         project = item
                                         val lastIdx = title.lastIndexOf(activeWord)
                                         if (lastIdx >= 0) {
-                                            title = title.substring(0, lastIdx) + "~$item "
+                                            val newText = title.substring(0, lastIdx) + "~$item "
+                                            titleValue = androidx.compose.ui.text.input.TextFieldValue(
+                                                text = newText,
+                                                selection = androidx.compose.ui.text.TextRange(newText.length)
+                                            )
+                                            title = newText
                                         }
                                     }
                                 }
@@ -597,14 +843,318 @@ fun CustomAddTaskBottomSheet(
                     }
                 }
 
-                if (!isFullScreen) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    optionsRow()
+                // ALWAYS show options row at the bottom of the container
+                // When keyboard is visible, .imePadding() keeps this right above the keyboard!
+                Spacer(modifier = Modifier.height(4.dp))
+                optionsRow()
+            }
+        }
+
+        // --- Overlays & sheets ---
+
+        // 1. More Menu Popup (Slides up from below)
+        AnimatedVisibility(
+            visible = showMoreMenu,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { showMoreMenu = false },
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Card(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = false) {} // prevent clicking on card from dismissing
+                        .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Header with Drag Handle-like bar
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
+                                .align(Alignment.CenterHorizontally)
+                        )
+
+                        Text(
+                            text = "Task Options",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        // Pin Option
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    isPinned = !isPinned
+                                    showMoreMenu = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PushPin,
+                                contentDescription = "Pin Task",
+                                tint = if (isPinned) BrandAmber else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (isPinned) "Pinned (Click to Unpin)" else "Pin to Top",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (isPinned) BrandAmber else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+
+                        // Add Subtask Option
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showMoreMenu = false
+                                    showAddSubtaskDialog = true
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AddCircle,
+                                contentDescription = "Add Subtask",
+                                tint = BrandViolet
+                            )
+                            Text(
+                                text = "Add Subtask",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        if (taskToEdit != null && onDeleteTask != null) {
+                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showMoreMenu = false
+                                        onDeleteTask(taskToEdit.id)
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete Task",
+                                    tint = BrandRose
+                                )
+                                Text(
+                                    text = "Delete Task",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = BrandRose
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // Sub-sheet for custom Date Picker
+        // 2. Add Subtask Dialog/Popup (Slides up from below)
+        AnimatedVisibility(
+            visible = showAddSubtaskDialog,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { showAddSubtaskDialog = false },
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Card(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = false) {}
+                        .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Add Subtask",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        // Subtask Title input
+                        BasicTextField(
+                            value = subtaskTitleInput,
+                            onValueChange = { subtaskTitleInput = it },
+                            textStyle = TextStyle(
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(BrandCyan),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                                .padding(14.dp),
+                            decorationBox = { innerTextField ->
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    if (subtaskTitleInput.isEmpty()) {
+                                        Text(
+                                            text = "Subtask Title",
+                                            fontSize = 16.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+
+                        // Options row: Calendar / Date Selection
+                        val subtaskDateText = if (subtaskDateInput.isEmpty()) "Select Date" else {
+                            if (subtaskDateInput == todayStr) "Today" else subtaskDateInput
+                        }
+                        val subtaskTimeText = subtaskTimeInput ?: "Set Time"
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Date Pill
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = BrandCyan.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { showSubtaskDatePicker = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarToday,
+                                        contentDescription = "Select Subtask Date",
+                                        tint = BrandCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = subtaskDateText,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandCyan
+                                    )
+                                }
+                            }
+
+                            // Time Pill
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = BrandViolet.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, BrandViolet.copy(alpha = 0.3f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        showSubtaskDatePicker = true
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccessTime,
+                                        contentDescription = "Select Subtask Time",
+                                        tint = BrandViolet,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = subtaskTimeText,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandViolet
+                                    )
+                                }
+                            }
+                        }
+
+                        // Save Subtask buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { showAddSubtaskDialog = false },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel")
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (subtaskTitleInput.isNotBlank()) {
+                                        val newSub = SubTask(
+                                            id = "sub-${System.currentTimeMillis()}",
+                                            title = subtaskTitleInput,
+                                            completed = false,
+                                            dueDate = if (subtaskDateInput.isBlank()) todayStr else subtaskDateInput,
+                                            dueTime = subtaskTimeInput
+                                        )
+                                        subtasksList = subtasksList + newSub
+                                        subtaskTitleInput = ""
+                                        subtaskDateInput = ""
+                                        subtaskTimeInput = null
+                                        showAddSubtaskDialog = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+                                enabled = subtaskTitleInput.isNotBlank(),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Add", color = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sub-sheet for main task Date Picker
         CustomDatePickerSheet(
             visible = showDatePicker,
             currentDate = deadline,
@@ -642,6 +1192,22 @@ fun CustomAddTaskBottomSheet(
                 repeatType = repeat
                 showDatePicker = false
             }
+        )
+
+        // Sub-sheet for subtask Date Picker (restricts future dates relative to deadline!)
+        CustomDatePickerSheet(
+            visible = showSubtaskDatePicker,
+            currentDate = if (subtaskDateInput.isEmpty()) deadline else subtaskDateInput,
+            currentTime = subtaskTimeInput,
+            currentReminder = "On the day",
+            currentRepeat = "none",
+            onDismiss = { showSubtaskDatePicker = false },
+            onConfirm = { date, time, _, _, _, _ ->
+                subtaskDateInput = date
+                subtaskTimeInput = time
+                showSubtaskDatePicker = false
+            },
+            maxDateStr = deadline
         )
     }
 }
@@ -697,7 +1263,8 @@ fun CustomDatePickerSheet(
     currentReminder: String,
     currentRepeat: String,
     onDismiss: () -> Unit,
-    onConfirm: (date: String, time: String?, reminder: String, repeat: String, customReminderDate: String?, customReminderTime: String?) -> Unit
+    onConfirm: (date: String, time: String?, reminder: String, repeat: String, customReminderDate: String?, customReminderTime: String?) -> Unit,
+    maxDateStr: String? = null
 ) {
     if (!visible) return
 
@@ -812,7 +1379,10 @@ fun CustomDatePickerSheet(
                             Triple("Tomorrow", tomorrow, Icons.Default.WbSunny),
                             Triple("Next Mon", nextMonday, Icons.Default.Event),
                             Triple("Tonight", today, Icons.Default.NightsStay)
-                        ).forEach { (label, cal, icon) ->
+                        ).filter { (_, cal, _) ->
+                            val dateStr = sdf.format(cal.time)
+                            if (maxDateStr != null) dateStr <= maxDateStr else true
+                        }.forEach { (label, cal, icon) ->
                             val isSelected = when (label) {
                                 "Today" -> selectedDateStr == sdf.format(cal.time) && selectedTimeStr == "09:00"
                                 "Tonight" -> selectedDateStr == sdf.format(cal.time) && selectedTimeStr == "21:00"
@@ -955,6 +1525,11 @@ fun CustomDatePickerSheet(
                             ) {
                                 week.forEach { (dayNum, isCurrent, fullDateStr) ->
                                     val isSelected = selectedDateStr == fullDateStr
+                                    val isAfterMax = if (maxDateStr != null) {
+                                        fullDateStr > maxDateStr
+                                    } else {
+                                        false
+                                    }
                                     
                                     Box(
                                         modifier = Modifier
@@ -962,7 +1537,7 @@ fun CustomDatePickerSheet(
                                             .aspectRatio(1.1f)
                                             .clip(CircleShape)
                                             .background(if (isSelected) BrandCyan else Color.Transparent)
-                                            .clickable {
+                                            .clickable(enabled = !isAfterMax) {
                                                 selectedDateStr = fullDateStr
                                             },
                                         contentAlignment = Alignment.Center
@@ -972,7 +1547,8 @@ fun CustomDatePickerSheet(
                                                 text = dayNum.toString(),
                                                 fontSize = 12.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) Color.White
+                                                color = if (isAfterMax) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+                                                        else if (isSelected) Color.White
                                                         else if (isCurrent) MaterialTheme.colorScheme.onSurface
                                                         else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                                             )

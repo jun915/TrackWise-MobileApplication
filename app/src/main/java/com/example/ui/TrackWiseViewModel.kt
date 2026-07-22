@@ -749,6 +749,28 @@ class TrackWiseViewModel(
     }
 
     // --- Tasks Actions ---
+    // Task edit sheet integration
+    private val _taskToEdit = MutableStateFlow<TaskEntity?>(null)
+    val taskToEdit: StateFlow<TaskEntity?> = _taskToEdit.asStateFlow()
+
+    private val _showCustomTaskSheet = MutableStateFlow(false)
+    val showCustomTaskSheet: StateFlow<Boolean> = _showCustomTaskSheet.asStateFlow()
+
+    fun openAddTaskSheet() {
+        _taskToEdit.value = null
+        _showCustomTaskSheet.value = true
+    }
+
+    fun openEditTaskSheet(task: TaskEntity) {
+        _taskToEdit.value = task
+        _showCustomTaskSheet.value = true
+    }
+
+    fun closeCustomTaskSheet() {
+        _showCustomTaskSheet.value = false
+        _taskToEdit.value = null
+    }
+
     fun addTask(
         title: String,
         description: String,
@@ -765,7 +787,8 @@ class TrackWiseViewModel(
         endDate: String? = null,
         notes: String = "",
         dueTime: String? = null,
-        reminderDate: String? = null
+        reminderDate: String? = null,
+        subtasksJson: String = "[]"
     ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
@@ -784,6 +807,7 @@ class TrackWiseViewModel(
                 deadline = deadline,
                 completed = false,
                 points = taskPoints,
+                subtasksJson = subtasksJson,
                 reminderTime = reminderTime,
                 repeatType = repeatType,
                 customRepeatValue = customRepeatValue,
