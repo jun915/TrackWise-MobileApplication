@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.PopupProperties
 import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
@@ -92,6 +93,302 @@ fun CustomAddTaskBottomSheet(
 
     val focusRequester = remember { FocusRequester() }
 
+    val optionsRow: @Composable () -> Unit = {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                // A. Calendar / Date Pill
+                val dateText = remember(deadline, todayStr) {
+                    if (deadline == todayStr) "Today"
+                    else {
+                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                        try {
+                            val target = sdf.parse(deadline)
+                            val current = sdf.parse(todayStr)
+                            if (target != null && current != null) {
+                                val diff = (target.time - current.time) / (1000 * 60 * 60 * 24)
+                                if (diff == 1L) "Tomorrow"
+                                else {
+                                    val outFormat = SimpleDateFormat("MMM d", Locale.US)
+                                    val formattedDate = outFormat.format(target)
+                                    if (diff > 1) "$formattedDate, ${diff}d left"
+                                    else formattedDate
+                                }
+                            } else deadline
+                        } catch (e: Exception) {
+                            deadline
+                        }
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = BrandCyan.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .clickable { showDatePicker = true }
+                        .testTag("task_date_pill")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = "Select Date",
+                            tint = BrandCyan,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = dateText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandCyan
+                        )
+                    }
+                }
+
+                // B. Priority Flag Icon
+                Box {
+                    val flagColor = when (priority) {
+                        "high" -> BrandRose
+                        "medium" -> BrandOrange
+                        "low" -> BrandCyan
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    }
+                    IconButton(
+                        onClick = { priorityMenuExpanded = true },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                color = if (priority != "none") flagColor.copy(alpha = 0.12f) else Color.Transparent,
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = if (priority != "none") 1.dp else 0.dp,
+                                color = if (priority != "none") flagColor.copy(alpha = 0.25f) else Color.Transparent,
+                                shape = CircleShape
+                            )
+                            .testTag("priority_flag_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Flag,
+                            contentDescription = "Priority",
+                            tint = flagColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = priorityMenuExpanded,
+                        onDismissRequest = { priorityMenuExpanded = false },
+                        properties = PopupProperties(focusable = false),
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                    ) {
+                        listOf(
+                            Triple("high", "High Priority", BrandRose),
+                            Triple("medium", "Medium Priority", BrandOrange),
+                            Triple("low", "Low Priority", BrandCyan),
+                            Triple("none", "No Priority", MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                        ).forEach { (key, label, color) ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.Flag, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+                                        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    }
+                                },
+                                onClick = {
+                                    priority = key
+                                    priorityMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // C. Tag Label Icon
+                Box {
+                    IconButton(
+                        onClick = { tagMenuExpanded = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Label,
+                            contentDescription = "Tags",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = tagMenuExpanded,
+                        onDismissRequest = { tagMenuExpanded = false },
+                        properties = PopupProperties(focusable = false),
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                    ) {
+                        persistentTags.forEach { t ->
+                            DropdownMenuItem(
+                                text = { Text(t, fontSize = 13.sp) },
+                                onClick = {
+                                    if (!title.contains(t)) {
+                                        title = if (title.isBlank()) t else "$title $t"
+                                    }
+                                    tagMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // D. List Selection Icon
+                Box {
+                    val projectIcon = when (project.lowercase()) {
+                        "work" -> Icons.Default.BusinessCenter
+                        "personal" -> Icons.Default.Person
+                        "shopping" -> Icons.Default.ShoppingCart
+                        "learning" -> Icons.Default.School
+                        "wish list" -> Icons.Default.Star
+                        "fitness" -> Icons.Default.DirectionsRun
+                        else -> Icons.Default.Inbox
+                    }
+                    IconButton(
+                        onClick = { projectMenuExpanded = true },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(BrandViolet.copy(alpha = 0.12f), CircleShape)
+                            .border(1.dp, BrandViolet.copy(alpha = 0.2f), CircleShape)
+                            .testTag("project_select_button")
+                    ) {
+                        Icon(
+                            imageVector = projectIcon,
+                            contentDescription = "Project / List",
+                            tint = BrandViolet,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = projectMenuExpanded,
+                        onDismissRequest = { projectMenuExpanded = false },
+                        properties = PopupProperties(focusable = false),
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                    ) {
+                        persistentProjects.forEach { proj ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(proj, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                        if (project == proj) {
+                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = BrandCyan, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    project = proj
+                                    projectMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // E. Fullscreen Toggle Icon
+                IconButton(
+                    onClick = { isFullScreen = !isFullScreen },
+                    modifier = Modifier.size(36.dp).testTag("fullscreen_toggle_button")
+                ) {
+                    Icon(
+                        imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                        contentDescription = "Toggle Fullscreen",
+                        tint = BrandCyan,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // F. Send/Add Button
+            Button(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        // Extract any ~project and #tag from title
+                        var finalProject = project
+                        val wordsList = title.split(" ", "\n")
+                        val tagsFound = mutableListOf<String>()
+
+                        for (word in wordsList) {
+                            if (word.startsWith("~") && word.length > 1) {
+                                val projName = word.substring(1).replaceFirstChar { it.uppercase() }
+                                finalProject = projName
+                                if (!persistentProjects.contains(projName)) {
+                                    persistentProjects.add(projName)
+                                }
+                            } else if (word.startsWith("#") && word.length > 1) {
+                                tagsFound.add(word)
+                                if (!persistentTags.contains(word)) {
+                                    persistentTags.add(word)
+                                }
+                            }
+                        }
+
+                        // Clean the title (remove all ~words and #words)
+                        val cleanedWords = wordsList.filter {
+                            !it.startsWith("~") && !it.startsWith("#")
+                        }
+                        var cleanedTitle = cleanedWords.joinToString(" ").trim()
+                        if (cleanedTitle.isBlank()) {
+                            cleanedTitle = "Untitled Task"
+                        }
+
+                        val finalNotes = if (tagsFound.isNotEmpty()) {
+                            tagsFound.joinToString(" ")
+                        } else {
+                            ""
+                        }
+
+                        onAddTask(cleanedTitle, description, finalProject, priority, deadline, reminderTime, repeatType, reminderDate, finalNotes)
+                        onDismiss()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+                contentPadding = PaddingValues(0.dp),
+                shape = CircleShape,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("task_submit_button"),
+                enabled = title.isNotBlank()
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Save Task",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+
     LaunchedEffect(visible) {
         if (visible) {
             focusRequester.requestFocus()
@@ -129,7 +426,7 @@ fun CustomAddTaskBottomSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                    .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -139,12 +436,9 @@ fun CustomAddTaskBottomSheet(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Create Task Runway 🚀",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandViolet
-                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            optionsRow()
+                        }
                         IconButton(
                             onClick = { isFullScreen = false }
                         ) {
@@ -303,298 +597,9 @@ fun CustomAddTaskBottomSheet(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // 3. Action Buttons & Icons Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        // A. Calendar / Date Pill
-                        val dateText = remember(deadline, todayStr) {
-                            if (deadline == todayStr) "Today"
-                            else {
-                                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                                try {
-                                    val target = sdf.parse(deadline)
-                                    val current = sdf.parse(todayStr)
-                                    if (target != null && current != null) {
-                                        val diff = (target.time - current.time) / (1000 * 60 * 60 * 24)
-                                        if (diff == 1L) "Tomorrow"
-                                        else {
-                                            val outFormat = SimpleDateFormat("MMM d", Locale.US)
-                                            val formattedDate = outFormat.format(target)
-                                            if (diff > 1) "$formattedDate, ${diff}d left"
-                                            else formattedDate
-                                        }
-                                    } else deadline
-                                } catch (e: Exception) {
-                                    deadline
-                                }
-                            }
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = BrandCyan.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f)),
-                            modifier = Modifier
-                                .clickable { showDatePicker = true }
-                                .testTag("task_date_pill")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarToday,
-                                    contentDescription = "Select Date",
-                                    tint = BrandCyan,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = dateText,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandCyan
-                                )
-                            }
-                        }
-
-                        // B. Priority Flag Icon
-                        Box {
-                            val flagColor = when (priority) {
-                                "high" -> BrandRose
-                                "medium" -> BrandOrange
-                                "low" -> BrandCyan
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            }
-                            IconButton(
-                                onClick = { priorityMenuExpanded = true },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(
-                                        color = if (priority != "none") flagColor.copy(alpha = 0.12f) else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .border(
-                                        width = if (priority != "none") 1.dp else 0.dp,
-                                        color = if (priority != "none") flagColor.copy(alpha = 0.25f) else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .testTag("priority_flag_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Flag,
-                                    contentDescription = "Priority",
-                                    tint = flagColor,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            DropdownMenu(
-                                expanded = priorityMenuExpanded,
-                                onDismissRequest = { priorityMenuExpanded = false },
-                                modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                            ) {
-                                listOf(
-                                    Triple("high", "High Priority", BrandRose),
-                                    Triple("medium", "Medium Priority", BrandOrange),
-                                    Triple("low", "Low Priority", BrandCyan),
-                                    Triple("none", "No Priority", MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                                ).forEach { (key, label, color) ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Icon(Icons.Default.Flag, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
-                                                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                            }
-                                        },
-                                        onClick = {
-                                            priority = key
-                                            priorityMenuExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        // C. Tag Label Icon
-                        Box {
-                            IconButton(
-                                onClick = { tagMenuExpanded = true },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Label,
-                                    contentDescription = "Tags",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            DropdownMenu(
-                                expanded = tagMenuExpanded,
-                                onDismissRequest = { tagMenuExpanded = false },
-                                modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                            ) {
-                                persistentTags.forEach { t ->
-                                    DropdownMenuItem(
-                                        text = { Text(t, fontSize = 13.sp) },
-                                        onClick = {
-                                            if (!title.contains(t)) {
-                                                title = if (title.isBlank()) t else "$title $t"
-                                            }
-                                            tagMenuExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        // D. List Selection Icon
-                        Box {
-                            val projectIcon = when (project.lowercase()) {
-                                "work" -> Icons.Default.BusinessCenter
-                                "personal" -> Icons.Default.Person
-                                "shopping" -> Icons.Default.ShoppingCart
-                                "learning" -> Icons.Default.School
-                                "wish list" -> Icons.Default.Star
-                                "fitness" -> Icons.Default.DirectionsRun
-                                else -> Icons.Default.Inbox
-                            }
-                            IconButton(
-                                onClick = { projectMenuExpanded = true },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(BrandViolet.copy(alpha = 0.12f), CircleShape)
-                                    .border(1.dp, BrandViolet.copy(alpha = 0.2f), CircleShape)
-                                    .testTag("project_select_button")
-                            ) {
-                                Icon(
-                                    imageVector = projectIcon,
-                                    contentDescription = "Project / List",
-                                    tint = BrandViolet,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            DropdownMenu(
-                                expanded = projectMenuExpanded,
-                                onDismissRequest = { projectMenuExpanded = false },
-                                modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                            ) {
-                                persistentProjects.forEach { proj ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(proj, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                                if (project == proj) {
-                                                    Icon(Icons.Default.Check, contentDescription = "Active", tint = BrandCyan, modifier = Modifier.size(16.dp))
-                                                }
-                                            }
-                                        },
-                                        onClick = {
-                                            project = proj
-                                            projectMenuExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        // E. Fullscreen Toggle Icon
-                        IconButton(
-                            onClick = { isFullScreen = !isFullScreen },
-                            modifier = Modifier.size(36.dp).testTag("fullscreen_toggle_button")
-                        ) {
-                            Icon(
-                                imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                contentDescription = "Toggle Fullscreen",
-                                tint = BrandCyan,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-
-                    // F. Send/Add Button
-                    Button(
-                        onClick = {
-                            if (title.isNotBlank()) {
-                                // Extract any ~project and #tag from title
-                                var finalProject = project
-                                val wordsList = title.split(" ", "\n")
-                                val tagsFound = mutableListOf<String>()
-
-                                for (word in wordsList) {
-                                    if (word.startsWith("~") && word.length > 1) {
-                                        val projName = word.substring(1).replaceFirstChar { it.uppercase() }
-                                        finalProject = projName
-                                        if (!persistentProjects.contains(projName)) {
-                                            persistentProjects.add(projName)
-                                        }
-                                    } else if (word.startsWith("#") && word.length > 1) {
-                                        tagsFound.add(word)
-                                        if (!persistentTags.contains(word)) {
-                                            persistentTags.add(word)
-                                        }
-                                    }
-                                }
-
-                                // Clean the title (remove all ~words and #words)
-                                val cleanedWords = wordsList.filter {
-                                    !it.startsWith("~") && !it.startsWith("#")
-                                }
-                                var cleanedTitle = cleanedWords.joinToString(" ").trim()
-                                if (cleanedTitle.isBlank()) {
-                                    cleanedTitle = "Untitled Task"
-                                }
-
-                                val finalNotes = if (tagsFound.isNotEmpty()) {
-                                    tagsFound.joinToString(" ")
-                                } else {
-                                    ""
-                                }
-
-                                onAddTask(cleanedTitle, description, finalProject, priority, deadline, reminderTime, repeatType, reminderDate, finalNotes)
-                                onDismiss()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
-                        contentPadding = PaddingValues(0.dp),
-                        shape = CircleShape,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .testTag("task_submit_button"),
-                        enabled = title.isNotBlank()
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Save Task",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                if (!isFullScreen) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    optionsRow()
                 }
             }
         }
