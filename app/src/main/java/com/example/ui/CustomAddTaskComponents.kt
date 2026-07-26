@@ -41,9 +41,6 @@ import com.example.data.TaskEntity
 import java.text.SimpleDateFormat
 import java.util.*
 
-private val persistentTags = mutableStateListOf("#daily routine", "#work", "#fitness", "#learning")
-private val persistentProjects = mutableStateListOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome")
-
 @Composable
 fun SuggestionChip(
     label: String,
@@ -73,9 +70,25 @@ fun CustomAddTaskBottomSheet(
     onDismiss: () -> Unit,
     onAddTask: (title: String, desc: String, project: String, priority: String, deadline: String, reminderTime: String?, repeatType: String, reminderDate: String?, notes: String, subtasksJson: String) -> Unit,
     taskToEdit: TaskEntity? = null,
-    onDeleteTask: ((String) -> Unit)? = null
+    onDeleteTask: ((String) -> Unit)? = null,
+    initialProjects: List<String> = emptyList(),
+    initialTags: List<String> = emptyList()
 ) {
     if (!visible) return
+
+    val persistentProjects = remember(initialProjects) {
+        val list = mutableStateListOf<String>()
+        val base = listOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome")
+        list.addAll((base + initialProjects).distinct())
+        list
+    }
+
+    val persistentTags = remember(initialTags) {
+        val list = mutableStateListOf<String>()
+        val base = listOf("#daily routine", "#work", "#fitness", "#learning")
+        list.addAll((base + initialTags).distinct())
+        list
+    }
 
     var title by remember { mutableStateOf("") }
     var titleValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("")) }
@@ -994,8 +1007,9 @@ fun CustomAddTaskBottomSheet(
                 contentAlignment = Alignment.BottomCenter
             ) {
                 Card(
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(enabled = false) {}
@@ -1004,15 +1018,42 @@ fun CustomAddTaskBottomSheet(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
+                            .padding(horizontal = 24.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            text = "Add Subtask",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                        // Drag Handle / Indicator line at top
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), CircleShape)
+                                .align(Alignment.CenterHorizontally)
                         )
+
+                        // Header info
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Add Subtask",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandCyan
+                            )
+                            IconButton(
+                                onClick = { showAddSubtaskDialog = false },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(16.dp)
+                               )
+                            }
+                        }
 
                         // Subtask Title input
                         BasicTextField(
@@ -1020,20 +1061,20 @@ fun CustomAddTaskBottomSheet(
                             onValueChange = { subtaskTitleInput = it },
                             textStyle = TextStyle(
                                 fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             ),
                             cursorBrush = SolidColor(BrandCyan),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                                .padding(14.dp),
+                                .testTag("subtask_title_input"),
                             decorationBox = { innerTextField ->
                                 Box(modifier = Modifier.fillMaxWidth()) {
                                     if (subtaskTitleInput.isEmpty()) {
                                         Text(
-                                            text = "Subtask Title",
+                                            text = "What subtask would you like to do?",
                                             fontSize = 16.sp,
+                                            fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         )
                                     }
@@ -1042,89 +1083,78 @@ fun CustomAddTaskBottomSheet(
                             }
                         )
 
-                        // Options row: Calendar / Date Selection
-                        val subtaskDateText = if (subtaskDateInput.isEmpty()) "Select Date" else {
+                        // Options row: Calendar / Date Selection & Save Trigger
+                        val subtaskDateText = if (subtaskDateInput.isEmpty()) "Today" else {
                             if (subtaskDateInput == todayStr) "Today" else subtaskDateInput
                         }
                         val subtaskTimeText = subtaskTimeInput ?: "Set Time"
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Date Pill
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = BrandCyan.copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f)),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { showSubtaskDatePicker = true }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarToday,
-                                        contentDescription = "Select Subtask Date",
-                                        tint = BrandCyan,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = subtaskDateText,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BrandCyan
-                                    )
-                                }
-                            }
-
-                            // Time Pill
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = BrandViolet.copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, BrandViolet.copy(alpha = 0.3f)),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        showSubtaskDatePicker = true
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccessTime,
-                                        contentDescription = "Select Subtask Time",
-                                        tint = BrandViolet,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = subtaskTimeText,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BrandViolet
-                                    )
-                                }
-                            }
-                        }
-
-                        // Save Subtask buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { showAddSubtaskDialog = false },
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Cancel")
+                                // Date Pill
+                                Surface(
+                                    onClick = { showSubtaskDatePicker = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = BrandCyan.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = "Select Subtask Date",
+                                            tint = BrandCyan,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = subtaskDateText,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandCyan
+                                        )
+                                    }
+                                }
+
+                                // Time Pill
+                                Surface(
+                                    onClick = { showSubtaskDatePicker = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = BrandViolet.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, BrandViolet.copy(alpha = 0.3f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AccessTime,
+                                            contentDescription = "Select Subtask Time",
+                                            tint = BrandViolet,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = subtaskTimeText,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandViolet
+                                        )
+                                    }
+                                }
                             }
 
+                            // Circular Send/Add button on right
                             Button(
                                 onClick = {
                                     if (subtaskTitleInput.isNotBlank()) {
@@ -1144,9 +1174,18 @@ fun CustomAddTaskBottomSheet(
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
                                 enabled = subtaskTitleInput.isNotBlank(),
-                                modifier = Modifier.weight(1f)
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .testTag("subtask_submit_button")
                             ) {
-                                Text("Add", color = Color.White)
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Save Subtask",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                     }

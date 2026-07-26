@@ -274,6 +274,38 @@ class TrackWiseViewModel(
     private val _settingsPanelOpen = MutableStateFlow(false)
     val settingsPanelOpen: StateFlow<Boolean> = _settingsPanelOpen.asStateFlow()
 
+    private val _selectedTaskFolder = MutableStateFlow<String?>(null)
+    val selectedTaskFolder: StateFlow<String?> = _selectedTaskFolder.asStateFlow()
+
+    private val _selectedTaskTag = MutableStateFlow<String?>(null)
+    val selectedTaskTag: StateFlow<String?> = _selectedTaskTag.asStateFlow()
+
+    private val _customFolders = MutableStateFlow<List<String>>(emptyList())
+    val customFolders: StateFlow<List<String>> = _customFolders.asStateFlow()
+
+    private val _customTags = MutableStateFlow<List<String>>(emptyList())
+    val customTags: StateFlow<List<String>> = _customTags.asStateFlow()
+
+    fun addCustomFolder(folder: String) {
+        val trimmed = folder.trim()
+        if (trimmed.isNotEmpty() && !_customFolders.value.contains(trimmed)) {
+            val newList = _customFolders.value + trimmed
+            _customFolders.value = newList
+            val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("custom_folders_list", newList.joinToString(",")).apply()
+        }
+    }
+
+    fun addCustomTag(tag: String) {
+        val trimmed = tag.trim().removePrefix("#")
+        if (trimmed.isNotEmpty() && !_customTags.value.contains(trimmed)) {
+            val newList = _customTags.value + trimmed
+            _customTags.value = newList
+            val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("custom_tags_list", newList.joinToString(",")).apply()
+        }
+    }
+
     private val _calendarOverlay = MutableStateFlow("none") // "none", "islamic", "hindu"
     val calendarOverlay: StateFlow<String> = _calendarOverlay.asStateFlow()
 
@@ -665,6 +697,16 @@ class TrackWiseViewModel(
 
     fun setSettingsPanelOpen(isOpen: Boolean) {
         _settingsPanelOpen.value = isOpen
+    }
+
+    fun setSelectedTaskFolder(folder: String?) {
+        _selectedTaskFolder.value = folder
+        _selectedTaskTag.value = null
+    }
+
+    fun setSelectedTaskTag(tag: String?) {
+        _selectedTaskTag.value = tag
+        _selectedTaskFolder.value = null
     }
 
     // --- User Profile Edit ---
@@ -3152,9 +3194,6 @@ class TrackWiseViewModel(
 
     fun syncDeviceState() {
         triggerFakeSync()
-        viewModelScope.launch(Dispatchers.Main) {
-            _successMessage.value = "Device states synchronized successfully!"
-        }
     }
 
     init {
@@ -3184,6 +3223,16 @@ class TrackWiseViewModel(
         val savedLastBackupTime = prefs.getLong("last_auto_backup_time", 0L)
         _autoBackupFrequency.value = savedBackupFreq
         _lastAutoBackupTime.value = savedLastBackupTime
+
+        // Restore custom folders and tags
+        val customFoldersStr = prefs.getString("custom_folders_list", "") ?: ""
+        if (customFoldersStr.isNotBlank()) {
+            _customFolders.value = customFoldersStr.split(",")
+        }
+        val customTagsStr = prefs.getString("custom_tags_list", "") ?: ""
+        if (customTagsStr.isNotBlank()) {
+            _customTags.value = customTagsStr.split(",")
+        }
         
         if (savedUserId != null) {
             if (dayOfMonth == 28) {

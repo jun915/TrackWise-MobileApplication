@@ -74,14 +74,16 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(activeTab) {
+        if (activeTab == "dashboard") {
+            viewModel.closeCustomTaskSheet()
+        }
+    }
+
     fun navigateBack() {
         if (navigationHistory.size > 1) {
             navigationHistory = navigationHistory.dropLast(1)
         }
-    }
-
-    BackHandler(enabled = navigationHistory.size > 1) {
-        navigateBack()
     }
 
     val notificationNavTab by viewModel.notificationNavigateTab.collectAsState()
@@ -121,6 +123,7 @@ fun MainScreen(
                 source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
             ): androidx.compose.ui.geometry.Offset {
                 return if (available.y > 0 && !isRefreshing) {
+                    viewModel.dismissSuccessMessage()
                     pullOffset += available.y * 0.45f
                     androidx.compose.ui.geometry.Offset(0f, available.y)
                 } else {
@@ -129,8 +132,9 @@ fun MainScreen(
             }
 
             override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
-                if (pullOffset > 150f && !isRefreshing) {
+                if (pullOffset > 420f && !isRefreshing) {
                     isRefreshing = true
+                    viewModel.dismissSuccessMessage()
                     viewModel.syncDeviceState()
                 }
                 pullOffset = 0f
@@ -141,8 +145,9 @@ fun MainScreen(
                 consumed: androidx.compose.ui.unit.Velocity,
                 available: androidx.compose.ui.unit.Velocity
             ): androidx.compose.ui.unit.Velocity {
-                if (pullOffset > 150f && !isRefreshing) {
+                if (pullOffset > 420f && !isRefreshing) {
                     isRefreshing = true
+                    viewModel.dismissSuccessMessage()
                     viewModel.syncDeviceState()
                 }
                 pullOffset = 0f
@@ -155,6 +160,7 @@ fun MainScreen(
         if (!isSyncing) {
             isRefreshing = false
             pullOffset = 0f
+            viewModel.dismissSuccessMessage()
         }
     }
     var leftDrawerOpen by remember { mutableStateOf(false) }
@@ -163,6 +169,7 @@ fun MainScreen(
     var showMoreMenu by remember { mutableStateOf(false) }
     var showAddChoiceDialog by remember { mutableStateOf(false) }
     var showOccasionSpeedDial by remember { mutableStateOf(false) }
+    var showMainSpeedDial by remember { mutableStateOf(false) }
 
     val showCustomTaskSheet by viewModel.showCustomTaskSheet.collectAsState()
     val taskToEdit by viewModel.taskToEdit.collectAsState()
@@ -189,6 +196,28 @@ fun MainScreen(
         else -> isSystemInDark
     }
     val focusManager = LocalFocusManager.current
+
+    val isAnyPopupOpen = showCustomTaskSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial
+
+    BackHandler(enabled = isAnyPopupOpen || navigationHistory.size > 1) {
+        if (showCustomTaskSheet) {
+            viewModel.closeCustomTaskSheet()
+        } else if (showAddChoiceDialog) {
+            showAddChoiceDialog = false
+        } else if (showMainSpeedDial) {
+            showMainSpeedDial = false
+        } else if (showOccasionSpeedDial) {
+            showOccasionSpeedDial = false
+        } else if (leftDrawerOpen) {
+            leftDrawerOpen = false
+        } else if (showMoreMenu) {
+            showMoreMenu = false
+        } else if (showSettings) {
+            viewModel.setSettingsPanelOpen(false)
+        } else {
+            navigateBack()
+        }
+    }
 
     com.example.ui.theme.AppBackground(
         viewModel = viewModel,
@@ -309,15 +338,9 @@ fun MainScreen(
                             )
                         }
                     }
-                } else {
+                } else if (activeTab == "workspace" && activeSubTab == 0) {
                     FloatingActionButton(
-                        onClick = {
-                            if (activeTab == "workspace" && activeSubTab == 0) {
-                                viewModel.openAddTaskSheet()
-                            } else {
-                                showAddChoiceDialog = true
-                            }
-                        },
+                        onClick = { viewModel.openAddTaskSheet() },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White,
                         shape = CircleShape,
@@ -330,6 +353,82 @@ fun MainScreen(
                             contentDescription = "Quick Add",
                             modifier = Modifier.size(24.dp)
                         )
+                    }
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (showMainSpeedDial) {
+                            val mainSpeedDialOptions = listOf(
+                                Triple("analytics", "Analytics Center", Icons.Default.BarChart),
+                                Triple("social", "Friends & Achievements", Icons.Default.EmojiEvents),
+                                Triple("settings", "Settings", Icons.Default.Settings),
+                                Triple("archive", "Completed & Archived Items", Icons.Default.Archive)
+                            )
+
+                            mainSpeedDialOptions.forEach { (key, label, icon) ->
+                                val color = when (key) {
+                                    "analytics" -> BrandCyan
+                                    "social" -> BrandOrange
+                                    "settings" -> BrandViolet
+                                    "archive" -> BrandPink
+                                    else -> MaterialTheme.colorScheme.primary
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.clickable {
+                                        showMainSpeedDial = false
+                                        navigateTo(key)
+                                    }
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 4.dp,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    FloatingActionButton(
+                                        onClick = {
+                                            showMainSpeedDial = false
+                                            navigateTo(key)
+                                        },
+                                        containerColor = color,
+                                        contentColor = Color.White,
+                                        modifier = Modifier.size(44.dp),
+                                        shape = CircleShape
+                                    ) {
+                                        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        FloatingActionButton(
+                            onClick = { showMainSpeedDial = !showMainSpeedDial },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .offset(y = 8.dp)
+                                .testTag("floating_add_button")
+                        ) {
+                            Icon(
+                                imageVector = if (showMainSpeedDial) Icons.Default.Close else Icons.Default.Add,
+                                contentDescription = "Quick Add",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
             },
@@ -351,6 +450,24 @@ fun MainScreen(
                 when (activeTab) {
                     "dashboard" -> DashboardScreen(viewModel = viewModel, onNavigate = { navigateTo(it) })
                     "workspace" -> WorkspaceScreen(viewModel = viewModel)
+                    "folders" -> TaskFoldersScreen(
+                        viewModel = viewModel,
+                        onBack = { navigateBack() },
+                        onNavigateToWorkspaceWithFolder = { folder ->
+                            viewModel.setSelectedTaskFolder(folder)
+                            navigateTo("workspace")
+                            viewModel.setWorkspaceSubTab(0)
+                        }
+                    )
+                    "tags" -> HashtagsScreen(
+                        viewModel = viewModel,
+                        onBack = { navigateBack() },
+                        onNavigateToWorkspaceWithTag = { tag ->
+                            viewModel.setSelectedTaskTag(tag)
+                            navigateTo("workspace")
+                            viewModel.setWorkspaceSubTab(0)
+                        }
+                    )
                     "health" -> HealthScreen(viewModel = viewModel)
                     "calendar" -> CalendarScreen(viewModel = viewModel, onNavigateToSeerah = { navigateTo("seerah") })
                     "finance" -> FinanceScreen(viewModel = viewModel)
@@ -375,6 +492,7 @@ fun MainScreen(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 16.dp)
+                        .offset(y = (pullOffset * 0.40f).coerceAtMost(160f).dp)
                 ) {
                     Card(
                         shape = CircleShape,
@@ -415,6 +533,18 @@ fun MainScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) { showOccasionSpeedDial = false }
+                    )
+                }
+
+                if (showMainSpeedDial) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showMainSpeedDial = false }
                     )
                 }
 
@@ -779,11 +909,12 @@ fun MainScreen(
 
     // Quick Add Navigation Choice Dialog in MainScreen
     if (showAddChoiceDialog) {
+        var searchQuery by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showAddChoiceDialog = false },
             title = {
                 Text(
-                    text = "Launch / Quick Navigation",
+                    text = "Quick Navigation & Tools",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = MaterialTheme.colorScheme.onBackground
@@ -794,68 +925,94 @@ fun MainScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "Select a workspace section to open directly:",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-
-                        val choices = listOf(
-                        Triple("Task Checklist", "Manage daily to-dos & milestones", Icons.Default.Assignment),
-                        Triple("Habit Runways", "Track daily routines & streaks", Icons.Default.Repeat),
-                        Triple("Wishlist Items", "Plan personal purchases & products", Icons.Default.Star),
-                        Triple("Countdown", "Keep track of friends & special days", Icons.Default.HourglassEmpty),
-                        Triple("Timer & Stopwatch", "Manage precise intervals & timings", Icons.Default.Timer),
-                        Triple("Grocery Check List", "Surgical shopping checklist & qty", Icons.Default.ShoppingCart)
-                    )
-
-                    choices.forEachIndexed { index, choice ->
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    navigateTo("workspace")
-                                    viewModel.setWorkspaceSubTab(index)
-                                    showAddChoiceDialog = false
+                    // Search at the top!
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search actions & tasks...", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(16.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(12.dp))
                                 }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                    )
+
+                    val choices = listOf(
+                        Triple("Analytics Center", "View stats and progress reports", Icons.Default.BarChart),
+                        Triple("Friends & Achievements", "Connect with friends & track medals", Icons.Default.EmojiEvents),
+                        Triple("Settings", "Configure theme, fonts, & preferences", Icons.Default.Settings),
+                        Triple("Completed & Archived Items", "View past achievements & archived tasks", Icons.Default.Archive)
+                    )
+
+                    val filteredChoices = choices.filter {
+                        it.first.contains(searchQuery, ignoreCase = true) ||
+                        it.second.contains(searchQuery, ignoreCase = true)
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        filteredChoices.forEach { choice ->
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showAddChoiceDialog = false
+                                        when (choice.first) {
+                                            "Analytics Center" -> navigateTo("analytics")
+                                            "Friends & Achievements" -> navigateTo("social")
+                                            "Settings" -> navigateTo("settings")
+                                            "Completed & Archived Items" -> navigateTo("archive")
+                                        }
+                                    }
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(BrandViolet.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = choice.third,
-                                        contentDescription = null,
-                                        tint = BrandViolet,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(BrandViolet.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = choice.third,
+                                            contentDescription = null,
+                                            tint = BrandViolet,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
 
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = choice.first,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
-                                    Text(
-                                        text = choice.second,
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = choice.first,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onBackground
+                                        )
+                                        Text(
+                                            text = choice.second,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -872,10 +1029,44 @@ fun MainScreen(
         )
     }
 
+    val tasksForSuggestions by viewModel.allTasks.collectAsState()
+    val customFoldersForSuggestions by viewModel.customFolders.collectAsState()
+    val customTagsForSuggestions by viewModel.customTags.collectAsState()
+
+    val initialProjectsList = remember(tasksForSuggestions, customFoldersForSuggestions) {
+        val defaults = listOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome")
+        val dynamic = tasksForSuggestions.map { it.project }.filter { it.isNotBlank() }
+        (defaults + customFoldersForSuggestions + dynamic).distinct()
+    }
+
+    val initialTagsList = remember(tasksForSuggestions, customTagsForSuggestions) {
+        val defaults = listOf("daily routine", "work", "fitness", "learning")
+        val extracted = mutableSetOf<String>()
+        tasksForSuggestions.forEach { t ->
+            val textToSearch = "${t.title} ${t.description} ${t.notes}"
+            val words = textToSearch.split(" ", "\n", ",", ";")
+            words.forEach { word ->
+                if (word.startsWith("#") && word.length > 1) {
+                    extracted.add(word.removePrefix("#"))
+                }
+            }
+        }
+        (defaults + customTagsForSuggestions + extracted).map { if (it.startsWith("#")) it else "#$it" }.distinct()
+    }
+
     CustomAddTaskBottomSheet(
         visible = showCustomTaskSheet,
         onDismiss = { viewModel.closeCustomTaskSheet() },
         onAddTask = { titleVal, descVal, projVal, priorityVal, deadlineVal, reminderTimeVal, repeatTypeVal, reminderDateVal, notesVal, subtasksJsonVal ->
+            if (projVal.isNotBlank()) {
+                viewModel.addCustomFolder(projVal)
+            }
+            val wordsInNotes = notesVal.split(" ", "\n")
+            wordsInNotes.forEach { word ->
+                if (word.startsWith("#") && word.length > 1) {
+                    viewModel.addCustomTag(word.removePrefix("#"))
+                }
+            }
             if (taskToEdit != null) {
                 val updatedTask = taskToEdit!!.copy(
                     title = titleVal,
@@ -911,7 +1102,9 @@ fun MainScreen(
         onDeleteTask = { taskId ->
             viewModel.deleteTask(taskId)
             viewModel.closeCustomTaskSheet()
-        }
+        },
+        initialProjects = initialProjectsList,
+        initialTags = initialTagsList
     )
 }
 
@@ -1199,7 +1392,7 @@ fun BottomNavigationBar(
             onClick = { onTabSelected("dashboard") }
         )
         BottomTabItem(
-            label = "Checklist",
+            label = "Tasks",
             icon = Icons.Default.Assignment,
             isActive = activeTab == "workspace" && activeSubTab == 0,
             isActiveColor = BrandViolet,
@@ -1472,6 +1665,9 @@ fun LeftDrawerPane(
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var profileExpanded by remember { mutableStateOf(false) }
     val currentUser by viewModel.sessionUser.collectAsState()
+    val tasks by viewModel.allTasks.collectAsState()
+    val selectedFolder by viewModel.selectedTaskFolder.collectAsState()
+    val selectedTag by viewModel.selectedTaskTag.collectAsState()
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -2026,6 +2222,90 @@ fun LeftDrawerPane(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
                                 tint = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+
+                // --- Task Folders Navigation Link ---
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeTab == "folders") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigate("folders")
+                                onClose()
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Folder, contentDescription = null, tint = BrandViolet)
+                                Text(
+                                    text = "TASK FOLDERS",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (activeTab == "folders") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = if (activeTab == "folders") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+
+                // --- Hashtags Navigation Link ---
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeTab == "tags") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigate("tags")
+                                onClose()
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.LocalOffer, contentDescription = null, tint = BrandViolet)
+                                Text(
+                                    text = "HASHTAGS",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (activeTab == "tags") BrandViolet else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = if (activeTab == "tags") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     }

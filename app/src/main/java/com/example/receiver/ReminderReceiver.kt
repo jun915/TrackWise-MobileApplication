@@ -45,6 +45,43 @@ class ReminderReceiver : BroadcastReceiver() {
             }
             val title = intent.getStringExtra("title") ?: "Snoozed Reminder"
             val message = intent.getStringExtra("message") ?: "Snooze elapsed!"
+            val taskId = intent.getStringExtra("task_id")
+            
+            // Update task reminderTime and reminderDate in database
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val database = TrackWiseDatabase.getDatabase(context)
+                    val dao = database.trackWiseDao()
+                    
+                    val sharedPrefs = context.getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+                    val userId = sharedPrefs.getString("saved_user_id", null) ?: run {
+                        val users = dao.getAllUsers()
+                        users.firstOrNull()?.id
+                    }
+                    
+                    if (userId != null && taskId != null) {
+                        val task = dao.getTasksForUser(userId).firstOrNull { it.id == taskId }
+                        if (task != null) {
+                            val cal = Calendar.getInstance()
+                            cal.add(Calendar.MINUTE, 5)
+                            val newTimeStr = SimpleDateFormat("HH:mm", Locale.US).format(cal.time)
+                            val newDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+                            
+                            val updatedTask = task.copy(
+                                reminderDate = newDateStr,
+                                reminderTime = newTimeStr,
+                                remindMe = true
+                            )
+                            dao.insertTask(updatedTask)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    pendingResult.finish()
+                }
+            }
             
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
             val snoozeIntent = Intent(context, ReminderReceiver::class.java).apply {
@@ -420,6 +457,8 @@ class ReminderReceiver : BroadcastReceiver() {
             putExtra("notification_id", notificationId)
             putExtra("title", title)
             putExtra("message", message)
+            putExtra("task_id", taskId)
+            putExtra("tablet_id", tabletId)
         }
         val snoozePendingIntent = PendingIntent.getBroadcast(
             context,

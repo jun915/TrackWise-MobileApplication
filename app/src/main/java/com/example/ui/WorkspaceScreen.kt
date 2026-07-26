@@ -42,8 +42,13 @@ import java.util.*
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material.icons.automirrored.filled.Send
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -103,6 +108,9 @@ fun WorkspaceScreen(
 fun TaskSection(viewModel: TrackWiseViewModel) {
     val focusManager = LocalFocusManager.current
     val tasks by viewModel.allTasks.collectAsState()
+    val selectedFolder by viewModel.selectedTaskFolder.collectAsState()
+    val selectedTag by viewModel.selectedTaskTag.collectAsState()
+    var subtaskTargetTask by remember { mutableStateOf<TaskEntity?>(null) }
     
     var showForm by remember { mutableStateOf(false) }
     
@@ -136,34 +144,34 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("CREATE NEW TASK", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
 
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = title,
                         onValueChange = { 
                             title = it 
                             if (it.isNotBlank()) showErrors = false
                         },
-                        label = { Text("Task Title *") },
-                        singleLine = true,
+                        label = "Task Title *",
                         isError = showErrors && titleError != null,
-                        supportingText = {
-                            if (showErrors && titleError != null) {
-                                Text(titleError, color = MaterialTheme.colorScheme.error)
-                            }
-                        },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (showErrors && titleError != null) {
+                        Text(titleError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    }
 
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = description,
                         onValueChange = { description = it },
-                        label = { Text("Description") },
+                        label = "Description",
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = notes,
                         onValueChange = { notes = it },
-                        label = { Text("Notes (e.g. key details, urls, logs)") },
+                        label = "Notes (e.g. key details, urls, logs)",
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet, focusedLabelColor = BrandViolet),
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -323,195 +331,311 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
         }
 
         // Tasks Grid/List
-        if (tasks.isEmpty()) {
-            Text("No tasks added yet. Fill out the form above to get started!")
-        } else {
-            tasks.forEach { task ->
-                TaskCard(task = task, viewModel = viewModel)
+        val filteredTasks = remember(tasks, selectedFolder, selectedTag) {
+            tasks.filter { task ->
+                if (selectedFolder != null) {
+                    task.project.equals(selectedFolder, ignoreCase = true)
+                } else if (selectedTag != null) {
+                    val tagLower = selectedTag!!.lowercase()
+                    task.title.lowercase().contains(tagLower) ||
+                    task.description.lowercase().contains(tagLower) ||
+                    task.notes.lowercase().contains(tagLower)
+                } else {
+                    true
+                }
             }
         }
+
+        if (selectedFolder != null || selectedTag != null) {
+            Surface(
+                color = BrandViolet.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (selectedFolder != null) Icons.Default.Folder else Icons.Default.LocalOffer,
+                            contentDescription = "Active Filter",
+                            tint = BrandViolet,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Showing tasks in ${selectedFolder ?: selectedTag}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandViolet
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            viewModel.setSelectedTaskFolder(null)
+                            viewModel.setSelectedTaskTag(null)
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear Filter", tint = BrandViolet, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+
+        if (filteredTasks.isEmpty()) {
+            Text(
+                text = if (selectedFolder != null || selectedTag != null) "No tasks match this filter." else "No tasks added yet. Fill out the form above to get started!",
+                modifier = Modifier.padding(16.dp),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+        } else {
+            filteredTasks.forEach { task ->
+                TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = { subtaskTargetTask = it })
+            }
+        }
+    }
+
+    if (subtaskTargetTask != null) {
+        val parentTask = subtaskTargetTask!!
+        var newSubtaskTitle by remember { mutableStateOf("") }
+        var newSubtaskDueDate by remember { mutableStateOf(parentTask.deadline) }
+        var newSubtaskDueTime by remember { mutableStateOf(parentTask.dueTime ?: "") }
+        var showSubtaskDatePicker by remember { mutableStateOf(false) }
+
+        Dialog(
+            onDismissRequest = { subtaskTargetTask = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { subtaskTargetTask = null },
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Card(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = false) {}
+                        .navigationBarsPadding()
+                        .imePadding()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Drag Handle
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), CircleShape)
+                                .align(Alignment.CenterHorizontally)
+                        )
+
+                        // Header info
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Add Subtask to: ${parentTask.title}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandCyan
+                            )
+                            IconButton(
+                                onClick = { subtaskTargetTask = null },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        // Focus management
+                        val focusRequester = remember { FocusRequester() }
+                        LaunchedEffect(Unit) {
+                            focusRequester.requestFocus()
+                        }
+
+                        // Subtask Title input
+                        BasicTextField(
+                            value = newSubtaskTitle,
+                            onValueChange = { newSubtaskTitle = it },
+                            textStyle = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(BrandCyan),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                            decorationBox = { innerTextField ->
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    if (newSubtaskTitle.isEmpty()) {
+                                        Text(
+                                            text = "What subtask would you like to do?",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+
+                        val todayStr = remember { TrackWiseUtils.getTodayString() }
+                        val subtaskDateText = if (newSubtaskDueDate.isEmpty()) "Today" else {
+                            if (newSubtaskDueDate == todayStr) "Today" else newSubtaskDueDate
+                        }
+                        val subtaskTimeText = if (newSubtaskDueTime.isEmpty()) "Set Time" else newSubtaskDueTime
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                // Date Pill
+                                Surface(
+                                    onClick = { showSubtaskDatePicker = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = BrandCyan.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = "Select Subtask Date",
+                                            tint = BrandCyan,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = subtaskDateText,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandCyan
+                                        )
+                                    }
+                                }
+
+                                // Time Pill
+                                Surface(
+                                    onClick = { showSubtaskDatePicker = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = BrandViolet.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, BrandViolet.copy(alpha = 0.3f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AccessTime,
+                                            contentDescription = "Select Subtask Time",
+                                            tint = BrandViolet,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = subtaskTimeText,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandViolet
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Circular Send/Add button on right
+                            Button(
+                                onClick = {
+                                    if (newSubtaskTitle.isNotBlank()) {
+                                        viewModel.addSubTask(
+                                            task = parentTask,
+                                            subTitle = newSubtaskTitle,
+                                            dueDate = if (newSubtaskDueDate.isBlank()) null else newSubtaskDueDate,
+                                            dueTime = if (newSubtaskDueTime.isBlank()) null else newSubtaskDueTime
+                                        )
+                                        subtaskTargetTask = null
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+                                enabled = newSubtaskTitle.isNotBlank(),
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Save Subtask",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        CustomDatePickerSheet(
+            visible = showSubtaskDatePicker,
+            currentDate = if (newSubtaskDueDate.isEmpty()) parentTask.deadline else newSubtaskDueDate,
+            currentTime = if (newSubtaskDueTime.isEmpty()) null else newSubtaskDueTime,
+            currentReminder = "On the day",
+            currentRepeat = "none",
+            onDismiss = { showSubtaskDatePicker = false },
+            onConfirm = { date, time, _, _, _, _ ->
+                newSubtaskDueDate = date
+                newSubtaskDueTime = time ?: ""
+                showSubtaskDatePicker = false
+            },
+            maxDateStr = parentTask.deadline
+        )
     }
 }
 
 @Composable
-fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
+fun TaskCard(
+    task: TaskEntity,
+    viewModel: TrackWiseViewModel,
+    onAddSubtaskClick: (TaskEntity) -> Unit
+) {
     val focusManager = LocalFocusManager.current
-    var showSubtaskInput by remember { mutableStateOf(false) }
-    var newSubtaskTitle by remember { mutableStateOf("") }
-    var newSubtaskDueDate by remember { mutableStateOf("") }
-    var newSubtaskDueTime by remember { mutableStateOf("") }
     val subtasks = TrackWiseUtils.deserializeSubTasks(task.subtasksJson)
 
-    var showEditDialog by remember { mutableStateOf(false) }
-    if (false) {
-        var editTitle by remember { mutableStateOf(task.title) }
-        var editDesc by remember { mutableStateOf(task.description) }
-        var editNotes by remember { mutableStateOf(task.notes) }
-        var editProject by remember { mutableStateOf(task.project) }
-        var editPriority by remember { mutableStateOf(task.priority) }
-        var editDeadline by remember { mutableStateOf(task.deadline) }
-        var editReminder by remember { mutableStateOf(task.reminderTime ?: "08:00") }
-        var editRemindMe by remember { mutableStateOf(task.remindMe) }
-        var editReminderDate by remember { mutableStateOf(task.reminderDate ?: task.deadline) }
-        var editDueTime by remember { mutableStateOf(task.dueTime ?: "") }
-
-        val scrollState = rememberScrollState()
-        LaunchedEffect(scrollState.isScrollInProgress) {
-            if (scrollState.isScrollInProgress) {
-                focusManager.clearFocus()
-            }
-        }
-
-        AlertDialog(
-            onDismissRequest = { showEditDialog = false },
-            title = { Text("Edit Task Runway 📝", fontWeight = FontWeight.Bold, color = BrandViolet) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .verticalScroll(scrollState)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            focusManager.clearFocus()
-                        },
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedTextField(
-                        value = editTitle,
-                        onValueChange = { editTitle = it },
-                        label = { Text("Task Title *") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = editDesc,
-                        onValueChange = { editDesc = it },
-                        label = { Text("Description") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = editNotes,
-                        onValueChange = { editNotes = it },
-                        label = { Text("Notes") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = editProject,
-                        onValueChange = { editProject = it },
-                        label = { Text("Project / Category") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    
-                    Column {
-                        Text("Priority Level", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("low", "medium", "high").forEach { p ->
-                                val selected = editPriority == p
-                                Button(
-                                    onClick = { editPriority = p },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (selected) BrandViolet else MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        text = p.replaceFirstChar { it.uppercase() },
-                                        fontSize = 11.sp,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        DatePickerField(
-                            dateStr = editDeadline,
-                            label = "Deadline Date",
-                            onDateSelected = { editDeadline = it },
-                            tintColor = BrandViolet,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TimePickerField(
-                            timeStr = editDueTime,
-                            label = "Due Time (Optional)",
-                            onTimeSelected = { editDueTime = it },
-                            modifier = Modifier.weight(1f),
-                            tintColor = BrandViolet
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Checkbox(
-                            checked = editRemindMe,
-                            onCheckedChange = { editRemindMe = it },
-                            colors = CheckboxDefaults.colors(checkedColor = BrandViolet)
-                        )
-                        Text("Remind Me", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                    }
-
-                    if (editRemindMe) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            DatePickerField(
-                                dateStr = editReminderDate,
-                                label = "Reminder Date",
-                                onDateSelected = { editReminderDate = it },
-                                modifier = Modifier.weight(1f),
-                                tintColor = BrandViolet
-                            )
-                            TimePickerField(
-                                timeStr = editReminder,
-                                label = "Reminder Time",
-                                onTimeSelected = { editReminder = it },
-                                modifier = Modifier.weight(1f),
-                                tintColor = BrandViolet
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (editTitle.isNotBlank()) {
-                            val updatedTask = task.copy(
-                                title = editTitle,
-                                description = editDesc,
-                                notes = editNotes,
-                                project = editProject,
-                                priority = editPriority,
-                                deadline = editDeadline,
-                                dueTime = if (editDueTime.isBlank()) null else editDueTime,
-                                reminderTime = if (editRemindMe) editReminder else null,
-                                remindMe = editRemindMe,
-                                reminderDate = if (editRemindMe) editReminderDate else null
-                            )
-                            viewModel.updateTask(updatedTask)
-                            showEditDialog = false
-                        }
-                    }
-                ) {
-                    Text("Save Changes", color = BrandViolet, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                }
-            }
-        )
-    }
+    var showInlineAddSubtask by remember { mutableStateOf(false) }
+    var newSubtaskTitle by remember { mutableStateOf("") }
+    var newSubtaskDueDate by remember { mutableStateOf(task.deadline) }
+    var newSubtaskDueTime by remember { mutableStateOf(task.dueTime ?: "") }
 
     val priorityColor = when (task.priority) {
         "high" -> BrandRose
@@ -520,27 +644,34 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
         else -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
     }
 
+    val tileTextColor = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onBackground
+    val cardBgColor = if (task.completed) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    } else {
+        priorityColor.copy(alpha = 0.05f)
+    }
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = cardBgColor),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
             .clickable { viewModel.openEditTaskSheet(task) }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-
-                // Task Checkbox
+                // Task Checkbox (Radio button is bit smaller and always aligned to title)
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .padding(top = 4.dp)
+                        .size(16.dp)
                         .border(
-                            2.dp,
-                            priorityColor,
+                            1.5.dp,
+                            if (task.completed) priorityColor.copy(alpha = 0.5f) else priorityColor,
                             CircleShape
                         )
                         .background(
@@ -551,7 +682,12 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                     contentAlignment = Alignment.Center
                 ) {
                     if (task.completed) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = priorityColor, modifier = Modifier.size(16.dp))
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = priorityColor,
+                            modifier = Modifier.size(10.dp)
+                        )
                     }
                 }
 
@@ -560,296 +696,267 @@ fun TaskCard(task: TaskEntity, viewModel: TrackWiseViewModel) {
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = task.title,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
-                        color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
-                    )
+                    // Task Title Row with Clock/Repeat icons if configured
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = task.title,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
+                            color = tileTextColor,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (task.remindMe || task.reminderTime != null) {
+                            Icon(
+                                imageVector = Icons.Default.AccessTime,
+                                contentDescription = "Reminder configured",
+                                tint = BrandOrange,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        if (task.repeatType != "none") {
+                            Icon(
+                                imageVector = Icons.Default.Autorenew,
+                                contentDescription = "Repeat configured",
+                                tint = BrandGreen,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                    
+                    // Task Description
                     if (task.description.isNotBlank()) {
                         Text(
                             text = task.description,
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                            color = tileTextColor.copy(alpha = 0.7f)
                         )
                     }
+                    
+                    // Task Notes
                     if (task.notes.isNotBlank() && !task.notes.contains("[PINNED]")) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "📝 ${task.notes.replace("[PINNED]", "")}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
-                            color = BrandViolet
+                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet
                         )
                     }
-                }
-            }
 
-            // Tag Pills row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Category/Project Pill
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = "Project",
-                        tint = BrandViolet,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = task.project,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandViolet
-                    )
-                }
-
-                // Priority flag (colored flag icon instead of bulky text pill)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Flag,
-                        contentDescription = "Priority",
-                        tint = priorityColor,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = when (task.priority) {
-                            "high" -> "High"
-                            "medium" -> "Medium"
-                            "low" -> "Low"
-                            else -> "None"
-                        },
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = priorityColor
-                    )
-                }
-
-                // Deadline
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarToday,
-                        contentDescription = "Deadline",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = task.deadline,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                    )
-                }
-
-                // Reminder Time
-                if (task.reminderTime != null) {
+                    // Tag Pills row (aligned to description from left)
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AccessTime,
-                            contentDescription = "Reminder Time",
-                            tint = BrandOrange,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = task.reminderTime,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandOrange
-                        )
-                    }
-                }
-
-                // Repeat Type
-                if (task.repeatType != "none") {
-                    val repeatLabel = when (task.repeatType) {
-                        "daily" -> "Daily"
-                        "weekdays" -> "Weekdays"
-                        "weekly" -> "Weekly"
-                        "monthly" -> "Monthly"
-                        "yearly" -> "Yearly"
-                        "custom" -> {
-                            val unitStr = if (task.customRepeatValue == 1) {
-                                task.customRepeatUnit.removeSuffix("s")
-                            } else {
-                                task.customRepeatUnit
-                            }
-                            var base = "Every ${task.customRepeatValue} $unitStr"
-                            if (task.customRepeatUnit == "weeks" && !task.customRepeatDaysOfWeek.isNullOrBlank()) {
-                                base += " on ${task.customRepeatDaysOfWeek}"
-                            }
-                            base
-                        }
-                        else -> task.repeatType
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Autorenew,
-                            contentDescription = "Repeat",
-                            tint = BrandGreen,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = repeatLabel,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandGreen
-                        )
-                    }
-                }
-            }
-
-            // Subtasks section
-            if (subtasks.isNotEmpty() || showSubtaskInput) {
-                Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                Text("Subtasks", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
-
-                Column(
-                    modifier = Modifier.padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    subtasks.forEach { sub ->
+                        // Category/Project Pill
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .border(
-                                        1.5.dp,
-                                        if (sub.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                        CircleShape
-                                    )
-                                    .background(
-                                        if (sub.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
-                                        CircleShape
-                                    )
-                                    .clickable { viewModel.toggleSubTask(task, sub.id) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (sub.completed) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(12.dp))
-                                }
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = "Project",
+                                tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = task.project,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet
+                            )
+                        }
 
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+                        // Priority flag (show only color-coded flag icon, no text label)
+                        Icon(
+                            imageVector = Icons.Default.Flag,
+                            contentDescription = "Priority: ${task.priority}",
+                            tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else priorityColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+
+                        // Deadline Date with Clock Icon (if reminder is configured)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (task.reminderTime != null) Icons.Default.Alarm else Icons.Default.CalendarToday,
+                                contentDescription = "Deadline",
+                                tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = task.deadline,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
+                        }
+
+                        // Reminder Time with Alarm Icon
+                        if (task.reminderTime != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccessTime,
+                                    contentDescription = "Reminder",
+                                    tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandOrange,
+                                    modifier = Modifier.size(13.dp)
+                                )
                                 Text(
-                                    text = sub.title,
-                                    fontSize = 12.sp,
-                                    textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                    color = if (sub.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
+                                    text = task.reminderTime,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandOrange
                                 )
-                                if (!sub.dueDate.isNullOrBlank() || !sub.dueTime.isNullOrBlank()) {
-                                    val datePart = if (!sub.dueDate.isNullOrBlank()) "📅 ${sub.dueDate}" else ""
-                                    val timePart = if (!sub.dueTime.isNullOrBlank()) "⏰ ${sub.dueTime}" else ""
-                                    val spacer = if (datePart.isNotEmpty() && timePart.isNotEmpty()) " " else ""
-                                    Text(
-                                        text = "$datePart$spacer$timePart",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BrandViolet.copy(alpha = 0.8f)
-                                    )
-                                }
                             }
-                            IconButton(
-                                onClick = { viewModel.deleteSubTask(task, sub.id) },
-                                modifier = Modifier.size(24.dp)
+                        }
+
+                        // Repeat Type with Repeat Icon
+                        if (task.repeatType != "none") {
+                            val repeatLabel = when (task.repeatType) {
+                                "daily" -> "Daily"
+                                "weekdays" -> "Weekdays"
+                                "weekly" -> "Weekly"
+                                "monthly" -> "Monthly"
+                                "yearly" -> "Yearly"
+                                else -> task.repeatType
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = null, tint = BrandRose, modifier = Modifier.size(14.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Autorenew,
+                                    contentDescription = "Repeat",
+                                    tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandGreen,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = repeatLabel,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandGreen
+                                )
                             }
                         }
                     }
 
-                    if (showSubtaskInput) {
+                    // Subtasks section (aligned to description from left)
+                    if (subtasks.isNotEmpty()) {
+                        Divider(
+                            modifier = Modifier.padding(vertical = 12.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                        Text(
+                            text = "Subtasks",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet
+                        )
+
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedTextField(
-                                    value = newSubtaskTitle,
-                                    onValueChange = { newSubtaskTitle = it },
-                                    placeholder = { Text("Enter subtask title") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                IconButton(onClick = {
-                                    if (newSubtaskTitle.isNotBlank()) {
-                                        viewModel.addSubTask(
-                                            task = task,
-                                            subTitle = newSubtaskTitle,
-                                            dueDate = if (newSubtaskDueDate.isBlank()) null else newSubtaskDueDate,
-                                            dueTime = if (newSubtaskDueTime.isBlank()) null else newSubtaskDueTime
-                                        )
-                                        newSubtaskTitle = ""
-                                        newSubtaskDueDate = ""
-                                        newSubtaskDueTime = ""
-                                        showSubtaskInput = false
+                            subtasks.forEach { sub ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .border(
+                                                1.5.dp,
+                                                if (sub.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                CircleShape
+                                            )
+                                            .background(
+                                                if (sub.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
+                                                CircleShape
+                                            )
+                                            .clickable { viewModel.toggleSubTask(task, sub.id) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (sub.completed) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = BrandGreen,
+                                                modifier = Modifier.size(10.dp)
+                                            )
+                                        }
                                     }
-                                }) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = BrandGreen)
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = sub.title,
+                                            fontSize = 12.sp,
+                                            textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                            color = if (sub.completed) tileTextColor.copy(alpha = 0.5f) else tileTextColor
+                                        )
+                                        if (!sub.dueDate.isNullOrBlank() || !sub.dueTime.isNullOrBlank()) {
+                                            val datePart = if (!sub.dueDate.isNullOrBlank()) "📅 ${sub.dueDate}" else ""
+                                            val timePart = if (!sub.dueTime.isNullOrBlank()) "⏰ ${sub.dueTime}" else ""
+                                            val spacer = if (datePart.isNotEmpty() && timePart.isNotEmpty()) " " else ""
+                                            Text(
+                                                text = "$datePart$spacer$timePart",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet.copy(alpha = 0.8f)
+                                            )
+                                        }
+                                    }
+                                    
+                                    IconButton(
+                                        onClick = { viewModel.deleteSubTask(task, sub.id) },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = null,
+                                            tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandRose,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                DatePickerField(
-                                    dateStr = newSubtaskDueDate,
-                                    label = "Due Date (Opt)",
-                                    onDateSelected = { newSubtaskDueDate = it },
-                                    modifier = Modifier.weight(1f),
-                                    tintColor = BrandViolet
-                                )
-                                TimePickerField(
-                                    timeStr = newSubtaskDueTime,
-                                    label = "Due Time (Opt)",
-                                    onTimeSelected = { newSubtaskDueTime = it },
-                                    modifier = Modifier.weight(1f),
-                                    tintColor = BrandViolet
-                                )
                             }
                         }
                     }
-                }
-            }
 
-            // Inline subtask adder trigger
-            if (!showSubtaskInput) {
-                TextButton(
-                    onClick = { showSubtaskInput = true },
-                    modifier = Modifier.padding(top = 4.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = BrandViolet)
-                    Text("Add Subtask", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet, modifier = Modifier.padding(start = 4.dp))
+                    // +subtask link trigger (aligned to description from left)
+                    TextButton(
+                        onClick = { onAddSubtaskClick(task) },
+                        modifier = Modifier.padding(top = 4.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet
+                        )
+                        Text(
+                            text = "Add Subtask",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
                 }
             }
         }
@@ -917,22 +1024,20 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("LAUNCH HABIT RUNWAY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
 
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = name,
                         onValueChange = { 
                             name = it
                             if (it.isNotBlank()) showErrors = false
                         },
-                        label = { Text("Habit Name *") },
-                        singleLine = true,
+                        label = "Habit Name *",
                         isError = showErrors && nameError != null,
-                        supportingText = {
-                            if (showErrors && nameError != null) {
-                                Text(nameError, color = MaterialTheme.colorScheme.error)
-                            }
-                        },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandOrange, focusedLabelColor = BrandOrange),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (showErrors && nameError != null) {
+                        Text(nameError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                    }
 
                     TimePickerField(
                         timeStr = dueTime,
@@ -1013,43 +1118,38 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                     }
 
                     if (isMultipleTimes) {
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = multipleTimesTargetInput,
                             onValueChange = { 
                                 multipleTimesTargetInput = it 
                                 showErrors = false
                             },
-                            label = { Text("Target Count Per Day") },
+                            label = "Target Count Per Day",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
                             isError = showErrors && targetError != null,
-                            supportingText = {
-                                if (showErrors && targetError != null) {
-                                    Text(targetError, color = MaterialTheme.colorScheme.error)
-                                }
-                            },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandOrange, focusedLabelColor = BrandOrange),
                             modifier = Modifier.fillMaxWidth()
                         )
+                        if (showErrors && targetError != null) {
+                            Text(targetError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
 
                     if (isTimeBound) {
-                        OutlinedTextField(
+                        CompactOutlinedTextField(
                             value = timeBoundDurationInput,
                             onValueChange = { 
                                 timeBoundDurationInput = it 
                                 showErrors = false
                             },
-                            label = { Text("Duration / Time Constraint") },
-                            placeholder = { Text("e.g. 30 mins, or 18:00") },
-                            singleLine = true,
+                            label = "Duration / Time Constraint (e.g. 30 mins)",
                             isError = showErrors && durationError != null,
-                            supportingText = {
-                                if (showErrors && durationError != null) {
-                                    Text(durationError, color = MaterialTheme.colorScheme.error)
-                                }
-                            },
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandOrange, focusedLabelColor = BrandOrange),
                             modifier = Modifier.fillMaxWidth()
                         )
+                        if (showErrors && durationError != null) {
+                            Text(durationError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
 
                     RecurrenceSelector(
@@ -1838,20 +1938,16 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("ADD WISHLIST ASPIRATION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandPink)
 
-                    OutlinedTextField(
+                    CompactTextField(
                         value = title,
                         onValueChange = { 
                             title = it 
                             if (it.isNotBlank()) showErrors = false
                         },
-                        label = { Text("Item Title *") },
-                        singleLine = true,
+                        label = "Item Title *",
+                        placeholder = "e.g. Mechanical Keyboard",
                         isError = showErrors && titleError != null,
-                        supportingText = {
-                            if (showErrors && titleError != null) {
-                                Text(titleError, color = MaterialTheme.colorScheme.error)
-                            }
-                        },
+                        errorText = titleError,
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -2815,20 +2911,20 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         .fillMaxWidth()
                         .verticalScroll(scrollState)
                 ) {
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = nameText,
                         onValueChange = { nameText = it },
-                        label = { Text("Name of Occasion / Person *") },
-                        singleLine = true,
+                        label = "Name of Occasion / Person *",
                         isError = showDialogErrors && nameText.isBlank(),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandCyan, focusedLabelColor = BrandCyan),
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    OutlinedTextField(
+                    CompactOutlinedTextField(
                         value = noteText,
                         onValueChange = { noteText = it },
-                        label = { Text("Note / Gift Idea") },
-                        singleLine = true,
+                        label = "Note / Gift Idea",
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandCyan, focusedLabelColor = BrandCyan),
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -4844,24 +4940,55 @@ fun DatePickerField(
         )
     }
 
-    Box(modifier = modifier) {
-        OutlinedTextField(
-            value = dateStr,
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
-            label = { Text(label, fontSize = 10.sp, maxLines = 1) },
-            leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = tintColor, modifier = Modifier.size(18.dp)) },
-            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Date", tint = tintColor, modifier = Modifier.size(14.dp)) },
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+        )
+        Surface(
             shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Box(
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
-                .matchParentSize()
+                .fillMaxWidth()
+                .height(44.dp)
                 .clickable { datePickerDialog.show() }
-        )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = tintColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = dateStr,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit Date",
+                    tint = tintColor.copy(alpha = 0.7f),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
     }
 }
 
@@ -4892,24 +5019,82 @@ fun TimePickerField(
         )
     }
 
-    Box(modifier = modifier) {
-        OutlinedTextField(
-            value = displayValue,
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
-            label = { Text(label, fontSize = 10.sp, maxLines = 1) },
-            leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = tintColor, modifier = Modifier.size(18.dp)) },
-            trailingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit Time", tint = tintColor, modifier = Modifier.size(14.dp)) },
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+        )
+        Surface(
             shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Box(
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
-                .matchParentSize()
+                .fillMaxWidth()
+                .height(44.dp)
                 .clickable { timePickerDialog.show() }
-        )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = tintColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = displayValue,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit Time",
+                    tint = tintColor.copy(alpha = 0.7f),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
     }
+}
+
+@Composable
+fun CompactOutlinedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    isError: Boolean = false,
+    trailingIcon: @Composable (() -> Unit)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    colors: TextFieldColors = OutlinedTextFieldDefaults.colors()
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 11.sp) },
+        singleLine = singleLine,
+        isError = isError,
+        trailingIcon = trailingIcon,
+        keyboardOptions = keyboardOptions,
+        colors = colors,
+        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.height(48.dp)
+    )
 }
 
