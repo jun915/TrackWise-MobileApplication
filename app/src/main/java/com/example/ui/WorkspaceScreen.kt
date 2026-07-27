@@ -59,58 +59,252 @@ fun WorkspaceScreen(
     modifier: Modifier = Modifier
 ) {
     val activeSubTab by viewModel.workspaceSubTab.collectAsState()
-    val subTabs = listOf("Tasks", "Habit Runways", "Wishlist", "Countdown", "Timer & Stopwatch", "Grocery List")
+    val subTabs = listOf("Tasks", "Habit", "Wishlist", "Countdown", "Timer & Stopwatch", "Grocery List")
     val focusManager = LocalFocusManager.current
+    var subtaskTargetTask by remember { mutableStateOf<TaskEntity?>(null) }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                }
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+
+
+
+
+            // --- Sub-Tab Content Rendering ---
+            when (activeSubTab) {
+                0 -> { // Tasks Sub-Tab
+                    item { TaskSection(viewModel = viewModel, onAddSubtaskClick = { subtaskTargetTask = it }) }
+                }
+                1 -> { // Habit Sub-Tab
+                    item { HabitSection(viewModel = viewModel) }
+                }
+                2 -> { // Wishlist Sub-Tab
+                    item { WishlistSection(viewModel = viewModel) }
+                }
+                3 -> { // Birthdays Sub-Tab
+                    item { BirthdaySection(viewModel = viewModel) }
+                }
+                4 -> { // Alarms & Clocks Sub-Tab
+                    item { AlarmTimerSection(viewModel = viewModel) }
+                }
+                5 -> { // Grocery List Sub-Tab
+                    item { GrocerySection(viewModel = viewModel) }
+                }
+            }
+        }
+
+        // Subtask custom overlay bottom sheet in the main window context for perfect keyboard tracking
+        if (subtaskTargetTask != null) {
+            val parentTask = subtaskTargetTask!!
+            var newSubtaskTitle by remember { mutableStateOf("") }
+            var newSubtaskDueDate by remember { mutableStateOf(parentTask.deadline) }
+            var newSubtaskDueTime by remember { mutableStateOf(parentTask.dueTime ?: "") }
+            var showSubtaskDatePicker by remember { mutableStateOf(false) }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { subtaskTargetTask = null },
+                contentAlignment = Alignment.BottomCenter
             ) {
-                focusManager.clearFocus()
-            }
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+                Card(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = false) {}
+                        .navigationBarsPadding()
+                        .imePadding()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Drag Handle
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), CircleShape)
+                                .align(Alignment.CenterHorizontally)
+                        )
 
+                        // Header info
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Add Subtask to: ${parentTask.title}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandCyan
+                            )
+                            IconButton(
+                                onClick = { subtaskTargetTask = null },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
 
+                        // Focus management
+                        val focusRequester = remember { FocusRequester() }
+                        LaunchedEffect(Unit) {
+                            focusRequester.requestFocus()
+                        }
 
+                        // Subtask Title input
+                        BasicTextField(
+                            value = newSubtaskTitle,
+                            onValueChange = { newSubtaskTitle = it },
+                            textStyle = TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(BrandCyan),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                            decorationBox = { innerTextField ->
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    if (newSubtaskTitle.isEmpty()) {
+                                        Text(
+                                            text = "What subtask would you like to do?",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
 
-        // --- Sub-Tab Content Rendering ---
-        when (activeSubTab) {
-            0 -> { // Tasks Sub-Tab
-                item { TaskSection(viewModel = viewModel) }
+                        val todayStr = remember { TrackWiseUtils.getTodayString() }
+                        val subtaskDateText = if (newSubtaskDueDate.isEmpty()) "Today" else {
+                            if (newSubtaskDueDate == todayStr) "Today" else newSubtaskDueDate
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                // Date Pill
+                                Surface(
+                                    onClick = { showSubtaskDatePicker = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = BrandCyan.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = "Select Subtask Date",
+                                            tint = BrandCyan,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = subtaskDateText,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandCyan
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Circular Send/Add button on right
+                            Button(
+                                onClick = {
+                                    if (newSubtaskTitle.isNotBlank()) {
+                                        viewModel.addSubTask(
+                                            task = parentTask,
+                                            subTitle = newSubtaskTitle,
+                                            dueDate = if (newSubtaskDueDate.isBlank()) null else newSubtaskDueDate,
+                                            dueTime = null
+                                        )
+                                        subtaskTargetTask = null
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+                                enabled = newSubtaskTitle.isNotBlank(),
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Save Subtask",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
-            1 -> { // Habit Runways Sub-Tab
-                item { HabitSection(viewModel = viewModel) }
-            }
-            2 -> { // Wishlist Sub-Tab
-                item { WishlistSection(viewModel = viewModel) }
-            }
-            3 -> { // Birthdays Sub-Tab
-                item { BirthdaySection(viewModel = viewModel) }
-            }
-            4 -> { // Alarms & Clocks Sub-Tab
-                item { AlarmTimerSection(viewModel = viewModel) }
-            }
-            5 -> { // Grocery List Sub-Tab
-                item { GrocerySection(viewModel = viewModel) }
-            }
+
+            CustomDatePickerSheet(
+                visible = showSubtaskDatePicker,
+                currentDate = if (newSubtaskDueDate.isEmpty()) parentTask.deadline else newSubtaskDueDate,
+                currentTime = if (newSubtaskDueTime.isEmpty()) null else newSubtaskDueTime,
+                currentReminder = "On the day",
+                currentRepeat = "none",
+                onDismiss = { showSubtaskDatePicker = false },
+                onConfirm = { date, time, _, _, _, _ ->
+                    newSubtaskDueDate = date
+                    newSubtaskDueTime = time ?: ""
+                    showSubtaskDatePicker = false
+                },
+                maxDateStr = parentTask.deadline
+            )
         }
     }
 }
 
 // ==================== 1. TASKS SECTION ====================
 @Composable
-fun TaskSection(viewModel: TrackWiseViewModel) {
+fun TaskSection(
+    viewModel: TrackWiseViewModel,
+    onAddSubtaskClick: (TaskEntity) -> Unit
+) {
     val focusManager = LocalFocusManager.current
     val tasks by viewModel.allTasks.collectAsState()
     val selectedFolder by viewModel.selectedTaskFolder.collectAsState()
     val selectedTag by viewModel.selectedTaskTag.collectAsState()
-    var subtaskTargetTask by remember { mutableStateOf<TaskEntity?>(null) }
     
     var showForm by remember { mutableStateOf(false) }
     
@@ -396,232 +590,14 @@ fun TaskSection(viewModel: TrackWiseViewModel) {
             )
         } else {
             filteredTasks.forEach { task ->
-                TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = { subtaskTargetTask = it })
+                TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
             }
         }
-    }
-
-    if (subtaskTargetTask != null) {
-        val parentTask = subtaskTargetTask!!
-        var newSubtaskTitle by remember { mutableStateOf("") }
-        var newSubtaskDueDate by remember { mutableStateOf(parentTask.deadline) }
-        var newSubtaskDueTime by remember { mutableStateOf(parentTask.dueTime ?: "") }
-        var showSubtaskDatePicker by remember { mutableStateOf(false) }
-
-        Dialog(
-            onDismissRequest = { subtaskTargetTask = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .clickable { subtaskTargetTask = null },
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = false) {}
-                        .navigationBarsPadding()
-                        .imePadding()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Drag Handle
-                        Box(
-                            modifier = Modifier
-                                .width(36.dp)
-                                .height(4.dp)
-                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), CircleShape)
-                                .align(Alignment.CenterHorizontally)
-                        )
-
-                        // Header info
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Add Subtask to: ${parentTask.title}",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandCyan
-                            )
-                            IconButton(
-                                onClick = { subtaskTargetTask = null },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Dismiss",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-
-                        // Focus management
-                        val focusRequester = remember { FocusRequester() }
-                        LaunchedEffect(Unit) {
-                            focusRequester.requestFocus()
-                        }
-
-                        // Subtask Title input
-                        BasicTextField(
-                            value = newSubtaskTitle,
-                            onValueChange = { newSubtaskTitle = it },
-                            textStyle = TextStyle(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = SolidColor(BrandCyan),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .focusRequester(focusRequester),
-                            decorationBox = { innerTextField ->
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    if (newSubtaskTitle.isEmpty()) {
-                                        Text(
-                                            text = "What subtask would you like to do?",
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            }
-                        )
-
-                        val todayStr = remember { TrackWiseUtils.getTodayString() }
-                        val subtaskDateText = if (newSubtaskDueDate.isEmpty()) "Today" else {
-                            if (newSubtaskDueDate == todayStr) "Today" else newSubtaskDueDate
-                        }
-                        val subtaskTimeText = if (newSubtaskDueTime.isEmpty()) "Set Time" else newSubtaskDueTime
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                // Date Pill
-                                Surface(
-                                    onClick = { showSubtaskDatePicker = true },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = BrandCyan.copy(alpha = 0.12f),
-                                    border = BorderStroke(1.dp, BrandCyan.copy(alpha = 0.3f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CalendarToday,
-                                            contentDescription = "Select Subtask Date",
-                                            tint = BrandCyan,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Text(
-                                            text = subtaskDateText,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = BrandCyan
-                                        )
-                                    }
-                                }
-
-                                // Time Pill
-                                Surface(
-                                    onClick = { showSubtaskDatePicker = true },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = BrandViolet.copy(alpha = 0.12f),
-                                    border = BorderStroke(1.dp, BrandViolet.copy(alpha = 0.3f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AccessTime,
-                                            contentDescription = "Select Subtask Time",
-                                            tint = BrandViolet,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Text(
-                                            text = subtaskTimeText,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = BrandViolet
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Circular Send/Add button on right
-                            Button(
-                                onClick = {
-                                    if (newSubtaskTitle.isNotBlank()) {
-                                        viewModel.addSubTask(
-                                            task = parentTask,
-                                            subTitle = newSubtaskTitle,
-                                            dueDate = if (newSubtaskDueDate.isBlank()) null else newSubtaskDueDate,
-                                            dueTime = if (newSubtaskDueTime.isBlank()) null else newSubtaskDueTime
-                                        )
-                                        subtaskTargetTask = null
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
-                                enabled = newSubtaskTitle.isNotBlank(),
-                                shape = CircleShape,
-                                contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Save Subtask",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        CustomDatePickerSheet(
-            visible = showSubtaskDatePicker,
-            currentDate = if (newSubtaskDueDate.isEmpty()) parentTask.deadline else newSubtaskDueDate,
-            currentTime = if (newSubtaskDueTime.isEmpty()) null else newSubtaskDueTime,
-            currentReminder = "On the day",
-            currentRepeat = "none",
-            onDismiss = { showSubtaskDatePicker = false },
-            onConfirm = { date, time, _, _, _, _ ->
-                newSubtaskDueDate = date
-                newSubtaskDueTime = time ?: ""
-                showSubtaskDatePicker = false
-            },
-            maxDateStr = parentTask.deadline
-        )
     }
 }
+
+
+
 
 @Composable
 fun TaskCard(
@@ -644,11 +620,11 @@ fun TaskCard(
         else -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
     }
 
-    val tileTextColor = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onBackground
+    val tileTextColor = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
     val cardBgColor = if (task.completed) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        MaterialTheme.colorScheme.surfaceVariant
     } else {
-        priorityColor.copy(alpha = 0.05f)
+        MaterialTheme.colorScheme.surface
     }
 
     Card(
@@ -1003,15 +979,14 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
         // Toggle add habit card
         Button(
             onClick = { 
-                showForm = !showForm
-                if (showForm) showErrors = false
+                viewModel.openHabitCreationSheet()
             },
             colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, tint = Color.White)
-            Text(if (showForm) "Close Form" else "Add New Habit", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+            Text("Add New Habit", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
         }
 
         if (showForm) {
@@ -1254,7 +1229,7 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Create Runway", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Create Habit", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1319,7 +1294,7 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
 
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
-            title = { Text("Edit Habit Runway ⚙️", fontWeight = FontWeight.Bold, color = BrandOrange) },
+            title = { Text("Edit Habit ⚙️", fontWeight = FontWeight.Bold, color = BrandOrange) },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1694,7 +1669,7 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
 
             // --- 7-Day Completion Grid (Section 9.3) ---
             Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            Text("7-Day Runway Track", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            Text("7-Day Habit Track", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
 
             Row(
                 modifier = Modifier

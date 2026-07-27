@@ -85,7 +85,13 @@ data class HabitEntity(
     val remindMe: Boolean = false,
     val reminderDate: String? = null,
     val reminderTime: String? = null,
-    val dueTime: String? = null // Optional due time
+    val dueTime: String? = null, // Optional due time
+    val icon: String = "😊",
+    val quote: String = "",
+    val goalType: String = "Achieve it all",
+    val goalDays: String = "Forever",
+    val section: String = "Others",
+    val autoPopup: Boolean = false
 )
 
 @Entity(tableName = "birthdays")

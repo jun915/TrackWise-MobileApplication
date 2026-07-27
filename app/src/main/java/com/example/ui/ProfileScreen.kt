@@ -1567,7 +1567,7 @@ fun ImageCropDialog(
                     AsyncImage(
                         model = sourceUri,
                         contentDescription = "Preview",
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer(
@@ -1692,7 +1692,7 @@ private fun performCropAndSave(
         val wOrig = originalBitmap.width.toFloat()
         val hOrig = originalBitmap.height.toFloat()
 
-        val baseScale = Math.max(viewportSizePx / wOrig, viewportSizePx / hOrig)
+        val baseScale = Math.min(viewportSizePx / wOrig, viewportSizePx / hOrig)
         val totalScale = baseScale * userScale
 
         val wFinal = wOrig * totalScale

@@ -289,10 +289,10 @@ class ReminderReceiver : BroadcastReceiver() {
                         showNotification(
                             context,
                             notificationManager,
-                            "Habit Runway: ${habit.name}",
+                            "Habit: ${habit.name}",
                             "It's time for your habit: ${habit.category}!",
                             "workspace",
-                            1, // Habit Runways tab
+                            1, // Habit tab
                             key.hashCode(),
                             smallIcon,
                             channelId

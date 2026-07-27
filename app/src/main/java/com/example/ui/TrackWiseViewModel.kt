@@ -798,6 +798,17 @@ class TrackWiseViewModel(
     private val _showCustomTaskSheet = MutableStateFlow(false)
     val showCustomTaskSheet: StateFlow<Boolean> = _showCustomTaskSheet.asStateFlow()
 
+    private val _showHabitCreationSheet = MutableStateFlow(false)
+    val showHabitCreationSheet: StateFlow<Boolean> = _showHabitCreationSheet.asStateFlow()
+
+    fun openHabitCreationSheet() {
+        _showHabitCreationSheet.value = true
+    }
+
+    fun closeHabitCreationSheet() {
+        _showHabitCreationSheet.value = false
+    }
+
     fun openAddTaskSheet() {
         _taskToEdit.value = null
         _showCustomTaskSheet.value = true
@@ -947,7 +958,13 @@ class TrackWiseViewModel(
         remindMe: Boolean = false,
         reminderDate: String? = null,
         reminderTime: String? = null,
-        dueTime: String? = null
+        dueTime: String? = null,
+        icon: String = "😊",
+        quote: String = "",
+        goalType: String = "Achieve it all",
+        goalDays: String = "Forever",
+        section: String = "Others",
+        autoPopup: Boolean = false
     ) {
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
@@ -972,7 +989,13 @@ class TrackWiseViewModel(
                 remindMe = remindMe,
                 reminderDate = reminderDate,
                 reminderTime = reminderTime,
-                dueTime = dueTime
+                dueTime = dueTime,
+                icon = icon,
+                quote = quote,
+                goalType = goalType,
+                goalDays = goalDays,
+                section = section,
+                autoPopup = autoPopup
             )
             repository.insertHabit(habit)
             triggerFakeSync()
@@ -3304,7 +3327,7 @@ class TrackWiseViewModel(
                                 if (!triggeredReminders.contains(key)) {
                                     triggeredReminders.add(key)
                                     addNotification(
-                                        title = "Habit Runway: ${habit.name}",
+                                        title = "Habit: ${habit.name}",
                                         message = "It's time for your habit: ${habit.category}!",
                                         showSystem = true,
                                         canSnooze = true

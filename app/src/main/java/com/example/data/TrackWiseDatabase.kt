@@ -4,6 +4,19 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE habits ADD COLUMN icon TEXT NOT NULL DEFAULT '😊'")
+        db.execSQL("ALTER TABLE habits ADD COLUMN quote TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE habits ADD COLUMN goalType TEXT NOT NULL DEFAULT 'Achieve it all'")
+        db.execSQL("ALTER TABLE habits ADD COLUMN goalDays TEXT NOT NULL DEFAULT 'Forever'")
+        db.execSQL("ALTER TABLE habits ADD COLUMN section TEXT NOT NULL DEFAULT 'Others'")
+        db.execSQL("ALTER TABLE habits ADD COLUMN autoPopup INTEGER NOT NULL DEFAULT 0")
+    }
+}
 
 @Database(
     entities = [
@@ -28,7 +41,7 @@ import androidx.room.RoomDatabase
         FinanceLogEntity::class,
         NetWorthItemEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class TrackWiseDatabase : RoomDatabase() {
@@ -45,7 +58,9 @@ abstract class TrackWiseDatabase : RoomDatabase() {
                     TrackWiseDatabase::class.java,
                     "trackwise_database"
                 )
+                .addMigrations(MIGRATION_15_16)
                 .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance
                 instance

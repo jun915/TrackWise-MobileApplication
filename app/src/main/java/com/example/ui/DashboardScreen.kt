@@ -1410,7 +1410,7 @@ fun DailyHabitsWidget(
 
             if (filteredHabits.isEmpty()) {
                 Text(
-                    text = if (habits.isEmpty()) "Configure Habit Runways in the Workspace tab to launch daily streak multipliers." else "No active habit runways scheduled for today.",
+                    text = if (habits.isEmpty()) "Configure Habits in the Workspace tab to launch daily streak multipliers." else "No active habits scheduled for today.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     modifier = Modifier.padding(vertical = 12.dp)

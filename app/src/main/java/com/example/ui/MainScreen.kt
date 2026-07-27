@@ -101,6 +101,14 @@ fun MainScreen(
 
     var isRefreshing by remember { mutableStateOf(false) }
     var pullOffset by remember { mutableStateOf(0f) }
+    val animatedPullOffset by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isRefreshing || isSyncing) 150f else pullOffset,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+        ),
+        label = "pull_offset_anim"
+    )
 
     val nestedScrollConnection = remember {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
@@ -172,6 +180,7 @@ fun MainScreen(
     var showMainSpeedDial by remember { mutableStateOf(false) }
 
     val showCustomTaskSheet by viewModel.showCustomTaskSheet.collectAsState()
+    val showHabitCreationSheet by viewModel.showHabitCreationSheet.collectAsState()
     val taskToEdit by viewModel.taskToEdit.collectAsState()
 
     var showImportOptionDialog by remember { mutableStateOf(false) }
@@ -197,11 +206,13 @@ fun MainScreen(
     }
     val focusManager = LocalFocusManager.current
 
-    val isAnyPopupOpen = showCustomTaskSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial
+    val isAnyPopupOpen = showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial
 
     BackHandler(enabled = isAnyPopupOpen || navigationHistory.size > 1) {
         if (showCustomTaskSheet) {
             viewModel.closeCustomTaskSheet()
+        } else if (showHabitCreationSheet) {
+            viewModel.closeHabitCreationSheet()
         } else if (showAddChoiceDialog) {
             showAddChoiceDialog = false
         } else if (showMainSpeedDial) {
@@ -354,6 +365,22 @@ fun MainScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     }
+                } else if (activeTab == "workspace" && activeSubTab == 1) {
+                    FloatingActionButton(
+                        onClick = { viewModel.openHabitCreationSheet() },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .offset(y = 8.dp)
+                            .testTag("floating_add_habit_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Habit",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 } else {
                     Column(
                         horizontalAlignment = Alignment.End,
@@ -486,13 +513,13 @@ fun MainScreen(
 
                 // Global Pull to Refresh circle indicator overlay
                 AnimatedVisibility(
-                    visible = pullOffset > 10f || isRefreshing || isSyncing,
+                    visible = animatedPullOffset > 10f || isRefreshing || isSyncing,
                     enter = fadeIn() + slideInVertically(),
                     exit = fadeOut() + slideOutVertically(),
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 16.dp)
-                        .offset(y = (pullOffset * 0.40f).coerceAtMost(160f).dp)
+                        .offset(y = (animatedPullOffset * 0.40f).coerceAtMost(160f).dp)
                 ) {
                     Card(
                         shape = CircleShape,
@@ -517,7 +544,7 @@ fun MainScreen(
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .size(24.dp)
-                                        .rotate((pullOffset * 2).coerceIn(0f, 360f))
+                                        .rotate((animatedPullOffset * 2).coerceIn(0f, 360f))
                                 )
                             }
                         }
@@ -1106,6 +1133,13 @@ fun MainScreen(
         initialProjects = initialProjectsList,
         initialTags = initialTagsList
     )
+
+    if (showHabitCreationSheet) {
+        HabitCreationFlowDialog(
+            viewModel = viewModel,
+            onDismiss = { viewModel.closeHabitCreationSheet() }
+        )
+    }
 }
 
 private data class MoreMenuItemSpec(
@@ -1130,7 +1164,7 @@ fun HeaderToolbar(
         "workspace" -> {
             when (activeSubTab) {
                 0 -> "Task Checklist"
-                1 -> "Habit Runways"
+                1 -> "Habit"
                 2 -> "Wishlist"
                 3 -> "Countdown"
                 4 -> "Timer & Stopwatch"
@@ -1399,7 +1433,7 @@ fun BottomNavigationBar(
             onClick = { onSubTabSelected("workspace", 0) }
         )
         BottomTabItem(
-            label = "Runways",
+            label = "Habits",
             icon = Icons.Default.Repeat,
             isActive = activeTab == "workspace" && activeSubTab == 1,
             isActiveColor = BrandPink,
@@ -2735,7 +2769,7 @@ fun GlobalSearchDialog(
                     SearchResult(
                         title = habit.name,
                         subtitle = "Category: ${habit.category} • Streak: ${habit.streak} days",
-                        type = "Habit Runway",
+                        type = "Habit",
                         icon = Icons.Default.Repeat,
                         color = BrandPink,
                         onClick = {
