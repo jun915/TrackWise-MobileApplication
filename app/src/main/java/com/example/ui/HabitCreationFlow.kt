@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -86,7 +87,11 @@ val ICON_OPTIONS = listOf(
     "😊", "🥛", "🍞", "🍚", "🍌", "🥕", "🍦", "🚫", "🌙", "🏃",
     "🧘", "🤸", "🦵", "🚴", "🏊", "📖", "✏️", "📓", "💵", "📋",
     "📞", "👍", "📷", "👁️", "🦷", "🚿", "🧹", "⭐", "📹", "📺",
-    "🎵", "🚶", "🐕", "🐈", "🎬", "📄", "🚭", "💖", "☀️", "💊"
+    "🎵", "🚶", "🐕", "🐈", "🎬", "📄", "🚭", "💖", "☀️", "💊",
+    "💡", "🚀", "🔥", "🎯", "🎨", "💻", "🧠", "🌱", "🧘‍♀️", "💪",
+    "🍎", "🥗", "🍵", "🧺", "⏰", "📅", "📝", "✍️", "🧩", "🎳",
+    "🎮", "⚽", "🏀", "👟", "👚", "🧴", "💤", "🛌", "🧗", "🛹",
+    "🎸", "🎻", "🎤", "🎧", "🏋️", "🚶‍♂️", "🚴‍♂️", "🧘‍♂️", "🛌", "🙏"
 )
 
 val MOTIVATIONAL_QUOTES = listOf(
@@ -122,12 +127,12 @@ fun HabitCreationFlowDialog(
         var galleryCategory by remember { mutableStateOf("Suggested") }
         var habitName by remember { mutableStateOf("") }
         var selectedIcon by remember { mutableStateOf("😊") }
-        var currentQuote by remember { mutableStateOf("Believe in yourself.") }
+        var currentQuote by remember { mutableStateOf("") }
         var habitCategory by remember { mutableStateOf("Suggested") }
 
         // Step 2 state
         var frequencyType by remember { mutableStateOf("DAILY") } // DAILY, WEEKLY, INTERVAL
-        var selectedDaysOfWeek by remember { mutableStateOf(setOf("S", "M", "T", "W", "T", "F", "S")) }
+        var selectedDaysOfWeek by remember { mutableStateOf(setOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")) }
         var daysPerWeek by remember { mutableIntStateOf(2) }
         var intervalDays by remember { mutableIntStateOf(2) }
 
@@ -136,8 +141,17 @@ fun HabitCreationFlowDialog(
         var startDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
         var goalDays by remember { mutableStateOf("Forever") }
 
-        var selectedSection by remember { mutableStateOf("Others") }
-        var customSections by remember { mutableStateOf(listOf("Morning", "Afternoon", "Night", "Others")) }
+        var selectedFolders by remember { mutableStateOf(setOf("Inbox")) }
+        val tasks by viewModel.allTasks.collectAsState()
+        val customFolders by viewModel.customFolders.collectAsState()
+        val allFolders = remember(tasks, customFolders) {
+            val defaults = listOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome")
+            val dynamic = tasks.map { it.project }.filter { it.isNotBlank() }
+            (defaults + customFolders + dynamic).distinct()
+        }
+
+        var customTagInput by remember { mutableStateOf("") }
+
         var reminderTimes by remember { mutableStateOf(mutableListOf<String>()) }
         var autoPopupLog by remember { mutableStateOf(false) }
 
@@ -150,12 +164,17 @@ fun HabitCreationFlowDialog(
 
         var nameError by remember { mutableStateOf(false) }
 
-        val primaryColor = Color(0xFF2563EB)
+        val primaryColor = MaterialTheme.colorScheme.primary
+        val backgroundColor = MaterialTheme.colorScheme.background
+        val surfaceColor = MaterialTheme.colorScheme.surface
+        val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+        val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+        val textColor = MaterialTheme.colorScheme.onBackground
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF8FAFC))
+                .background(backgroundColor)
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
@@ -167,7 +186,7 @@ fun HabitCreationFlowDialog(
                             text = if (currentStep == 0) "Gallery" else "New Habit",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
-                            color = Color(0xFF1E293B)
+                            color = textColor
                         )
                     },
                     navigationIcon = {
@@ -183,11 +202,11 @@ fun HabitCreationFlowDialog(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = Color(0xFF1E293B)
+                                tint = textColor
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF8FAFC))
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = backgroundColor)
                 )
 
                 Box(
@@ -208,12 +227,12 @@ fun HabitCreationFlowDialog(
                                         val isSelected = galleryCategory == cat
                                         Surface(
                                             shape = RoundedCornerShape(20.dp),
-                                            color = if (isSelected) primaryColor else Color(0xFFE2E8F0),
+                                            color = if (isSelected) primaryColor else MaterialTheme.colorScheme.surfaceVariant,
                                             modifier = Modifier.clickable { galleryCategory = cat }
                                         ) {
                                             Text(
                                                 text = cat,
-                                                color = if (isSelected) Color.White else Color(0xFF475569),
+                                                color = if (isSelected) Color.White else onSurfaceVariantColor,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                                 fontSize = 14.sp,
                                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -309,7 +328,7 @@ fun HabitCreationFlowDialog(
                                 item {
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
@@ -318,7 +337,7 @@ fun HabitCreationFlowDialog(
                                                 text = "Name",
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 14.sp,
-                                                color = Color(0xFF1E293B)
+                                                color = textColor
                                             )
                                             Spacer(modifier = Modifier.height(10.dp))
                                             OutlinedTextField(
@@ -327,14 +346,14 @@ fun HabitCreationFlowDialog(
                                                     habitName = it
                                                     if (it.isNotBlank()) nameError = false
                                                 },
-                                                placeholder = { Text("Daily Check-in", color = Color(0xFF94A3B8)) },
+                                                placeholder = { Text("Daily Check-in", color = onSurfaceVariantColor) },
                                                 trailingIcon = {
                                                     if (habitName.isNotEmpty()) {
                                                         IconButton(onClick = { habitName = "" }) {
                                                             Icon(
                                                                 imageVector = Icons.Default.Cancel,
                                                                 contentDescription = "Clear",
-                                                                tint = Color(0xFF94A3B8)
+                                                                tint = onSurfaceVariantColor
                                                             )
                                                         }
                                                     }
@@ -343,9 +362,9 @@ fun HabitCreationFlowDialog(
                                                 shape = RoundedCornerShape(12.dp),
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedBorderColor = primaryColor,
-                                                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                                                    focusedContainerColor = Color(0xFFF8FAFC),
-                                                    unfocusedContainerColor = Color(0xFFF8FAFC)
+                                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                    focusedContainerColor = backgroundColor,
+                                                    unfocusedContainerColor = backgroundColor
                                                 ),
                                                 modifier = Modifier.fillMaxWidth()
                                             )
@@ -365,7 +384,7 @@ fun HabitCreationFlowDialog(
                                 item {
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
@@ -374,7 +393,7 @@ fun HabitCreationFlowDialog(
                                                 text = "Icon",
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 14.sp,
-                                                color = Color(0xFF1E293B)
+                                                color = textColor
                                             )
                                             Spacer(modifier = Modifier.height(12.dp))
 
@@ -383,76 +402,66 @@ fun HabitCreationFlowDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                // Icon preview badge with halo
                                                 Box(
                                                     contentAlignment = Alignment.Center,
                                                     modifier = Modifier
                                                         .size(52.dp)
-                                                        .border(2.dp, Color(0xFF86EFAC), CircleShape)
+                                                        .border(2.dp, primaryColor.copy(alpha = 0.5f), CircleShape)
                                                         .padding(3.dp)
                                                         .clip(CircleShape)
-                                                        .background(Color(0xFFDCFCE7))
+                                                        .background(primaryColor.copy(alpha = 0.15f))
                                                 ) {
                                                     Text(text = selectedIcon, fontSize = 26.sp)
-                                                }
-
-                                                // Category avatar preview badge
-                                                Box(
-                                                    contentAlignment = Alignment.Center,
-                                                    modifier = Modifier
-                                                        .size(46.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color(0xFF06B6D4))
-                                                ) {
-                                                    Text(
-                                                        text = if (habitName.isNotBlank()) habitName.take(1).uppercase() else "A",
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color.White,
-                                                        fontSize = 20.sp
-                                                    )
                                                 }
                                             }
 
                                             Spacer(modifier = Modifier.height(16.dp))
 
-                                            // Grid of Icons
-                                            LazyVerticalGrid(
-                                                columns = GridCells.Fixed(7),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                            // Slider / LazyRow Grid of Icons (4 rows of columns)
+                                            val iconRows = 4
+                                            val chunkedIcons = remember { ICON_OPTIONS.chunked(iconRows) }
+                                            LazyRow(
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(280.dp)
+                                                    .height(240.dp)
                                             ) {
-                                                items(ICON_OPTIONS) { iconStr ->
-                                                    val isSelected = selectedIcon == iconStr
-                                                    Box(
-                                                        contentAlignment = Alignment.Center,
-                                                        modifier = Modifier
-                                                            .size(42.dp)
-                                                            .clip(CircleShape)
-                                                            .background(
-                                                                if (isSelected) primaryColor.copy(alpha = 0.15f)
-                                                                else Color(0xFFF1F5F9)
-                                                            )
-                                                            .border(
-                                                                width = if (isSelected) 2.dp else 0.dp,
-                                                                color = if (isSelected) primaryColor else Color.Transparent,
-                                                                shape = CircleShape
-                                                            )
-                                                            .clickable { selectedIcon = iconStr }
+                                                items(chunkedIcons) { columnIcons ->
+                                                    Column(
+                                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                                     ) {
-                                                        Text(text = iconStr, fontSize = 20.sp)
-                                                        if (isSelected) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Check,
-                                                                contentDescription = null,
-                                                                tint = primaryColor,
+                                                        columnIcons.forEach { iconStr ->
+                                                            val isSelected = selectedIcon == iconStr
+                                                            Box(
+                                                                contentAlignment = Alignment.Center,
                                                                 modifier = Modifier
-                                                                    .size(14.dp)
-                                                                    .align(Alignment.BottomEnd)
-                                                                    .offset(x = 2.dp, y = 2.dp)
-                                                            )
+                                                                    .size(45.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(
+                                                                        if (isSelected) primaryColor.copy(alpha = 0.15f)
+                                                                        else MaterialTheme.colorScheme.surfaceVariant
+                                                                    )
+                                                                    .border(
+                                                                        width = if (isSelected) 2.dp else 0.dp,
+                                                                        color = if (isSelected) primaryColor else Color.Transparent,
+                                                                        shape = CircleShape
+                                                                    )
+                                                                    .clickable { selectedIcon = iconStr }
+                                                            ) {
+                                                                Text(text = iconStr, fontSize = 22.sp)
+                                                                if (isSelected) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Check,
+                                                                        contentDescription = null,
+                                                                        tint = primaryColor,
+                                                                        modifier = Modifier
+                                                                            .size(14.dp)
+                                                                            .align(Alignment.BottomEnd)
+                                                                            .offset(x = 2.dp, y = 2.dp)
+                                                                    )
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -465,7 +474,7 @@ fun HabitCreationFlowDialog(
                                 item {
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
@@ -479,7 +488,7 @@ fun HabitCreationFlowDialog(
                                                     text = "Quote",
                                                     fontWeight = FontWeight.SemiBold,
                                                     fontSize = 14.sp,
-                                                    color = Color(0xFF1E293B)
+                                                    color = textColor
                                                 )
                                                 IconButton(
                                                     onClick = {
@@ -502,13 +511,13 @@ fun HabitCreationFlowDialog(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(12.dp))
-                                                    .background(Color(0xFFF8FAFC))
+                                                    .background(backgroundColor)
                                                     .padding(14.dp)
                                             ) {
                                                 Text(
-                                                    text = currentQuote,
+                                                    text = currentQuote.ifBlank { "Choose or enter a tag below..." },
                                                     fontSize = 14.sp,
-                                                    color = Color(0xFF334155),
+                                                    color = onSurfaceColor,
                                                     fontWeight = FontWeight.Medium
                                                 )
                                             }
@@ -519,7 +528,7 @@ fun HabitCreationFlowDialog(
                         }
 
                         2 -> {
-                            // SCREENSHOT 4, 5, 6, 7, 8, 9: NEW HABIT STEP 2 (Frequency, Goals, Section, Reminder, Auto-popup)
+                            // SCREENSHOT 4, 5, 6, 7, 8, 9: NEW HABIT STEP 2 (Frequency, Goals, Folders, Reminder, #tags)
                             LazyColumn(
                                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 90.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -529,7 +538,7 @@ fun HabitCreationFlowDialog(
                                 item {
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
@@ -538,7 +547,7 @@ fun HabitCreationFlowDialog(
                                                 text = "Frequency",
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 14.sp,
-                                                color = Color(0xFF1E293B)
+                                                color = textColor
                                             )
                                             Spacer(modifier = Modifier.height(12.dp))
 
@@ -557,7 +566,7 @@ fun HabitCreationFlowDialog(
                                                             text = type,
                                                             fontSize = 13.sp,
                                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                            color = if (isSelected) primaryColor else Color(0xFF64748B)
+                                                            color = if (isSelected) primaryColor else onSurfaceVariantColor
                                                         )
                                                         Spacer(modifier = Modifier.height(4.dp))
                                                         if (isSelected) {
@@ -578,34 +587,41 @@ fun HabitCreationFlowDialog(
                                             // Content based on Frequency Tab
                                             when (frequencyType) {
                                                 "DAILY" -> {
-                                                    // Day Selector S M T W T F S
+                                                    // Day Selector S M T W T F S with unique keys to fix the duplicate day selection bug
                                                     Row(
                                                         horizontalArrangement = Arrangement.SpaceBetween,
                                                         modifier = Modifier.fillMaxWidth()
                                                     ) {
-                                                        val daysList = listOf("S", "M", "T", "W", "T", "F", "S")
-                                                        daysList.forEachIndexed { idx, dayLabel ->
-                                                            val dayKey = "$idx-$dayLabel"
-                                                            val isSelected = selectedDaysOfWeek.contains(dayKey) || selectedDaysOfWeek.contains(dayLabel)
+                                                        val daysList = listOf(
+                                                            "Sun" to "S",
+                                                            "Mon" to "M",
+                                                            "Tue" to "T",
+                                                            "Wed" to "W",
+                                                            "Thu" to "T",
+                                                            "Fri" to "F",
+                                                            "Sat" to "S"
+                                                        )
+                                                        daysList.forEach { (dayId, dayLabel) ->
+                                                            val isSelected = selectedDaysOfWeek.contains(dayId)
                                                             Box(
                                                                 contentAlignment = Alignment.Center,
                                                                 modifier = Modifier
                                                                     .size(40.dp)
                                                                     .clip(CircleShape)
                                                                     .background(
-                                                                        if (isSelected) primaryColor else Color(0xFFF1F5F9)
+                                                                        if (isSelected) primaryColor else MaterialTheme.colorScheme.surfaceVariant
                                                                     )
                                                                     .clickable {
                                                                         val newSet = selectedDaysOfWeek.toMutableSet()
-                                                                        if (isSelected) newSet.remove(dayLabel)
-                                                                        else newSet.add(dayLabel)
+                                                                        if (isSelected) newSet.remove(dayId)
+                                                                        else newSet.add(dayId)
                                                                         selectedDaysOfWeek = newSet
                                                                     }
                                                             ) {
                                                                 Text(
                                                                     text = dayLabel,
                                                                     fontWeight = FontWeight.Bold,
-                                                                    color = if (isSelected) Color.White else Color(0xFF475569)
+                                                                    color = if (isSelected) Color.White else onSurfaceColor
                                                                 )
                                                             }
                                                         }
@@ -627,7 +643,7 @@ fun HabitCreationFlowDialog(
                                                             text = "$daysPerWeek",
                                                             fontSize = 28.sp,
                                                             fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFF0F172A),
+                                                            color = textColor,
                                                             modifier = Modifier.padding(horizontal = 20.dp)
                                                         )
                                                         IconButton(
@@ -638,7 +654,7 @@ fun HabitCreationFlowDialog(
                                                         Text(
                                                             text = "days per week",
                                                             fontSize = 15.sp,
-                                                            color = Color(0xFF475569),
+                                                            color = onSurfaceVariantColor,
                                                             modifier = Modifier.padding(start = 12.dp)
                                                         )
                                                     }
@@ -650,7 +666,7 @@ fun HabitCreationFlowDialog(
                                                         horizontalArrangement = Arrangement.Center,
                                                         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
                                                     ) {
-                                                        Text(text = "Every", fontSize = 15.sp, color = Color(0xFF475569), modifier = Modifier.padding(end = 12.dp))
+                                                        Text(text = "Every", fontSize = 15.sp, color = onSurfaceVariantColor, modifier = Modifier.padding(end = 12.dp))
                                                         IconButton(
                                                             onClick = { if (intervalDays > 1) intervalDays-- }
                                                         ) {
@@ -660,7 +676,7 @@ fun HabitCreationFlowDialog(
                                                             text = "$intervalDays",
                                                             fontSize = 28.sp,
                                                             fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFF0F172A),
+                                                            color = textColor,
                                                             modifier = Modifier.padding(horizontal = 20.dp)
                                                         )
                                                         IconButton(
@@ -668,7 +684,7 @@ fun HabitCreationFlowDialog(
                                                         ) {
                                                             Icon(Icons.Default.AddCircleOutline, contentDescription = "Increase", tint = primaryColor)
                                                         }
-                                                        Text(text = "days", fontSize = 15.sp, color = Color(0xFF475569), modifier = Modifier.padding(start = 12.dp))
+                                                        Text(text = "days", fontSize = 15.sp, color = onSurfaceVariantColor, modifier = Modifier.padding(start = 12.dp))
                                                     }
                                                 }
                                             }
@@ -680,7 +696,7 @@ fun HabitCreationFlowDialog(
                                 item {
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
@@ -694,18 +710,18 @@ fun HabitCreationFlowDialog(
                                                     .clickable { showGoalDialog = true }
                                                     .padding(horizontal = 16.dp, vertical = 12.dp)
                                             ) {
-                                                Text("Goal", fontSize = 15.sp, color = Color(0xFF1E293B), fontWeight = FontWeight.Medium)
+                                                Text("Goal", fontSize = 15.sp, color = textColor, fontWeight = FontWeight.Medium)
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Text(
                                                         text = if (goalType == "Achieve it all") "Achieve it all" else "$goalAmount time(s)",
                                                         fontSize = 14.sp,
-                                                        color = Color(0xFF64748B)
+                                                        color = onSurfaceVariantColor
                                                     )
-                                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF94A3B8))
+                                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = onSurfaceVariantColor)
                                                 }
                                             }
 
-                                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFF1F5F9))
+                                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
 
                                             // Start Date Row
                                             Row(
@@ -716,18 +732,18 @@ fun HabitCreationFlowDialog(
                                                     .clickable { showDatePickerDialog = true }
                                                     .padding(horizontal = 16.dp, vertical = 12.dp)
                                             ) {
-                                                Text("Start Date", fontSize = 15.sp, color = Color(0xFF1E293B), fontWeight = FontWeight.Medium)
+                                                Text("Start Date", fontSize = 15.sp, color = textColor, fontWeight = FontWeight.Medium)
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Text(
                                                         text = startDate,
                                                         fontSize = 14.sp,
-                                                        color = Color(0xFF64748B)
+                                                        color = onSurfaceVariantColor
                                                     )
-                                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF94A3B8))
+                                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = onSurfaceVariantColor)
                                                 }
                                             }
 
-                                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFF1F5F9))
+                                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
 
                                             // Goal Days Row
                                             Row(
@@ -739,28 +755,26 @@ fun HabitCreationFlowDialog(
                                                     .padding(horizontal = 16.dp, vertical = 12.dp)
                                             ) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text("Goal Days", fontSize = 15.sp, color = Color(0xFF1E293B), fontWeight = FontWeight.Medium)
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Icon(Icons.Default.Info, contentDescription = "Info", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                                                    Text("Goal Days", fontSize = 15.sp, color = textColor, fontWeight = FontWeight.Medium)
                                                 }
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Text(
                                                         text = goalDays,
                                                         fontSize = 14.sp,
-                                                        color = Color(0xFF64748B)
+                                                        color = onSurfaceVariantColor
                                                     )
-                                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF94A3B8))
+                                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = onSurfaceVariantColor)
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                // Card 3: Section
+                                // Card 3: Folders (Renamed from Sections and tied to real customFolders list)
                                 item {
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
@@ -771,16 +785,16 @@ fun HabitCreationFlowDialog(
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Text(
-                                                    text = "Section",
+                                                    text = "Folders",
                                                     fontWeight = FontWeight.SemiBold,
                                                     fontSize = 14.sp,
-                                                    color = Color(0xFF1E293B)
+                                                    color = textColor
                                                 )
                                                 IconButton(
                                                     onClick = { showAddSectionDialog = true },
                                                     modifier = Modifier.size(28.dp)
                                                 ) {
-                                                    Icon(Icons.Default.Add, contentDescription = "Add Section", tint = Color(0xFF94A3B8))
+                                                    Icon(Icons.Default.Add, contentDescription = "Add Folder", tint = onSurfaceVariantColor)
                                                 }
                                             }
 
@@ -789,16 +803,20 @@ fun HabitCreationFlowDialog(
                                             LazyRow(
                                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
-                                                items(customSections) { sec ->
-                                                    val isSelected = selectedSection == sec
+                                                items(allFolders) { folder ->
+                                                    val isSelected = selectedFolders.contains(folder)
                                                     Surface(
                                                         shape = RoundedCornerShape(20.dp),
-                                                        color = if (isSelected) primaryColor else Color(0xFFF1F5F9),
-                                                        modifier = Modifier.clickable { selectedSection = sec }
+                                                        color = if (isSelected) primaryColor else MaterialTheme.colorScheme.surfaceVariant,
+                                                        modifier = Modifier.clickable {
+                                                            val updated = selectedFolders.toMutableSet()
+                                                            if (isSelected) updated.remove(folder) else updated.add(folder)
+                                                            selectedFolders = updated
+                                                        }
                                                     ) {
                                                         Text(
-                                                            text = sec,
-                                                            color = if (isSelected) Color.White else Color(0xFF475569),
+                                                            text = folder,
+                                                            color = if (isSelected) Color.White else onSurfaceColor,
                                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                                             fontSize = 13.sp,
                                                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -814,7 +832,7 @@ fun HabitCreationFlowDialog(
                                 item {
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
@@ -823,7 +841,7 @@ fun HabitCreationFlowDialog(
                                                 text = "Reminder",
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 14.sp,
-                                                color = Color(0xFF1E293B)
+                                                color = textColor
                                             )
 
                                             Spacer(modifier = Modifier.height(8.dp))
@@ -864,35 +882,73 @@ fun HabitCreationFlowDialog(
                                     }
                                 }
 
-                                // Card 5: Auto pop-up of habit log
+                                // Card 5: Select a #tag (Replaces auto pop-up switch with highly interactive tagging)
                                 item {
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                                        ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
                                             Text(
-                                                text = "Auto pop-up of habit log",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = Color(0xFF1E293B)
+                                                text = "Select #tag",
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 14.sp,
+                                                color = textColor
                                             )
-                                            Switch(
-                                                checked = autoPopupLog,
-                                                onCheckedChange = { autoPopupLog = it },
-                                                colors = SwitchDefaults.colors(
-                                                    checkedThumbColor = Color.White,
-                                                    checkedTrackColor = primaryColor
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            OutlinedTextField(
+                                                value = customTagInput,
+                                                onValueChange = { input ->
+                                                    customTagInput = if (input.startsWith("#") || input.isEmpty()) input else "#$input"
+                                                    currentQuote = customTagInput
+                                                },
+                                                placeholder = { Text("Type custom tag (e.g. #focus)", color = onSurfaceVariantColor, fontSize = 13.sp) },
+                                                singleLine = true,
+                                                textStyle = TextStyle(fontSize = 13.sp, color = textColor),
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = primaryColor,
+                                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                    focusedContainerColor = backgroundColor,
+                                                    unfocusedContainerColor = backgroundColor
                                                 )
                                             )
+
+                                            Spacer(modifier = Modifier.height(12.dp))
+
+                                            val presetTags = listOf("#Health", "#Fitness", "#Routine", "#Mindset", "#Work", "#Personal", "#Study")
+                                            LazyRow(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                items(presetTags) { tag ->
+                                                    val isSelected = currentQuote == tag
+                                                    Surface(
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        color = if (isSelected) primaryColor else MaterialTheme.colorScheme.surfaceVariant,
+                                                        modifier = Modifier.clickable {
+                                                            if (isSelected) {
+                                                                currentQuote = ""
+                                                                customTagInput = ""
+                                                            } else {
+                                                                currentQuote = tag
+                                                                customTagInput = tag
+                                                            }
+                                                        }
+                                                    ) {
+                                                        Text(
+                                                            text = tag,
+                                                            color = if (isSelected) Color.White else onSurfaceColor,
+                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                            fontSize = 12.sp,
+                                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -905,7 +961,7 @@ fun HabitCreationFlowDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White)
+                        .background(surfaceColor)
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Button(
@@ -915,7 +971,7 @@ fun HabitCreationFlowDialog(
                                     // Create a new habit
                                     habitName = ""
                                     selectedIcon = "😊"
-                                    currentQuote = "Believe in yourself."
+                                    currentQuote = ""
                                     currentStep = 1
                                 }
                                 1 -> {
@@ -953,8 +1009,8 @@ fun HabitCreationFlowDialog(
                                         quote = currentQuote,
                                         goalType = goalType,
                                         goalDays = goalDays,
-                                        section = selectedSection,
-                                        autoPopup = autoPopupLog
+                                        section = if (selectedFolders.isEmpty()) "Inbox" else selectedFolders.joinToString(","),
+                                        autoPopup = false
                                     )
 
                                     onDismiss()
@@ -1101,7 +1157,7 @@ fun HabitCreationFlowDialog(
                                     Text(
                                         text = "$dayNum",
                                         fontSize = 13.sp,
-                                        color = if (isSel) Color.White else Color.Black
+                                        color = if (isSel) Color.White else textColor
                                     )
                                 }
                             }
@@ -1122,35 +1178,89 @@ fun HabitCreationFlowDialog(
                 },
                 dismissButton = {
                     TextButton(onClick = { showDatePickerDialog = false }) {
-                        Text("Cancel", color = Color(0xFF64748B))
+                        Text("Cancel", color = onSurfaceVariantColor)
                     }
                 }
             )
+        }
+
+        var customGoalDaysInput by remember {
+            val digits = goalDays.filter { it.isDigit() }
+            mutableStateOf(if (goalDays.startsWith("Custom") && digits.isNotBlank()) digits else "")
         }
 
         // SCREENSHOT 9: Goal Days Dialog
         if (showGoalDaysDialog) {
             AlertDialog(
                 onDismissRequest = { showGoalDaysDialog = false },
-                title = { Text("Goal Days", fontWeight = FontWeight.Bold) },
+                title = { Text("Goal Days", fontWeight = FontWeight.Bold, color = textColor) },
                 text = {
                     val options = listOf("Forever", "7 days", "21 days", "30 days", "100 days", "365 days", "Custom")
                     LazyColumn {
                         items(options) { opt ->
+                            val isSelected = if (opt == "Custom") {
+                                goalDays.startsWith("Custom")
+                            } else {
+                                goalDays == opt
+                            }
+                            
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { goalDays = opt }
+                                    .clickable {
+                                        if (opt == "Custom") {
+                                            goalDays = if (customGoalDaysInput.isNotBlank()) "Custom ($customGoalDaysInput Days)" else "Custom"
+                                        } else {
+                                            goalDays = opt
+                                        }
+                                    }
                                     .padding(vertical = 6.dp)
                             ) {
                                 RadioButton(
-                                    selected = (goalDays == opt),
-                                    onClick = { goalDays = opt },
+                                    selected = isSelected,
+                                    onClick = {
+                                        if (opt == "Custom") {
+                                            goalDays = if (customGoalDaysInput.isNotBlank()) "Custom ($customGoalDaysInput Days)" else "Custom"
+                                        } else {
+                                            goalDays = opt
+                                        }
+                                    },
                                     colors = RadioButtonDefaults.colors(selectedColor = primaryColor)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(opt, fontSize = 15.sp)
+                                Text(opt, fontSize = 15.sp, color = textColor)
+                                
+                                if (opt == "Custom" && isSelected) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    OutlinedTextField(
+                                        value = customGoalDaysInput,
+                                        onValueChange = { input ->
+                                            val filtered = input.filter { it.isDigit() }
+                                            if (filtered.length <= 3) {
+                                                val intVal = filtered.toIntOrNull()
+                                                if (filtered.isEmpty() || (intVal != null && intVal in 1..999)) {
+                                                    customGoalDaysInput = filtered
+                                                    goalDays = if (filtered.isNotBlank()) "Custom ($filtered Days)" else "Custom"
+                                                }
+                                            }
+                                        },
+                                        placeholder = { Text("1-999", fontSize = 12.sp) },
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = textColor,
+                                            unfocusedTextColor = textColor,
+                                            focusedBorderColor = primaryColor,
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                        ),
+                                        modifier = Modifier
+                                            .width(90.dp)
+                                            .height(52.dp)
+                                            .padding(vertical = 2.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Days", fontSize = 14.sp, color = textColor)
+                                }
                             }
                         }
                     }
@@ -1162,32 +1272,38 @@ fun HabitCreationFlowDialog(
                 },
                 dismissButton = {
                     TextButton(onClick = { showGoalDaysDialog = false }) {
-                        Text("Cancel", color = Color(0xFF64748B))
+                        Text("Cancel", color = onSurfaceVariantColor)
                     }
                 }
             )
         }
 
-        // Add Section Dialog
+        // Add Folder Dialog
         if (showAddSectionDialog) {
-            var newSecName by remember { mutableStateOf("") }
+            var newFolderName by remember { mutableStateOf("") }
             AlertDialog(
                 onDismissRequest = { showAddSectionDialog = false },
-                title = { Text("Add Section", fontWeight = FontWeight.Bold) },
+                title = { Text("Add Folder", fontWeight = FontWeight.Bold, color = textColor) },
                 text = {
                     OutlinedTextField(
-                        value = newSecName,
-                        onValueChange = { newSecName = it },
-                        label = { Text("Section Name") },
+                        value = newFolderName,
+                        onValueChange = { newFolderName = it },
+                        label = { Text("Folder Name", color = onSurfaceVariantColor) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = textColor,
+                            unfocusedTextColor = textColor,
+                            focusedBorderColor = primaryColor,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            if (newSecName.isNotBlank()) {
-                                customSections = customSections + newSecName.trim()
-                                selectedSection = newSecName.trim()
+                            if (newFolderName.isNotBlank()) {
+                                viewModel.addCustomFolder(newFolderName.trim())
+                                selectedFolders = selectedFolders + newFolderName.trim()
                             }
                             showAddSectionDialog = false
                         }
@@ -1197,44 +1313,44 @@ fun HabitCreationFlowDialog(
                 },
                 dismissButton = {
                     TextButton(onClick = { showAddSectionDialog = false }) {
-                        Text("Cancel", color = Color(0xFF64748B))
+                        Text("Cancel", color = onSurfaceVariantColor)
                     }
                 }
             )
         }
 
-        // Add Reminder Dialog
+        // Add Reminder Dialog using Native Clock
         if (showAddReminderDialog) {
-            var timeInput by remember { mutableStateOf("08:00 AM") }
-            AlertDialog(
-                onDismissRequest = { showAddReminderDialog = false },
-                title = { Text("Add Reminder", fontWeight = FontWeight.Bold) },
-                text = {
-                    OutlinedTextField(
-                        value = timeInput,
-                        onValueChange = { timeInput = it },
-                        label = { Text("Reminder Time (e.g. 08:00 AM)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            if (timeInput.isNotBlank()) {
-                                reminderTimes = reminderTimes.toMutableList().apply { add(timeInput.trim()) }
-                            }
-                            showAddReminderDialog = false
-                        }
-                    ) {
-                        Text("Add", color = primaryColor, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddReminderDialog = false }) {
-                        Text("Cancel", color = Color(0xFF64748B))
-                    }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val calendar = java.util.Calendar.getInstance()
+            val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+            val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+            
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                val tpd = android.app.TimePickerDialog(
+                    context,
+                    themeId,
+                    { _, h, m ->
+                        val formattedTime = String.format(java.util.Locale.US, "%02d:%02d %s", 
+                            if (h == 0 || h == 12) 12 else h % 12, 
+                            m, 
+                            if (h < 12) "AM" else "PM"
+                        )
+                        reminderTimes = reminderTimes.toMutableList().apply { if (!contains(formattedTime)) add(formattedTime) }
+                        showAddReminderDialog = false
+                    },
+                    calendar.get(java.util.Calendar.HOUR_OF_DAY),
+                    calendar.get(java.util.Calendar.MINUTE),
+                    false // Use 12h clock
+                )
+                tpd.setOnCancelListener {
+                    showAddReminderDialog = false
                 }
-            )
+                tpd.show()
+                onDispose {
+                    tpd.dismiss()
+                }
+            }
         }
     }
 }

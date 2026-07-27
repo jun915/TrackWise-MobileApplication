@@ -77,6 +77,7 @@ fun DashboardScreen(
     val allWishlist by viewModel.allWishlist.collectAsState()
 
     var activePostponeTask by remember { mutableStateOf<TaskEntity?>(null) }
+    var selectedHabitForDetail by remember { mutableStateOf<HabitEntity?>(null) }
 
     val todayStr = TrackWiseUtils.getTodayString()
     val isPreLaunch = TrackWiseUtils.isBeforeLaunch(todayStr)
@@ -383,7 +384,8 @@ fun DashboardScreen(
         item {
             DailyHabitsWidget(
                 habits = allHabits,
-                onToggleHabit = { viewModel.toggleHabitToday(it) }
+                onToggleHabit = { viewModel.toggleHabitToday(it) },
+                onHabitClick = { selectedHabitForDetail = it }
             )
         }
 
@@ -413,6 +415,15 @@ fun DashboardScreen(
                 viewModel.updateTask(updatedTask)
                 viewModel.addNotification("Reoccurrence Skipped", "Skipped next session of \"${task.title}\"")
             }
+        )
+    }
+
+    selectedHabitForDetail?.let { habit ->
+        HabitDetailScreen(
+            habitId = habit.id,
+            viewModel = viewModel,
+            onBack = { selectedHabitForDetail = null },
+            onEditHabit = { selectedHabitForDetail = null }
         )
     }
 }
@@ -965,8 +976,16 @@ fun TodayItemsWidget(
                             Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant
-                                                    else MaterialTheme.colorScheme.surface
+                                    containerColor = if (task.completed) {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    } else {
+                                        when (task.priority) {
+                                            "high" -> BrandRose.copy(alpha = 0.28f)
+                                            "medium" -> BrandOrange.copy(alpha = 0.28f)
+                                            "low" -> Color(0xFF1E40AF).copy(alpha = 0.22f)
+                                            else -> MaterialTheme.colorScheme.surface
+                                        }
+                                    }
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1190,8 +1209,16 @@ fun PriorityItemsWidget(
                             Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (task.completed) MaterialTheme.colorScheme.surfaceVariant
-                                                    else MaterialTheme.colorScheme.surface
+                                    containerColor = if (task.completed) {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    } else {
+                                        when (task.priority) {
+                                            "high" -> BrandRose.copy(alpha = 0.28f)
+                                            "medium" -> BrandOrange.copy(alpha = 0.28f)
+                                            "low" -> Color(0xFF1E40AF).copy(alpha = 0.22f)
+                                            else -> MaterialTheme.colorScheme.surface
+                                        }
+                                    }
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1347,6 +1374,7 @@ fun PriorityItemsWidget(
 fun DailyHabitsWidget(
     habits: List<HabitEntity>,
     onToggleHabit: (HabitEntity) -> Unit,
+    onHabitClick: (HabitEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val today = TrackWiseUtils.getTodayString()
@@ -1435,7 +1463,7 @@ fun DailyHabitsWidget(
                                     else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
                                     RoundedCornerShape(16.dp)
                                 )
-                                .clickable { onToggleHabit(habit) }
+                                .clickable { onHabitClick(habit) }
                         ) {
                             Row(
                                 modifier = Modifier.padding(14.dp),
@@ -1444,7 +1472,9 @@ fun DailyHabitsWidget(
                                 // Left: Elegant check button
                                 Box(
                                     modifier = Modifier
-                                        .size(24.dp)
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .clickable { onToggleHabit(habit) }
                                         .border(
                                             2.dp,
                                             if (isDone) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
@@ -1461,7 +1491,7 @@ fun DailyHabitsWidget(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = null,
                                             tint = BrandOrange,
-                                            modifier = Modifier.size(14.dp)
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -1857,8 +1887,11 @@ private fun getNextMondayDate(): String {
 
 private fun showDatePicker(context: android.content.Context, onDateSelected: (String) -> Unit) {
     val calendar = Calendar.getInstance()
+    val isDarkTheme = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
     val dpd = android.app.DatePickerDialog(
         context,
+        themeId,
         { _, year, month, dayOfMonth ->
             val formattedMonth = String.format("%02d", month + 1)
             val formattedDay = String.format("%02d", dayOfMonth)
@@ -1874,8 +1907,11 @@ private fun showDatePicker(context: android.content.Context, onDateSelected: (St
 
 private fun showTimePicker(context: android.content.Context, onTimeSelected: (String) -> Unit) {
     val calendar = Calendar.getInstance()
+    val isDarkTheme = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
     val tpd = android.app.TimePickerDialog(
         context,
+        themeId,
         { _, hourOfDay, minute ->
             val formattedHour = String.format("%02d", hourOfDay)
             val formattedMinute = String.format("%02d", minute)

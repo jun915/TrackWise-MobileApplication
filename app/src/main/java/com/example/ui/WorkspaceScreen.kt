@@ -62,6 +62,7 @@ fun WorkspaceScreen(
     val subTabs = listOf("Tasks", "Habit", "Wishlist", "Countdown", "Timer & Stopwatch", "Grocery List")
     val focusManager = LocalFocusManager.current
     var subtaskTargetTask by remember { mutableStateOf<TaskEntity?>(null) }
+    var selectedHabitForDetail by remember { mutableStateOf<HabitEntity?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -87,7 +88,12 @@ fun WorkspaceScreen(
                     item { TaskSection(viewModel = viewModel, onAddSubtaskClick = { subtaskTargetTask = it }) }
                 }
                 1 -> { // Habit Sub-Tab
-                    item { HabitSection(viewModel = viewModel) }
+                    item {
+                        HabitSection(
+                            viewModel = viewModel,
+                            onHabitClick = { selectedHabitForDetail = it }
+                        )
+                    }
                 }
                 2 -> { // Wishlist Sub-Tab
                     item { WishlistSection(viewModel = viewModel) }
@@ -290,6 +296,17 @@ fun WorkspaceScreen(
                     showSubtaskDatePicker = false
                 },
                 maxDateStr = parentTask.deadline
+            )
+        }
+
+        selectedHabitForDetail?.let { selectedHabit ->
+            HabitDetailScreen(
+                habitId = selectedHabit.id,
+                viewModel = viewModel,
+                onBack = { selectedHabitForDetail = null },
+                onEditHabit = { habitToEdit ->
+                    selectedHabitForDetail = null
+                }
             )
         }
     }
@@ -624,7 +641,12 @@ fun TaskCard(
     val cardBgColor = if (task.completed) {
         MaterialTheme.colorScheme.surfaceVariant
     } else {
-        MaterialTheme.colorScheme.surface
+        when (task.priority) {
+            "high" -> BrandRose.copy(alpha = 0.28f)
+            "medium" -> BrandOrange.copy(alpha = 0.28f)
+            "low" -> Color(0xFF1E40AF).copy(alpha = 0.22f)
+            else -> MaterialTheme.colorScheme.surface
+        }
     }
 
     Card(
@@ -941,7 +963,10 @@ fun TaskCard(
 
 // ==================== 2. HABITS SECTION ====================
 @Composable
-fun HabitSection(viewModel: TrackWiseViewModel) {
+fun HabitSection(
+    viewModel: TrackWiseViewModel,
+    onHabitClick: (HabitEntity) -> Unit
+) {
     val focusManager = LocalFocusManager.current
     val habits by viewModel.allHabits.collectAsState()
     var showForm by remember { mutableStateOf(false) }
@@ -976,19 +1001,6 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
     val categories = listOf("Wellness", "Fitness", "Learning", "Productivity")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Toggle add habit card
-        Button(
-            onClick = { 
-                viewModel.openHabitCreationSheet()
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
-            Text("Add New Habit", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
-        }
-
         if (showForm) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1235,19 +1247,84 @@ fun HabitSection(viewModel: TrackWiseViewModel) {
             }
         }
 
-        // Display all habits in Workspace so they are always visible, manageable, editable, and deletable
-        if (habits.isEmpty()) {
-            Text("No habit runways configured yet. Create one above!")
+        val selectedFolder by viewModel.selectedTaskFolder.collectAsState()
+        
+        val filteredHabits = remember(habits, selectedFolder) {
+            if (selectedFolder != null) {
+                habits.filter { habit ->
+                    habit.section.split(",").map { it.trim().lowercase() }.contains(selectedFolder!!.lowercase())
+                }
+            } else {
+                habits
+            }
+        }
+
+        if (selectedFolder != null) {
+            Surface(
+                color = BrandOrange.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = "Active Filter",
+                            tint = BrandOrange,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Showing habits in $selectedFolder",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandOrange
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            viewModel.setSelectedTaskFolder(null)
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear Filter", tint = BrandOrange, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+
+        // Display filtered habits in Workspace so they are always visible, manageable, editable, and deletable
+        if (filteredHabits.isEmpty()) {
+            Text(
+                text = if (selectedFolder == null) "No habit runways configured yet. Create one above!" else "No habits assigned to folder \"$selectedFolder\" yet.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
         } else {
-            habits.forEach { habit ->
-                HabitCard(habit = habit, viewModel = viewModel)
+            filteredHabits.forEach { habit ->
+                HabitCard(
+                    habit = habit,
+                    viewModel = viewModel,
+                    onHabitClick = { onHabitClick(habit) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
+fun HabitCard(
+    habit: HabitEntity,
+    viewModel: TrackWiseViewModel,
+    onHabitClick: (HabitEntity) -> Unit = {}
+) {
     val focusManager = LocalFocusManager.current
     val completedDays = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
     val today = TrackWiseUtils.getTodayString()
@@ -1271,6 +1348,7 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
         var editReminderDate by remember { mutableStateOf(habit.reminderDate ?: TrackWiseUtils.getTodayString()) }
         var editReminderTime by remember { mutableStateOf(habit.reminderTime ?: "08:00") }
         var editDueTime by remember { mutableStateOf(habit.dueTime ?: "") }
+        var editBackgroundImage by remember { mutableStateOf(habit.backgroundImage) }
 
         var editRepeatType by remember { mutableStateOf(habit.repeatType) }
         var editCustomRepeatValue by remember { mutableStateOf(habit.customRepeatValue.toString()) }
@@ -1334,6 +1412,32 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                                 ) {
                                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                         Text(cat, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (editCategory == cat) Color.White else MaterialTheme.colorScheme.onBackground)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Column {
+                        Text("Background Illustration Style", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val bgOptions = listOf(
+                                "window" to "🌅 Window",
+                                "fitness" to "🏃 Track",
+                                "mindfulness" to "🌸 Lotus",
+                                "study" to "📚 Desk",
+                                "finance" to "💰 Wealth"
+                            )
+                            bgOptions.forEach { (id, label) ->
+                                val isSel = editBackgroundImage == id
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = if (isSel) BrandOrange else MaterialTheme.colorScheme.surfaceVariant),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { editBackgroundImage = id }
+                                ) {
+                                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (isSel) Color.White else MaterialTheme.colorScheme.onBackground)
                                     }
                                 }
                             }
@@ -1491,7 +1595,8 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                                 remindMe = editRemindMe,
                                 reminderDate = if (editRemindMe) editReminderDate else null,
                                 reminderTime = if (editRemindMe) editReminderTime else null,
-                                dueTime = if (editDueTime.isBlank()) null else editDueTime
+                                dueTime = if (editDueTime.isBlank()) null else editDueTime,
+                                backgroundImage = editBackgroundImage
                             )
                             viewModel.updateHabit(updatedHabit)
                             showEditDialog = false
@@ -1515,7 +1620,7 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-            .clickable { showEditDialog = true }
+            .clickable { onHabitClick(habit) }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1532,7 +1637,7 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                     
                     Box(
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(32.dp)
                             .border(
                                 2.dp,
                                 if (isCompletedToday) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
@@ -1541,13 +1646,14 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                             .background(
                                 if (isCompletedToday) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
                                 CircleShape
-                            ),
+                            )
+                            .clickable { viewModel.incrementHabitToday(habit) },
                         contentAlignment = Alignment.Center
                     ) {
                         if (isCompletedToday) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
                         } else {
-                            Text(text = "$completedCountToday", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                            Text(text = habit.icon, fontSize = 16.sp)
                         }
                     }
 
@@ -1560,7 +1666,7 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                 } else {
                     Box(
                         modifier = Modifier
-                            .size(24.dp)
+                            .size(32.dp)
                             .border(
                                 2.dp,
                                 if (isCompletedToday) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
@@ -1575,6 +1681,8 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                     ) {
                         if (isCompletedToday) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
+                        } else {
+                            Text(text = habit.icon, fontSize = 16.sp)
                         }
                     }
                 }
@@ -1658,69 +1766,6 @@ fun HabitCard(habit: HabitEntity, viewModel: TrackWiseViewModel) {
                         color = BrandOrange,
                         modifier = Modifier.padding(start = 2.dp)
                     )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                IconButton(onClick = { viewModel.deleteHabit(habit.id) }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = BrandRose)
-                }
-            }
-
-            // --- 7-Day Completion Grid (Section 9.3) ---
-            Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            Text("7-Day Habit Track", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Generate last 7 days representing circles
-                val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                val dayLabelSdf = SimpleDateFormat("EEE", Locale.US)
-                val cal = Calendar.getInstance()
-                
-                // Fetch the list of days backwards
-                val last7Days = (0..6).map { i ->
-                    val c = Calendar.getInstance()
-                    c.add(Calendar.DAY_OF_YEAR, -i)
-                    c.time
-                }.reversed()
-
-                last7Days.forEach { date ->
-                    val dateStr = sdf.format(date)
-                    val label = dayLabelSdf.format(date).take(1) // Single character representation: M, T, W
-                    val hasCompleted = completedDays.contains(dateStr)
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (hasCompleted) BrandOrange else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .border(
-                                    1.dp,
-                                    if (hasCompleted) Color.Transparent else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
-                                    CircleShape
-                                )
-                                .clickable {
-                                    // A direct specific date toggle can be stimulated safely using standard API
-                                    // Normally toggleHabitToday operates on current date, but we can do custom trigger
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (hasCompleted) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -2497,6 +2542,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                             } else {
                                 selectedReminders.contains(choice)
                             }
+                            val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+                            val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -2522,6 +2570,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                                     val calendar = Calendar.getInstance()
                                                     val datePickerDialog = android.app.DatePickerDialog(
                                                         context,
+                                                        themeId,
                                                         { _, year, month, dayOfMonth ->
                                                             val monthStr = String.format("%02d", month + 1)
                                                             val dayStr = String.format("%02d", dayOfMonth)
@@ -2564,6 +2613,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                                     val calendar = Calendar.getInstance()
                                                     val datePickerDialog = android.app.DatePickerDialog(
                                                         context,
+                                                        themeId,
                                                         { _, year, month, dayOfMonth ->
                                                             val monthStr = String.format("%02d", month + 1)
                                                             val dayStr = String.format("%02d", dayOfMonth)
@@ -2946,6 +2996,8 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("EVENT DATE *", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+                        val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -2956,6 +3008,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                     val calendar = Calendar.getInstance()
                                     val datePickerDialog = android.app.DatePickerDialog(
                                         context,
+                                        themeId,
                                         { _, year, month, dayOfMonth ->
                                             val monthStr = String.format("%02d", month + 1)
                                             val dayStr = String.format("%02d", dayOfMonth)
@@ -4898,9 +4951,13 @@ fun DatePickerField(
         Calendar.getInstance().apply { time = parsedDate }
     }
 
-    val datePickerDialog = remember(calendar) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val datePickerDialog = remember(calendar, themeId) {
         android.app.DatePickerDialog(
             context,
+            themeId,
             { _, selectedYear, selectedMonth, selectedDay ->
                 val selectedCal = Calendar.getInstance().apply {
                     set(Calendar.YEAR, selectedYear)
@@ -4981,9 +5038,13 @@ fun TimePickerField(
     val hour = remember(parts) { parts.getOrNull(0)?.toIntOrNull() ?: 12 }
     val minute = remember(parts) { parts.getOrNull(1)?.toIntOrNull() ?: 0 }
 
-    val timePickerDialog = remember(hour, minute) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val timePickerDialog = remember(hour, minute, themeId) {
         android.app.TimePickerDialog(
             context,
+            themeId,
             { _, selectedHour, selectedMinute ->
                 val formattedTime = String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute)
                 onTimeSelected(formattedTime)

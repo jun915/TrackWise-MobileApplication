@@ -93,6 +93,14 @@ fun MainScreen(
             viewModel.setNotificationNavigateTab(null)
         }
     }
+
+    val habitToEdit by viewModel.habitToEdit.collectAsState()
+    LaunchedEffect(habitToEdit) {
+        if (habitToEdit != null) {
+            navigateTo("workspace")
+            viewModel.setWorkspaceSubTab(1)
+        }
+    }
     val showSettings by viewModel.settingsPanelOpen.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncMessage by viewModel.syncMessage.collectAsState()
@@ -102,7 +110,7 @@ fun MainScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     var pullOffset by remember { mutableStateOf(0f) }
     val animatedPullOffset by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isRefreshing || isSyncing) 150f else pullOffset,
+        targetValue = if (isRefreshing || isSyncing) 60f else pullOffset,
         animationSpec = androidx.compose.animation.core.spring(
             dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
             stiffness = androidx.compose.animation.core.Spring.StiffnessLow
@@ -132,7 +140,7 @@ fun MainScreen(
             ): androidx.compose.ui.geometry.Offset {
                 return if (available.y > 0 && !isRefreshing) {
                     viewModel.dismissSuccessMessage()
-                    pullOffset += available.y * 0.45f
+                    pullOffset = (pullOffset + available.y * 0.45f).coerceAtMost(140f)
                     androidx.compose.ui.geometry.Offset(0f, available.y)
                 } else {
                     androidx.compose.ui.geometry.Offset.Zero
@@ -140,7 +148,7 @@ fun MainScreen(
             }
 
             override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
-                if (pullOffset > 420f && !isRefreshing) {
+                if (pullOffset > 100f && !isRefreshing) {
                     isRefreshing = true
                     viewModel.dismissSuccessMessage()
                     viewModel.syncDeviceState()
@@ -153,7 +161,7 @@ fun MainScreen(
                 consumed: androidx.compose.ui.unit.Velocity,
                 available: androidx.compose.ui.unit.Velocity
             ): androidx.compose.ui.unit.Velocity {
-                if (pullOffset > 420f && !isRefreshing) {
+                if (pullOffset > 100f && !isRefreshing) {
                     isRefreshing = true
                     viewModel.dismissSuccessMessage()
                     viewModel.syncDeviceState()
@@ -273,7 +281,9 @@ fun MainScreen(
                 )
             },
             floatingActionButton = {
-                if (activeTab == "workspace" && activeSubTab == 3) {
+                val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
+                if (activeDetailHabit == null) {
+                    if (activeTab == "workspace" && activeSubTab == 3) {
                     Column(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -458,6 +468,7 @@ fun MainScreen(
                         }
                     }
                 }
+                }
             },
             containerColor = Color.Transparent
         ) { innerPadding ->
@@ -519,7 +530,7 @@ fun MainScreen(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 16.dp)
-                        .offset(y = (animatedPullOffset * 0.40f).coerceAtMost(160f).dp)
+                        .offset(y = (animatedPullOffset * 0.40f).coerceAtMost(36f).dp)
                 ) {
                     Card(
                         shape = CircleShape,
@@ -587,24 +598,6 @@ fun MainScreen(
                     )
                 }
 
-                if (isSyncing) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = BrandGreen.copy(alpha = 0.9f)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 16.dp)
-                    ) {
-                        Text(
-                            text = syncMessage,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-                }
-
                 // --- Animated Dropdown Settings Panel (Section 7.3) ---
                 AnimatedVisibility(
                     visible = showSettings,
@@ -613,6 +606,20 @@ fun MainScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     SettingsPanel(viewModel = viewModel)
+                }
+
+                // Global Habit Detail Screen Overlay
+                val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
+                activeDetailHabit?.let { habit ->
+                    HabitDetailScreen(
+                        habitId = habit.id,
+                        viewModel = viewModel,
+                        onBack = { viewModel.setActiveDetailHabit(null) },
+                        onEditHabit = { habitToEdit ->
+                            viewModel.setActiveDetailHabit(null)
+                            viewModel.setHabitToEdit(habitToEdit)
+                        }
+                    )
                 }
             }
         }
@@ -687,9 +694,7 @@ fun MainScreen(
                     }
 
                     val moreItems = listOf(
-                        MoreMenuItemSpec("Health", Icons.Default.Favorite, BrandGreen, "health", -1),
                         MoreMenuItemSpec("Finance", Icons.Default.AttachMoney, BrandOrange, "finance", -1),
-                        MoreMenuItemSpec("Calendar", Icons.Default.CalendarToday, BrandCyan, "calendar", -1),
                         MoreMenuItemSpec("Wishlist", Icons.Default.Star, BrandPink, "workspace", 2),
                         MoreMenuItemSpec("Timer & Stopwatch", Icons.Default.Timer, BrandIndigo, "workspace", 4),
                         MoreMenuItemSpec("Grocery List", Icons.Default.ShoppingCart, BrandGreen, "workspace", 5)
@@ -1216,6 +1221,44 @@ fun HeaderToolbar(
                 fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onBackground
             )
+        }
+
+        // Right Side: Health & Calendar actions
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            IconButton(
+                onClick = {
+                    onNavigateToSubTab("health", -1)
+                },
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("top_health_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = "Open Health",
+                    tint = BrandGreen,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    onNavigateToSubTab("calendar", -1)
+                },
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("top_calendar_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = "Open Calendar",
+                    tint = BrandViolet,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
 }
@@ -2219,48 +2262,6 @@ fun LeftDrawerPane(
                     }
                 }
 
-                // --- Help Navigation Link ---
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (activeTab == "help") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onNavigate("help")
-                                onClose()
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.HelpOutline, contentDescription = null, tint = BrandViolet)
-                                Text(
-                                    text = "HOW THIS APP WORKS",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = if (activeTab == "help") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-                }
-
                 // --- Task Folders Navigation Link ---
                 item {
                     Card(
@@ -2288,7 +2289,7 @@ fun LeftDrawerPane(
                             ) {
                                 Icon(Icons.Default.Folder, contentDescription = null, tint = BrandViolet)
                                 Text(
-                                    text = "TASK FOLDERS",
+                                    text = "TASK & HABIT FOLDERS",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (activeTab == "folders") BrandViolet else MaterialTheme.colorScheme.onSurface
@@ -2348,16 +2349,40 @@ fun LeftDrawerPane(
 
             Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
-            // --- Footer Controls (Logout) ---
-            Button(
-                onClick = { showLogoutConfirm = true },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
+            // --- Footer Controls (Logout & How It Works) ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Logout", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = { showLogoutConfirm = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Logout", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                }
+
+                IconButton(
+                    onClick = {
+                        onNavigate("help")
+                        onClose()
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.outline)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "How This App Works",
+                        tint = BrandViolet,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -2416,9 +2441,13 @@ fun OnboardingOverlay(
     var validationError by remember { mutableStateOf("") }
 
     val calendar = Calendar.getInstance()
-    val datePickerDialog = remember(calendar) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val datePickerDialog = remember(calendar, themeId) {
         android.app.DatePickerDialog(
             context,
+            themeId,
             { _, year, month, dayOfMonth ->
                 val monthStr = String.format("%02d", month + 1)
                 val dayStr = String.format("%02d", dayOfMonth)

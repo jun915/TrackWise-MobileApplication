@@ -18,6 +18,12 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
     }
 }
 
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE habits ADD COLUMN backgroundImage TEXT NOT NULL DEFAULT 'window'")
+    }
+}
+
 @Database(
     entities = [
         UserEntity::class,
@@ -41,7 +47,7 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
         FinanceLogEntity::class,
         NetWorthItemEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 abstract class TrackWiseDatabase : RoomDatabase() {
@@ -58,7 +64,7 @@ abstract class TrackWiseDatabase : RoomDatabase() {
                     TrackWiseDatabase::class.java,
                     "trackwise_database"
                 )
-                .addMigrations(MIGRATION_15_16)
+                .addMigrations(MIGRATION_15_16, MIGRATION_16_17)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

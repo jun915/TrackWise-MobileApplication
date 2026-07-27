@@ -110,9 +110,8 @@ fun CustomAddTaskBottomSheet(
     var tagMenuExpanded by remember { mutableStateOf(false) }
 
     val focusRequester = remember { FocusRequester() }
-
-    var isPinned by remember { mutableStateOf(false) }
-    var showMoreMenu by remember { mutableStateOf(false) }
+    val subtaskFocusRequester = remember { FocusRequester() }
+    val subtaskKeyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
 
     // Subtasks State
     var subtasksList by remember { mutableStateOf(emptyList<SubTask>()) }
@@ -121,6 +120,21 @@ fun CustomAddTaskBottomSheet(
     var subtaskDateInput by remember { mutableStateOf("") }
     var subtaskTimeInput by remember { mutableStateOf<String?>(null) }
     var showSubtaskDatePicker by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showAddSubtaskDialog) {
+        if (showAddSubtaskDialog) {
+            kotlinx.coroutines.delay(350)
+            try {
+                subtaskFocusRequester.requestFocus()
+                subtaskKeyboardController?.show()
+            } catch (e: Exception) {
+                // Ignore focus exception
+            }
+        }
+    }
+
+    var isPinned by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
 
     // Description text-field-value state for selection-aware formatting
     var descriptionValue by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(description)) }
@@ -610,14 +624,67 @@ fun CustomAddTaskBottomSheet(
                         }
                     }
                 } else {
-                    // Drag Handle
-                    Box(
-                        modifier = Modifier
-                            .width(36.dp)
-                            .height(4.dp)
-                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
-                            .align(Alignment.CenterHorizontally)
-                    )
+                    // Non-fullscreen Header Bar: drag handle at top center, title and 3-dots below it!
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Drag Handle
+                        Box(
+                            modifier = Modifier
+                                .width(36.dp)
+                                .height(4.dp)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (taskToEdit != null) "Edit Task" else "New Task",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (isPinned) {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = "Pinned",
+                                        tint = BrandAmber,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            // 3-dots button on the right
+                            val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+                            val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+                            IconButton(
+                                onClick = { 
+                                    keyboardController?.hide()
+                                    focusManager.clearFocus()
+                                    showMoreMenu = true 
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .testTag("non_fullscreen_more_options")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "More options",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Scrollable inputs area
@@ -1003,6 +1070,7 @@ fun CustomAddTaskBottomSheet(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.4f))
+                    .imePadding()
                     .clickable { showAddSubtaskDialog = false },
                 contentAlignment = Alignment.BottomCenter
             ) {
@@ -1013,7 +1081,7 @@ fun CustomAddTaskBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(enabled = false) {}
-                        .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+                        .padding(bottom = if (WindowInsets.isImeVisible) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
                 ) {
                     Column(
                         modifier = Modifier
@@ -1067,6 +1135,7 @@ fun CustomAddTaskBottomSheet(
                             cursorBrush = SolidColor(BrandCyan),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .focusRequester(subtaskFocusRequester)
                                 .testTag("subtask_title_input"),
                             decorationBox = { innerTextField ->
                                 Box(modifier = Modifier.fillMaxWidth()) {
@@ -1710,10 +1779,13 @@ fun CustomDatePickerSheet(
     if (showTimePickerDialog) {
         val currentHour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
         val currentMin = remember { Calendar.getInstance().get(Calendar.MINUTE) }
+        val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+        val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
         
         DisposableEffect(Unit) {
             val tpd = android.app.TimePickerDialog(
                 context,
+                themeId,
                 { _, h, m ->
                     selectedTimeStr = String.format(Locale.US, "%02d:%02d", h, m)
                     showTimePickerDialog = false
@@ -1738,9 +1810,13 @@ fun CustomDatePickerSheet(
     // Custom Reminder Date Picker
     if (showCustomReminderDatePicker) {
         val today = Calendar.getInstance()
+        val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+        val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+        
         DisposableEffect(Unit) {
             val dpd = android.app.DatePickerDialog(
                 context,
+                themeId,
                 { _, y, m, d ->
                     val cal = Calendar.getInstance().apply {
                         set(Calendar.YEAR, y)
@@ -1771,9 +1847,13 @@ fun CustomDatePickerSheet(
     // Custom Reminder Time Picker (Clock)
     if (showCustomReminderTimePicker) {
         val today = Calendar.getInstance()
+        val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+        val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+        
         DisposableEffect(Unit) {
             val tpd = android.app.TimePickerDialog(
                 context,
+                themeId,
                 { _, h, m ->
                     customReminderTime = String.format(Locale.US, "%02d:%02d", h, m)
                     showCustomReminderTimePicker = false

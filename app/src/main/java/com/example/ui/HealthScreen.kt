@@ -575,9 +575,13 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
     val context = LocalContext.current
     val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
     val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
-    val datePickerDialog = remember(calendar) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val datePickerDialog = remember(calendar, themeId) {
         android.app.DatePickerDialog(
             context,
+            themeId,
             { _, selectedYear, selectedMonth, selectedDay ->
                 val selectedCal = Calendar.getInstance().apply {
                     set(Calendar.YEAR, selectedYear)
@@ -923,9 +927,13 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
     // DatePickerDialog setup
     val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
     val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
-    val datePickerDialog = remember(calendar) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val datePickerDialog = remember(calendar, themeId) {
         android.app.DatePickerDialog(
             context,
+            themeId,
             { _, selectedYear, selectedMonth, selectedDay ->
                 val selectedCal = Calendar.getInstance().apply {
                     set(Calendar.YEAR, selectedYear)
@@ -941,7 +949,7 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
     }
 
     // TimePickerDialog setup
-    val timePickerDialog = remember(context, selectedTime) {
+    val timePickerDialog = remember(context, selectedTime, themeId) {
         val cal = Calendar.getInstance()
         try {
             val sdf = SimpleDateFormat("hh:mm a", Locale.US)
@@ -953,6 +961,7 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
         val m = cal.get(Calendar.MINUTE)
         android.app.TimePickerDialog(
             context,
+            themeId,
             { _, hour, minute ->
                 val newCal = Calendar.getInstance().apply {
                     set(Calendar.HOUR_OF_DAY, hour)
@@ -1336,9 +1345,13 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
     val context = LocalContext.current
     val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
     val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
-    val datePickerDialog = remember(calendar) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val datePickerDialog = remember(calendar, themeId) {
         android.app.DatePickerDialog(
             context,
+            themeId,
             { _, selectedYear, selectedMonth, selectedDay ->
                 val selectedCal = Calendar.getInstance().apply {
                     set(Calendar.YEAR, selectedYear)
@@ -1603,9 +1616,13 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
     val context = LocalContext.current
     val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
     val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
-    val datePickerDialog = remember(calendar) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val datePickerDialog = remember(calendar, themeId) {
         android.app.DatePickerDialog(
             context,
+            themeId,
             { _, selectedYear, selectedMonth, selectedDay ->
                 val selectedCal = Calendar.getInstance().apply {
                     set(Calendar.YEAR, selectedYear)
@@ -1824,9 +1841,13 @@ fun SleepLogSection(
     val context = LocalContext.current
     val parsedDate = remember(selectedDate) { TrackWiseUtils.parseDate(selectedDate) }
     val calendar = remember(parsedDate) { Calendar.getInstance().apply { time = parsedDate } }
-    val datePickerDialog = remember(calendar) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val datePickerDialog = remember(calendar, themeId) {
         android.app.DatePickerDialog(
             context,
+            themeId,
             { _, selectedYear, selectedMonth, selectedDay ->
                 val selectedCal = Calendar.getInstance().apply {
                     set(Calendar.YEAR, selectedYear)
@@ -2927,9 +2948,13 @@ fun HealthTimePickerField(
     val hour = remember(parts) { parts.getOrNull(0)?.toIntOrNull() ?: 8 }
     val minute = remember(parts) { parts.getOrNull(1)?.toIntOrNull() ?: 0 }
 
-    val timePickerDialog = remember(hour, minute) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val timePickerDialog = remember(hour, minute, themeId) {
         android.app.TimePickerDialog(
             context,
+            themeId,
             { _, selectedHour, selectedMinute ->
                 val formattedTime = String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute)
                 onTimeSelected(formattedTime)

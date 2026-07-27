@@ -322,6 +322,24 @@ class TrackWiseViewModel(
     private val _syncMessage = MutableStateFlow("Auto-saved offline data")
     val syncMessage: StateFlow<String> = _syncMessage.asStateFlow()
 
+    // --- Habit Detail & Edit State ---
+    private val _activeDetailHabit = MutableStateFlow<HabitEntity?>(null)
+    val activeDetailHabit: StateFlow<HabitEntity?> = _activeDetailHabit.asStateFlow()
+
+    private val _habitToEdit = MutableStateFlow<HabitEntity?>(null)
+    val habitToEdit: StateFlow<HabitEntity?> = _habitToEdit.asStateFlow()
+
+    fun setActiveDetailHabit(habit: HabitEntity?) {
+        _activeDetailHabit.value = habit
+    }
+
+    fun setHabitToEdit(habit: HabitEntity?) {
+        _habitToEdit.value = habit
+        if (habit != null) {
+            setWorkspaceSubTab(1) // Switch to Habit Sub-tab
+        }
+    }
+
     // --- Dynamic Data Streams ---
     val allTasks: StateFlow<List<TaskEntity>> = _sessionUser
         .flatMapLatest { user ->
@@ -474,7 +492,7 @@ class TrackWiseViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // --- Computed Score Stats ---
-    val todayScore: StateFlow<Int> = combine(
+    private val corePointsFlow: Flow<Int> = combine(
         allTasks,
         allHabits,
         allWishlist,
@@ -484,45 +502,64 @@ class TrackWiseViewModel(
         val todayStr = TrackWiseUtils.getTodayString()
         if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@combine 0
         
-        // 1. Dynamic Task Points (High: 15 pts, Medium: 10 pts, Low: 5 pts)
+        // 1. Dynamic Task Points (High: 50 pts, Medium: 30 pts, Low: 15 pts + 10 pts early bonus)
         val taskPoints = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && it.completed }.sumOf { 
-            when (it.priority.lowercase()) {
-                "high" -> 15
-                "medium" -> 10
-                else -> 5
+            val base = when (it.priority.lowercase()) {
+                "high" -> 50
+                "medium" -> 30
+                else -> 15
             }
+            val bonus = if (it.deadline >= todayStr) 10 else 0
+            base + bonus
         }
         
-        // 2. Dynamic Habit Points: 3 pts per completion count, plus 5 pts bonus if they reach the target
+        // 2. Dynamic Habit Points: 10 pts per completion count, plus 15 pts bonus if they reach the target
         val habitPoints = habits.sumOf { habit ->
             val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
             val completionsToday = days.count { it == todayStr }
             if (completionsToday > 0) {
                 if (habit.isMultipleTimesPerDay) {
-                    val base = completionsToday * 3
-                    val bonus = if (completionsToday >= habit.multipleTimesTarget) 5 else 0
+                    val base = completionsToday * 10
+                    val bonus = if (completionsToday >= habit.multipleTimesTarget) 15 else 0
                     base + bonus
                 } else {
-                    5
+                    20
                 }
             } else {
                 0
             }
         }
 
-        // 3. Dynamic Wishlist Points: 20 points for each purchased wishlist item
-        val wishPoints = wishlist.filter { it.purchased }.size * 20
+        // 3. Dynamic Wishlist Points: 100 points for each purchased wishlist item
+        val wishPoints = wishlist.filter { it.purchased }.size * 100
 
-        // 4. Dynamic Grocery Points: 2 points for each completed grocery item
-        val groceryPoints = groceries.filter { it.completed }.size * 2
+        // 4. Dynamic Grocery Points: 10 points for each completed grocery item
+        val groceryPoints = groceries.filter { it.completed }.size * 10
 
-        // 5. Dynamic Birthday Points: 50 points if celebrating a birthday today
+        // 5. Dynamic Birthday Points: 150 points if celebrating a birthday today
         val todayMMDD = todayStr.substring(5) // from YYYY-MM-DD to MM-DD
         val birthdayPoints = birthdays.filter { 
             it.date.endsWith(todayMMDD) 
-        }.size * 50
+        }.size * 150
+
+        taskPoints + habitPoints + wishPoints + groceryPoints + birthdayPoints
+    }
+
+    val todayScore: StateFlow<Int> = combine(
+        corePointsFlow,
+        allFinanceLogs,
+        sleepLogs
+    ) { corePoints, finance, sleep ->
+        val todayStr = TrackWiseUtils.getTodayString()
+        if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@combine 0
+
+        // 6. Dynamic Sleep Logging Points: 40 points if sleep is logged for today
+        val sleepPoints = sleep.filter { it.date == todayStr }.size * 40
+
+        // 7. Dynamic Finance Logging Points: 25 points for each transaction logged today
+        val financePoints = finance.filter { it.date == todayStr }.size * 25
         
-        val total = taskPoints + habitPoints + wishPoints + groceryPoints + birthdayPoints
+        val total = corePoints + sleepPoints + financePoints
         
         // Auto-save this updated score to Streak History in database background
         _sessionUser.value?.let { user ->
@@ -846,9 +883,9 @@ class TrackWiseViewModel(
         val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val taskPoints = when (priority.lowercase()) {
-                "high" -> 15
-                "medium" -> 10
-                else -> 5
+                "high" -> 50
+                "medium" -> 30
+                else -> 15
             }
             val task = TaskEntity(
                 id = "task-${System.currentTimeMillis()}",
@@ -1935,13 +1972,8 @@ class TrackWiseViewModel(
 
     // --- Fake Sync Utility ---
     fun triggerFakeSync() {
-        viewModelScope.launch(Dispatchers.Main) {
-            _isSyncing.value = true
-            _syncMessage.value = "Syncing device states..."
-            kotlinx.coroutines.delay(1000)
-            _isSyncing.value = false
-            _syncMessage.value = "Auto-saved offline data"
-        }
+        _isSyncing.value = false
+        _syncMessage.value = "Auto-saved offline data"
     }
 
     // --- Sleep Tracker Actions ---
@@ -3216,7 +3248,13 @@ class TrackWiseViewModel(
     }
 
     fun syncDeviceState() {
-        triggerFakeSync()
+        viewModelScope.launch(Dispatchers.Main) {
+            _isSyncing.value = true
+            _syncMessage.value = "Refreshing..."
+            kotlinx.coroutines.delay(1000)
+            _isSyncing.value = false
+            _syncMessage.value = "Auto-saved offline data"
+        }
     }
 
     init {

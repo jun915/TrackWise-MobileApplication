@@ -342,6 +342,11 @@ fun AnalyticsScreen(
                 }
             }
             "Habits & Tasks" -> {
+                // --- 0. Folder Progress Card ---
+                item {
+                    FolderProgressCard(tasks = tasks, habits = habits)
+                }
+
                 // --- 1. Habit Streak Chart (Top 5) ---
                 item {
                     HabitStreakCard(habits = habits)
@@ -3914,4 +3919,142 @@ fun PeriodSymptomPeakChartCard(periodCycles: List<PeriodCycleEntity>) {
         }
     }
 }
+
+@Composable
+fun FolderProgressCard(tasks: List<TaskEntity>, habits: List<HabitEntity>) {
+    val todayStr = remember { TrackWiseUtils.getTodayString() }
+    
+    val folderProgressList = remember(tasks, habits, todayStr) {
+        val folders = (tasks.map { it.project } + habits.flatMap { it.section.split(",") }.map { it.trim() })
+            .filter { it.isNotBlank() }
+            .distinct()
+            
+        folders.map { folder ->
+            val tasksInFolder = tasks.filter { it.project.equals(folder, ignoreCase = true) }
+            val completedTasks = tasksInFolder.count { it.completed }
+            
+            val habitsInFolder = habits.filter { habit ->
+                habit.section.split(",").map { it.trim().lowercase() }.contains(folder.lowercase())
+            }
+            val completedHabits = habitsInFolder.count { habit ->
+                val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                val countToday = days.count { it == todayStr }
+                if (habit.isMultipleTimesPerDay) countToday >= habit.multipleTimesTarget else countToday > 0
+            }
+            
+            val totalItems = tasksInFolder.size + habitsInFolder.size
+            val completedItems = completedTasks + completedHabits
+            val progress = if (totalItems == 0) 0f else completedItems.toFloat() / totalItems.toFloat()
+            
+            FolderProgressItem(
+                folderName = folder,
+                tasksCount = tasksInFolder.size,
+                completedTasks = completedTasks,
+                habitsCount = habitsInFolder.size,
+                completedHabits = completedHabits,
+                totalItems = totalItems,
+                completedItems = completedItems,
+                progress = progress
+            )
+        }.filter { it.totalItems > 0 }.sortedByDescending { it.progress }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = null,
+                    tint = BrandViolet,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text("FOLDER PROGRESS DASHBOARD", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+            }
+
+            if (folderProgressList.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No habits or tasks assigned to any folders yet.", fontSize = 12.sp, color = Color.Gray)
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    folderProgressList.forEach { item ->
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = item.folderName,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    Text(
+                                        text = "${item.completedTasks}/${item.tasksCount} tasks · ${item.completedHabits}/${item.habitsCount} habits checked today",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                    )
+                                }
+                                Text(
+                                    text = "${(item.progress * 100).toInt()}%",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (item.progress >= 0.8f) BrandGreen else BrandViolet
+                                )
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(fraction = item.progress)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(
+                                            brush = Brush.horizontalGradient(
+                                                colors = listOf(BrandViolet, BrandCyan)
+                                            )
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class FolderProgressItem(
+    val folderName: String,
+    val tasksCount: Int,
+    val completedTasks: Int,
+    val habitsCount: Int,
+    val completedHabits: Int,
+    val totalItems: Int,
+    val completedItems: Int,
+    val progress: Float
+)
 

@@ -58,7 +58,7 @@ fun CalendarScreen(
         }
     }
 
-    var activeView by remember { mutableStateOf("month") } // "day", "week", "month"
+    var activeView by remember { mutableStateOf("day") } // "day", "week", "month"
     var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
 
     val todayDateStr = TrackWiseUtils.formatDate(Calendar.getInstance().time, "yyyy-MM-dd")

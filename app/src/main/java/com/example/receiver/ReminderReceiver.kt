@@ -140,6 +140,7 @@ class ReminderReceiver : BroadcastReceiver() {
             }
             val taskId = intent.getStringExtra("task_id")
             val tabletId = intent.getStringExtra("tablet_id")
+            val habitId = intent.getStringExtra("habit_id")
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
@@ -176,6 +177,51 @@ class ReminderReceiver : BroadcastReceiver() {
                                     completedDates.add(todayStr)
                                     val updatedJson = org.json.JSONArray(completedDates).toString()
                                     dao.insertTabletReminder(tablet.copy(completedDatesJson = updatedJson))
+                                }
+                            }
+                        } else if (habitId != null) {
+                            val habit = dao.getHabitsForUser(userId).firstOrNull { it.id == habitId }
+                            if (habit != null) {
+                                val todayStr = TrackWiseUtils.getTodayString()
+                                val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).toMutableList()
+                                if (!days.contains(todayStr)) {
+                                    days.add(todayStr)
+                                    
+                                    // Recalculate streak
+                                    var currentStreak = 1
+                                    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                                    val checkDate = java.util.Calendar.getInstance()
+                                    checkDate.time = sdf.parse(todayStr) ?: java.util.Date()
+                                    
+                                    while (true) {
+                                        checkDate.add(java.util.Calendar.DAY_OF_YEAR, -1)
+                                        val prevStr = sdf.format(checkDate.time)
+                                        if (prevStr < TrackWiseUtils.APP_LAUNCH_DATE) break
+                                        if (days.contains(prevStr)) {
+                                            currentStreak++
+                                        } else {
+                                            break
+                                        }
+                                    }
+                                    
+                                    val maxStreak = java.lang.Math.max(habit.maxStreak, currentStreak)
+                                    
+                                    // Badges
+                                    val currentBadges = TrackWiseUtils.deserializeIntList(habit.badgesEarnedJson).toMutableList()
+                                    val milestones = listOf(1, 3, 5, 7, 14, 21, 30, 45, 60, 90, 100, 365)
+                                    milestones.forEach { milestone ->
+                                        if (maxStreak >= milestone && !currentBadges.contains(milestone)) {
+                                            currentBadges.add(milestone)
+                                        }
+                                    }
+                                    
+                                    val updated = habit.copy(
+                                        daysCompletedJson = TrackWiseUtils.serializeStringList(days),
+                                        streak = currentStreak,
+                                        maxStreak = maxStreak,
+                                        badgesEarnedJson = TrackWiseUtils.serializeIntList(currentBadges)
+                                    )
+                                    dao.insertHabit(updated)
                                 }
                             }
                         }
@@ -295,7 +341,8 @@ class ReminderReceiver : BroadcastReceiver() {
                             1, // Habit tab
                             key.hashCode(),
                             smallIcon,
-                            channelId
+                            channelId,
+                            habitId = habit.id
                         )
                     }
                 }
@@ -415,7 +462,8 @@ class ReminderReceiver : BroadcastReceiver() {
         smallIcon: Int,
         channelId: String,
         taskId: String? = null,
-        tabletId: String? = null
+        tabletId: String? = null,
+        habitId: String? = null
     ) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -443,6 +491,7 @@ class ReminderReceiver : BroadcastReceiver() {
             putExtra("notification_id", notificationId)
             putExtra("task_id", taskId)
             putExtra("tablet_id", tabletId)
+            putExtra("habit_id", habitId)
         }
         val completePendingIntent = PendingIntent.getBroadcast(
             context,
@@ -487,10 +536,12 @@ class ReminderReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
-        if (taskId != null || tabletId != null) {
+        if (taskId != null || tabletId != null || habitId != null) {
             builder.addAction(0, "Complete", completePendingIntent)
         }
-        builder.addAction(0, "Snooze (5 min)", snoozePendingIntent)
+        if (habitId == null) {
+            builder.addAction(0, "Snooze (5 min)", snoozePendingIntent)
+        }
         builder.addAction(0, "Dismiss", dismissPendingIntent)
 
         val notification = builder.build()

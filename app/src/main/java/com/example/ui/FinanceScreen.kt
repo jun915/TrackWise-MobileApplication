@@ -1894,9 +1894,13 @@ fun TransactionDatePicker(
         Calendar.getInstance().apply { time = parsedDate }
     }
 
-    val datePickerDialog = remember(calendar) {
+    val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
+    val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
+
+    val datePickerDialog = remember(calendar, themeId) {
         android.app.DatePickerDialog(
             context,
+            themeId,
             { _, selectedYear, selectedMonth, selectedDay ->
                 val selectedCal = Calendar.getInstance().apply {
                     set(Calendar.YEAR, selectedYear)

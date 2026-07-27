@@ -91,7 +91,8 @@ data class HabitEntity(
     val goalType: String = "Achieve it all",
     val goalDays: String = "Forever",
     val section: String = "Others",
-    val autoPopup: Boolean = false
+    val autoPopup: Boolean = false,
+    val backgroundImage: String = "window"
 )
 
 @Entity(tableName = "birthdays")
