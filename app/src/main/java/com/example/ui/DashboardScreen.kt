@@ -77,7 +77,6 @@ fun DashboardScreen(
     val allWishlist by viewModel.allWishlist.collectAsState()
 
     var activePostponeTask by remember { mutableStateOf<TaskEntity?>(null) }
-    var selectedHabitForDetail by remember { mutableStateOf<HabitEntity?>(null) }
 
     val todayStr = TrackWiseUtils.getTodayString()
     val isPreLaunch = TrackWiseUtils.isBeforeLaunch(todayStr)
@@ -385,7 +384,7 @@ fun DashboardScreen(
             DailyHabitsWidget(
                 habits = allHabits,
                 onToggleHabit = { viewModel.toggleHabitToday(it) },
-                onHabitClick = { selectedHabitForDetail = it }
+                onHabitClick = { viewModel.setActiveDetailHabit(it) }
             )
         }
 
@@ -418,14 +417,7 @@ fun DashboardScreen(
         )
     }
 
-    selectedHabitForDetail?.let { habit ->
-        HabitDetailScreen(
-            habitId = habit.id,
-            viewModel = viewModel,
-            onBack = { selectedHabitForDetail = null },
-            onEditHabit = { selectedHabitForDetail = null }
-        )
-    }
+
 }
 
 @Composable

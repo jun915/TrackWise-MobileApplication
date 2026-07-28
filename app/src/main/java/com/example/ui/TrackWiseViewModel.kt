@@ -337,6 +337,7 @@ class TrackWiseViewModel(
         _habitToEdit.value = habit
         if (habit != null) {
             setWorkspaceSubTab(1) // Switch to Habit Sub-tab
+            _showHabitCreationSheet.value = true // Open the Habit creation dialog as editing!
         }
     }
 
@@ -839,11 +840,13 @@ class TrackWiseViewModel(
     val showHabitCreationSheet: StateFlow<Boolean> = _showHabitCreationSheet.asStateFlow()
 
     fun openHabitCreationSheet() {
+        _habitToEdit.value = null
         _showHabitCreationSheet.value = true
     }
 
     fun closeHabitCreationSheet() {
         _showHabitCreationSheet.value = false
+        _habitToEdit.value = null
     }
 
     fun openAddTaskSheet() {

@@ -347,6 +347,16 @@ fun AnalyticsScreen(
                     FolderProgressCard(tasks = tasks, habits = habits)
                 }
 
+                // --- 0.1 Habit Category Distribution Chart ---
+                item {
+                    HabitCategoryDistributionCard(habits = habits)
+                }
+
+                // --- 0.2 Tasks Priority & Completion Timeline Chart ---
+                item {
+                    TaskPriorityDistributionCard(tasks = tasks)
+                }
+
                 // --- 1. Habit Streak Chart (Top 5) ---
                 item {
                     HabitStreakCard(habits = habits)
@@ -4056,5 +4066,457 @@ data class FolderProgressItem(
     val totalItems: Int,
     val completedItems: Int,
     val progress: Float
+)
+
+// ==========================================
+// 15. Habit Category Distribution Chart (Interactive Donut & Detail Pane)
+// ==========================================
+@Composable
+fun HabitCategoryDistributionCard(habits: List<HabitEntity>) {
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+
+    val categoriesData = remember(habits) {
+        val groups = habits.groupBy { it.category.ifBlank { "Uncategorized" }.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() } }
+        groups.map { (cat, list) ->
+            val color = when (cat.lowercase()) {
+                "mindfulness", "mindset" -> Color(0xFF818CF8) // Indigo
+                "fitness", "health" -> Color(0xFFFF8A3D) // Orange
+                "study", "learning" -> Color(0xFFFCA5A5) // Coral/Rose
+                "finance", "wealth" -> Color(0xFF2DD4BF) // Teal
+                "life", "productivity" -> Color(0xFFA855F7) // Purple
+                else -> Color(0xFFFBBF24) // Amber
+            }
+            CategoryStats(
+                name = cat,
+                count = list.size,
+                habits = list,
+                color = color
+            )
+        }.sortedByDescending { it.count }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
+            ) {
+                Icon(Icons.Default.Category, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(20.dp))
+                Text("HABIT CATEGORIES BREAKDOWN", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+            }
+
+            if (categoriesData.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No habits found. Create a habit to view category analytics!", fontSize = 12.sp, color = Color.Gray)
+                }
+            } else {
+                val totalHabitsCount = habits.size
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Donut Chart Canvas
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val strokeWidth = 16.dp.toPx()
+                            val sizeMin = size.minDimension - strokeWidth
+                            val topLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
+                            val drawSize = Size(sizeMin, sizeMin)
+
+                            var currentAngle = -90f
+                            categoriesData.forEach { cat ->
+                                val sweepAngle = (cat.count.toFloat() / totalHabitsCount.toFloat()) * 360f
+                                val isHighlighted = selectedCategory == null || selectedCategory == cat.name
+                                val alpha = if (isHighlighted) 1.0f else 0.25f
+
+                                drawArc(
+                                    color = cat.color.copy(alpha = alpha),
+                                    startAngle = currentAngle,
+                                    sweepAngle = sweepAngle,
+                                    useCenter = false,
+                                    topLeft = topLeft,
+                                    size = drawSize,
+                                    style = Stroke(width = strokeWidth)
+                                )
+                                currentAngle += sweepAngle
+                            }
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            val activeCat = categoriesData.find { it.name == selectedCategory }
+                            if (activeCat != null) {
+                                Text(
+                                    text = "${activeCat.count}",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = activeCat.color
+                                )
+                                Text(
+                                    text = "habits",
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
+                                )
+                            } else {
+                                Text(
+                                    text = "$totalHabitsCount",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Total",
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+
+                    // Interactive Legends Column
+                    Column(
+                        modifier = Modifier.weight(1.2f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        categoriesData.forEach { cat ->
+                            val isSelected = selectedCategory == cat.name
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) cat.color.copy(alpha = 0.15f) else Color.Transparent)
+                                    .clickable {
+                                        selectedCategory = if (isSelected) null else cat.name
+                                    }
+                                    .padding(vertical = 4.dp, horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(cat.color)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = cat.name,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) cat.color else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = "${((cat.count.toFloat() / totalHabitsCount.toFloat()) * 100).toInt()}%",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                val currentSelectedCatStats = categoriesData.find { it.name == selectedCategory }
+                if (currentSelectedCatStats != null) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(currentSelectedCatStats.color.copy(alpha = 0.08f))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "Interactive Insights: ${currentSelectedCatStats.name}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = currentSelectedCatStats.color
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Best Streak", fontSize = 10.sp, color = Color.Gray)
+                                val bestStreak = currentSelectedCatStats.habits.maxOfOrNull { it.streak } ?: 0
+                                Text("🔥 $bestStreak Days", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Column {
+                                Text("Active Habits", fontSize = 10.sp, color = Color.Gray)
+                                Text("${currentSelectedCatStats.count} tracked", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Column {
+                                Text("Tap Legend", fontSize = 10.sp, color = Color.Gray)
+                                Text("To deselect ✖", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                            }
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .padding(10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "💡 Tap on a category legend above to explore deeper statistics!",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class CategoryStats(
+    val name: String,
+    val count: Int,
+    val habits: List<HabitEntity>,
+    val color: Color
+)
+
+// ==========================================
+// 16. Task Priority Completion Chart (Interactive Stacked Progress Tracks)
+// ==========================================
+@Composable
+fun TaskPriorityDistributionCard(tasks: List<TaskEntity>) {
+    var selectedPriority by remember { mutableStateOf<String?>(null) }
+
+    val priorityStatsList = remember(tasks) {
+        val priorityKeys = listOf("HIGH", "MEDIUM", "LOW", "NONE")
+        priorityKeys.map { prioKey ->
+            val list = tasks.filter { (it.priority ?: "NONE").uppercase() == prioKey }
+            val completed = list.count { it.completed }
+            val pending = list.size - completed
+            val color = when (prioKey) {
+                "HIGH" -> Color(0xFFEF4444) // Red
+                "MEDIUM" -> Color(0xFFF59E0B) // Amber
+                "LOW" -> Color(0xFF3B82F6) // Blue
+                else -> Color(0xFF94A3B8) // Slate Gray
+            }
+            PriorityStats(
+                key = prioKey,
+                label = when (prioKey) {
+                    "HIGH" -> "High Priority"
+                    "MEDIUM" -> "Medium Priority"
+                    "LOW" -> "Low Priority"
+                    else -> "No Priority"
+                },
+                total = list.size,
+                completed = completed,
+                pending = pending,
+                tasks = list,
+                color = color
+            )
+        }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
+            ) {
+                Icon(Icons.Default.ListAlt, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Text("TASK PRIORITY COMPLETION ANALYSIS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            }
+
+            if (tasks.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No tasks found. Add tasks to see priority graphs!", fontSize = 12.sp, color = Color.Gray)
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    priorityStatsList.forEach { pStats ->
+                        val isSelected = selectedPriority == pStats.key
+                        val ratio = if (pStats.total > 0) pStats.completed.toFloat() / pStats.total.toFloat() else 0f
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) pStats.color.copy(alpha = 0.08f) else Color.Transparent)
+                                .clickable {
+                                    selectedPriority = if (isSelected) null else pStats.key
+                                }
+                                .padding(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(pStats.color)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = pStats.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) pStats.color else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = "${pStats.completed}/${pStats.total} Done",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (pStats.total > 0) pStats.color else Color.Gray
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(12.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                if (pStats.total > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(ratio)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Brush.horizontalGradient(listOf(pStats.color, pStats.color.copy(alpha = 0.6f))))
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val activePrioStats = priorityStatsList.find { it.key == selectedPriority }
+                if (activePrioStats != null && activePrioStats.total > 0) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(activePrioStats.color.copy(alpha = 0.12f))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "TASKS UNDER ${activePrioStats.label.uppercase()}:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = activePrioStats.color
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            activePrioStats.tasks.take(4).forEach { task ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = if (task.completed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                        contentDescription = null,
+                                        tint = if (task.completed) activePrioStats.color else Color.Gray,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = task.title,
+                                        fontSize = 11.sp,
+                                        color = if (task.completed) Color.Gray else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        textDecoration = if (task.completed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                            if (activePrioStats.tasks.size > 4) {
+                                Text(
+                                    text = "And ${activePrioStats.tasks.size - 4} more...",
+                                    fontSize = 10.sp,
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                    color = Color.Gray,
+                                    modifier = Modifier.padding(start = 20.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .padding(10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "💡 Tap on any priority bar above to view associated tasks!",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class PriorityStats(
+    val key: String,
+    val label: String,
+    val total: Int,
+    val completed: Int,
+    val pending: Int,
+    val tasks: List<TaskEntity>,
+    val color: Color
 )
 

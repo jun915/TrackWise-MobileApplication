@@ -62,7 +62,6 @@ fun WorkspaceScreen(
     val subTabs = listOf("Tasks", "Habit", "Wishlist", "Countdown", "Timer & Stopwatch", "Grocery List")
     val focusManager = LocalFocusManager.current
     var subtaskTargetTask by remember { mutableStateOf<TaskEntity?>(null) }
-    var selectedHabitForDetail by remember { mutableStateOf<HabitEntity?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -91,7 +90,7 @@ fun WorkspaceScreen(
                     item {
                         HabitSection(
                             viewModel = viewModel,
-                            onHabitClick = { selectedHabitForDetail = it }
+                            onHabitClick = { viewModel.setActiveDetailHabit(it) }
                         )
                     }
                 }
@@ -299,16 +298,7 @@ fun WorkspaceScreen(
             )
         }
 
-        selectedHabitForDetail?.let { selectedHabit ->
-            HabitDetailScreen(
-                habitId = selectedHabit.id,
-                viewModel = viewModel,
-                onBack = { selectedHabitForDetail = null },
-                onEditHabit = { habitToEdit ->
-                    selectedHabitForDetail = null
-                }
-            )
-        }
+
     }
 }
 
@@ -1420,24 +1410,39 @@ fun HabitCard(
 
                     Column {
                         Text("Background Illustration Style", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             val bgOptions = listOf(
                                 "window" to "🌅 Window",
                                 "fitness" to "🏃 Track",
                                 "mindfulness" to "🌸 Lotus",
                                 "study" to "📚 Desk",
-                                "finance" to "💰 Wealth"
+                                "finance" to "💰 Wealth",
+                                "nature" to "🌲 Peak",
+                                "creativity" to "🎨 Art",
+                                "rest" to "🌙 Night",
+                                "nutrition" to "🍎 Health"
                             )
                             bgOptions.forEach { (id, label) ->
                                 val isSel = editBackgroundImage == id
                                 Card(
                                     colors = CardDefaults.cardColors(containerColor = if (isSel) BrandOrange else MaterialTheme.colorScheme.surfaceVariant),
                                     modifier = Modifier
-                                        .weight(1f)
                                         .clickable { editBackgroundImage = id }
                                 ) {
-                                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                        Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 8.dp), color = if (isSel) Color.White else MaterialTheme.colorScheme.onBackground)
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onBackground
+                                        )
                                     }
                                 }
                             }

@@ -121,27 +121,56 @@ fun HabitCreationFlowDialog(
             dismissOnClickOutside = false
         )
     ) {
-        var currentStep by remember { mutableIntStateOf(0) } // 0: Gallery, 1: Step 1 (Name/Icon/Quote), 2: Step 2 (Frequency/Settings)
+        val habitToEdit by viewModel.habitToEdit.collectAsState()
+
+        var currentStep by remember(habitToEdit) { mutableIntStateOf(if (habitToEdit != null) 1 else 0) } // 0: Gallery, 1: Step 1 (Name/Icon/Quote), 2: Step 2 (Frequency/Settings)
 
         // Form state
         var galleryCategory by remember { mutableStateOf("Suggested") }
-        var habitName by remember { mutableStateOf("") }
-        var selectedIcon by remember { mutableStateOf("😊") }
-        var currentQuote by remember { mutableStateOf("") }
-        var habitCategory by remember { mutableStateOf("Suggested") }
+        var habitName by remember(habitToEdit) { mutableStateOf(habitToEdit?.name ?: "") }
+        var selectedIcon by remember(habitToEdit) { mutableStateOf(habitToEdit?.icon ?: "😊") }
+        var currentQuote by remember(habitToEdit) { mutableStateOf(habitToEdit?.quote ?: "") }
+        var habitCategory by remember(habitToEdit) { mutableStateOf(habitToEdit?.category ?: "Suggested") }
 
         // Step 2 state
-        var frequencyType by remember { mutableStateOf("DAILY") } // DAILY, WEEKLY, INTERVAL
-        var selectedDaysOfWeek by remember { mutableStateOf(setOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")) }
-        var daysPerWeek by remember { mutableIntStateOf(2) }
-        var intervalDays by remember { mutableIntStateOf(2) }
+        var frequencyType by remember(habitToEdit) { 
+            mutableStateOf(
+                if (habitToEdit != null) {
+                    when (habitToEdit!!.repeatType) {
+                        "daily" -> "DAILY"
+                        "weekly" -> "WEEKLY"
+                        "custom" -> "INTERVAL"
+                        else -> "DAILY"
+                    }
+                } else "DAILY"
+            ) 
+        } // DAILY, WEEKLY, INTERVAL
+        var selectedDaysOfWeek by remember(habitToEdit) { 
+            mutableStateOf(
+                if (habitToEdit?.customRepeatDaysOfWeek != null) {
+                    habitToEdit!!.customRepeatDaysOfWeek!!.split(",").toSet()
+                } else setOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+            ) 
+        }
+        var daysPerWeek by remember(habitToEdit) { mutableIntStateOf(if (habitToEdit != null && habitToEdit!!.customRepeatUnit == "weeks") habitToEdit!!.customRepeatValue else 2) }
+        var intervalDays by remember(habitToEdit) { mutableIntStateOf(if (habitToEdit != null && habitToEdit!!.customRepeatUnit == "days") habitToEdit!!.customRepeatValue else 2) }
 
-        var goalType by remember { mutableStateOf("Achieve it all") } // "Achieve it all", "Reach a certain amount"
-        var goalAmount by remember { mutableIntStateOf(1) }
-        var startDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
-        var goalDays by remember { mutableStateOf("Forever") }
+        var goalType by remember(habitToEdit) { 
+            mutableStateOf(
+                if (habitToEdit != null && habitToEdit!!.isMultipleTimesPerDay) "Reach a certain amount" else "Achieve it all"
+            ) 
+        } // "Achieve it all", "Reach a certain amount"
+        var goalAmount by remember(habitToEdit) { mutableIntStateOf(habitToEdit?.multipleTimesTarget ?: 1) }
+        var startDate by remember(habitToEdit) { mutableStateOf(habitToEdit?.startDate ?: TrackWiseUtils.getTodayString()) }
+        var goalDays by remember(habitToEdit) { mutableStateOf(habitToEdit?.endDate ?: "Forever") }
 
-        var selectedFolders by remember { mutableStateOf(setOf("Inbox")) }
+        var selectedFolders by remember(habitToEdit) { 
+            mutableStateOf(
+                if (!habitToEdit?.section.isNullOrBlank()) {
+                    habitToEdit!!.section.split(",").toSet()
+                } else setOf("Inbox")
+            ) 
+        }
         val tasks by viewModel.allTasks.collectAsState()
         val customFolders by viewModel.customFolders.collectAsState()
         val allFolders = remember(tasks, customFolders) {
@@ -152,7 +181,13 @@ fun HabitCreationFlowDialog(
 
         var customTagInput by remember { mutableStateOf("") }
 
-        var reminderTimes by remember { mutableStateOf(mutableListOf<String>()) }
+        var reminderTimes by remember(habitToEdit) { 
+            mutableStateOf(
+                if (habitToEdit != null && habitToEdit!!.remindMe && !habitToEdit!!.reminderTime.isNullOrBlank()) {
+                    mutableListOf(habitToEdit!!.reminderTime!!)
+                } else mutableListOf<String>()
+            ) 
+        }
         var autoPopupLog by remember { mutableStateOf(false) }
 
         // Dialogs inside step 2
@@ -183,7 +218,7 @@ fun HabitCreationFlowDialog(
                 TopAppBar(
                     title = {
                         Text(
-                            text = if (currentStep == 0) "Gallery" else "New Habit",
+                            text = if (currentStep == 0) "Gallery" else if (habitToEdit != null) "Edit Habit" else "New Habit",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
                             color = textColor
@@ -192,7 +227,7 @@ fun HabitCreationFlowDialog(
                     navigationIcon = {
                         IconButton(
                             onClick = {
-                                if (currentStep == 0) {
+                                if (currentStep == 0 || (currentStep == 1 && habitToEdit != null)) {
                                     onDismiss()
                                 } else {
                                     currentStep -= 1
@@ -993,25 +1028,47 @@ fun HabitCreationFlowDialog(
                                     }
                                     val customDays = if (frequencyType == "DAILY") selectedDaysOfWeek.joinToString(",") else null
 
-                                    viewModel.addHabit(
-                                        name = habitName,
-                                        category = habitCategory,
-                                        isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
-                                        multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
-                                        repeatType = repeatTypeVal,
-                                        customRepeatValue = if (frequencyType == "INTERVAL") intervalDays else daysPerWeek,
-                                        customRepeatUnit = if (frequencyType == "INTERVAL") "days" else "weeks",
-                                        customRepeatDaysOfWeek = customDays,
-                                        startDate = startDate,
-                                        remindMe = reminderTimes.isNotEmpty(),
-                                        reminderTime = reminderTimes.firstOrNull(),
-                                        icon = selectedIcon,
-                                        quote = currentQuote,
-                                        goalType = goalType,
-                                        goalDays = goalDays,
-                                        section = if (selectedFolders.isEmpty()) "Inbox" else selectedFolders.joinToString(","),
-                                        autoPopup = false
-                                    )
+                                    if (habitToEdit != null) {
+                                        val updated = habitToEdit!!.copy(
+                                            name = habitName,
+                                            category = habitCategory,
+                                            isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
+                                            multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
+                                            repeatType = repeatTypeVal,
+                                            customRepeatValue = if (frequencyType == "INTERVAL") intervalDays else daysPerWeek,
+                                            customRepeatUnit = if (frequencyType == "INTERVAL") "days" else "weeks",
+                                            customRepeatDaysOfWeek = customDays,
+                                            startDate = startDate,
+                                            remindMe = reminderTimes.isNotEmpty(),
+                                            reminderTime = reminderTimes.firstOrNull(),
+                                            icon = selectedIcon,
+                                            quote = currentQuote,
+                                            goalType = goalType,
+                                            goalDays = goalDays,
+                                            section = if (selectedFolders.isEmpty()) "Inbox" else selectedFolders.joinToString(",")
+                                        )
+                                        viewModel.updateHabit(updated)
+                                    } else {
+                                        viewModel.addHabit(
+                                            name = habitName,
+                                            category = habitCategory,
+                                            isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
+                                            multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
+                                            repeatType = repeatTypeVal,
+                                            customRepeatValue = if (frequencyType == "INTERVAL") intervalDays else daysPerWeek,
+                                            customRepeatUnit = if (frequencyType == "INTERVAL") "days" else "weeks",
+                                            customRepeatDaysOfWeek = customDays,
+                                            startDate = startDate,
+                                            remindMe = reminderTimes.isNotEmpty(),
+                                            reminderTime = reminderTimes.firstOrNull(),
+                                            icon = selectedIcon,
+                                            quote = currentQuote,
+                                            goalType = goalType,
+                                            goalDays = goalDays,
+                                            section = if (selectedFolders.isEmpty()) "Inbox" else selectedFolders.joinToString(","),
+                                            autoPopup = false
+                                        )
+                                    }
 
                                     onDismiss()
                                 }
@@ -1028,7 +1085,7 @@ fun HabitCreationFlowDialog(
                             text = when (currentStep) {
                                 0 -> "Create a new habit"
                                 1 -> "Next"
-                                else -> "Save"
+                                else -> if (habitToEdit != null) "Save Changes" else "Save"
                             },
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,

@@ -13,6 +13,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
@@ -97,6 +99,10 @@ fun HabitDetailScreen(
             "mindfulness" -> Color(0xFF4F46E5)
             "study" -> Color(0xFF6366F1)
             "finance" -> Color(0xFF0F766E)
+            "nature" -> Color(0xFF059669)
+            "creativity" -> Color(0xFF8B5CF6)
+            "rest" -> Color(0xFF1E1B4B)
+            "nutrition" -> Color(0xFFEF4444)
             else -> {
                 when (habit.category.lowercase()) {
                     "health", "fitness" -> Color(0xFF4ADE80)
@@ -150,14 +156,18 @@ fun HabitDetailScreen(
                         Triple("fitness", "Running Track", Color(0xFFFDBA74)),
                         Triple("mindfulness", "Serene Lotus", Color(0xFF818CF8)),
                         Triple("study", "Study Desk", Color(0xFFFCA5A5)),
-                        Triple("finance", "Wealth Growth", Color(0xFF2DD4BF))
+                        Triple("finance", "Wealth Growth", Color(0xFF2DD4BF)),
+                        Triple("nature", "Mountain Peak", Color(0xFF059669)),
+                        Triple("creativity", "Art Palette", Color(0xFF8B5CF6)),
+                        Triple("rest", "Starry Night", Color(0xFF1E1B4B)),
+                        Triple("nutrition", "Healthy Apple", Color(0xFFEF4444))
                     )
 
                     Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(280.dp)
+                            .height(360.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
                         options.chunked(2).forEach { pair ->
@@ -300,24 +310,11 @@ fun HabitDetailScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Change Background Image", color = Color.Black, fontWeight = FontWeight.Medium) },
+                            text = { Text("Background", color = Color.Black, fontWeight = FontWeight.Medium) },
                             leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = Color.DarkGray) },
                             onClick = {
                                 showMenu = false
                                 showBgSelectorDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Share", color = Color.Black, fontWeight = FontWeight.Medium) },
-                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, tint = Color.DarkGray) },
-                            onClick = {
-                                showMenu = false
-                                val sendIntent: Intent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, "I am tracking '${habit.name}' on TrackWise! Current Streak: ${habit.streak} days.")
-                                    type = "text/plain"
-                                }
-                                context.startActivity(Intent.createChooser(sendIntent, null))
                             }
                         )
                         DropdownMenuItem(
@@ -347,7 +344,14 @@ fun HabitDetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 24.dp),
+                        .padding(horizontal = 24.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures { _, dragAmount ->
+                                if (dragAmount < -10) {
+                                    isExpandedSheet = true
+                                }
+                            }
+                        },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -430,26 +434,6 @@ fun HabitDetailScreen(
                                     StatMetricItem(number = "${habit.streak.coerceAtLeast(1)}", label = "Best Streak")
                                     StatMetricItem(number = "${habit.streak}", label = "Streak")
                                 }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Button(
-                                    onClick = {
-                                        val sendIntent: Intent = Intent().apply {
-                                            action = Intent.ACTION_SEND
-                                            putExtra(Intent.EXTRA_TEXT, "Completed '${habit.name}' today! 🎉 Streak: ${habit.streak} days.")
-                                            type = "text/plain"
-                                        }
-                                        context.startActivity(Intent.createChooser(sendIntent, null))
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = themeBgColor),
-                                    shape = RoundedCornerShape(16.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp)
-                                ) {
-                                    Text("Share", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                }
                             }
                         }
                     } else {
@@ -470,6 +454,13 @@ fun HabitDetailScreen(
                             .padding(bottom = 12.dp)
                             .size(44.dp)
                             .clip(CircleShape)
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures { _, dragAmount ->
+                                    if (dragAmount < -10) {
+                                        isExpandedSheet = true
+                                    }
+                                }
+                            }
                             .clickable { isExpandedSheet = true },
                         contentAlignment = Alignment.Center
                     ) {
@@ -517,55 +508,6 @@ fun HabitDetailScreen(
                     // CARD 2: CHECK-INS STATISTICS CARD
                     item {
                         HabitCheckInStatisticsCard(habit = habit, daysCompleted = daysCompleted)
-                    }
-
-                    // CARD 3: HABIT LOG ON MONTH
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(20.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Text(
-                                    text = "Habit Log on ${SimpleDateFormat("MMMM", Locale.getDefault()).format(Date())}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color.Black
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "No check-in thoughts to share this month yet",
-                                    fontSize = 13.sp,
-                                    color = Color.Gray
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    OutlinedTextField(
-                                        value = habitLogInput,
-                                        onValueChange = { habitLogInput = it },
-                                        placeholder = { Text("Write a check-in thought...", fontSize = 12.sp) },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(48.dp),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Button(
-                                        onClick = {
-                                            if (habitLogInput.isNotBlank()) {
-                                                Toast.makeText(context, "Log saved!", Toast.LENGTH_SHORT).show()
-                                                habitLogInput = ""
-                                            }
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = themeBgColor)
-                                    ) {
-                                        Text("Save", fontSize = 12.sp)
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -877,6 +819,167 @@ fun HabitBackgroundIllustration(imageName: String, isAchieved: Boolean, modifier
                     drawCircle(color = Color(0xFFFEF08A), radius = 10f, center = Offset(w * 0.66f, h * 0.84f))
                 }
             }
+            "nature" -> {
+                val archPath = Path().apply {
+                    moveTo(w * 0.2f, h * 0.9f)
+                    lineTo(w * 0.2f, h * 0.4f)
+                    cubicTo(w * 0.2f, h * 0.1f, w * 0.8f, h * 0.1f, w * 0.8f, h * 0.4f)
+                    lineTo(w * 0.8f, h * 0.9f)
+                    close()
+                }
+                drawPath(path = archPath, color = Color(0xFF059669)) // Emerald Green
+
+                // Sun rising behind mountain
+                drawCircle(color = Color(0xFFFDE047), radius = w * 0.16f, center = Offset(w * 0.5f, h * 0.45f))
+
+                // Mountains
+                val mountain1 = Path().apply {
+                    moveTo(w * 0.2f, h * 0.9f)
+                    lineTo(w * 0.45f, h * 0.55f)
+                    lineTo(w * 0.7f, h * 0.9f)
+                    close()
+                }
+                drawPath(path = mountain1, color = Color(0xFF065F46)) // Darker Forest Green
+
+                val mountain2 = Path().apply {
+                    moveTo(w * 0.35f, h * 0.9f)
+                    lineTo(w * 0.65f, h * 0.48f)
+                    lineTo(w * 0.8f, h * 0.9f)
+                    close()
+                }
+                drawPath(path = mountain2, color = Color(0xFF047857)) // Intermediate Forest Green
+
+                // Little pine trees
+                if (isAchieved) {
+                    val tree = Path().apply {
+                        moveTo(w * 0.3f, h * 0.85f)
+                        lineTo(w * 0.34f, h * 0.77f)
+                        lineTo(w * 0.38f, h * 0.85f)
+                        close()
+                    }
+                    drawPath(path = tree, color = Color(0xFF064E3B))
+                }
+
+                // Frame
+                drawPath(path = archPath, color = Color.White, style = Stroke(width = 8.dp.toPx()))
+            }
+            "creativity" -> {
+                val archPath = Path().apply {
+                    moveTo(w * 0.2f, h * 0.9f)
+                    lineTo(w * 0.2f, h * 0.4f)
+                    cubicTo(w * 0.2f, h * 0.1f, w * 0.8f, h * 0.1f, w * 0.8f, h * 0.4f)
+                    lineTo(w * 0.8f, h * 0.9f)
+                    close()
+                }
+                drawPath(path = archPath, color = Color(0xFF7C3AED)) // Violet/Purple
+
+                // Palette body
+                val palettePath = Path().apply {
+                    moveTo(w * 0.3f, h * 0.65f)
+                    cubicTo(w * 0.3f, h * 0.45f, w * 0.7f, h * 0.45f, w * 0.7f, h * 0.65f)
+                    cubicTo(w * 0.7f, h * 0.75f, w * 0.6f, h * 0.82f, w * 0.5f, h * 0.82f)
+                    cubicTo(w * 0.44f, h * 0.82f, w * 0.42f, h * 0.76f, w * 0.38f, h * 0.76f)
+                    cubicTo(w * 0.34f, h * 0.76f, w * 0.3f, h * 0.72f, w * 0.3f, h * 0.65f)
+                    close()
+                }
+                drawPath(path = palettePath, color = Color(0xFFFDE047)) // Yellow Wooden Palette
+
+                // Thumb hole
+                drawCircle(color = Color(0xFF7C3AED), radius = 10f, center = Offset(w * 0.44f, h * 0.74f))
+
+                // Paint dabs
+                drawCircle(color = Color(0xFFEF4444), radius = 10f, center = Offset(w * 0.38f, h * 0.58f)) // Red
+                drawCircle(color = Color(0xFF3B82F6), radius = 10f, center = Offset(w * 0.5f, h * 0.54f)) // Blue
+                drawCircle(color = Color(0xFF10B981), radius = 10f, center = Offset(w * 0.62f, h * 0.58f)) // Green
+
+                // Creative Sparkles if achieved
+                if (isAchieved) {
+                    drawCircle(color = Color.White, radius = 6f, center = Offset(w * 0.5f, h * 0.3f))
+                    drawCircle(color = Color.White, radius = 4f, center = Offset(w * 0.32f, h * 0.35f))
+                    drawCircle(color = Color.White, radius = 4f, center = Offset(w * 0.68f, h * 0.35f))
+                }
+
+                // Frame
+                drawPath(path = archPath, color = Color.White, style = Stroke(width = 8.dp.toPx()))
+            }
+            "rest" -> {
+                val archPath = Path().apply {
+                    moveTo(w * 0.2f, h * 0.9f)
+                    lineTo(w * 0.2f, h * 0.4f)
+                    cubicTo(w * 0.2f, h * 0.1f, w * 0.8f, h * 0.1f, w * 0.8f, h * 0.4f)
+                    lineTo(w * 0.8f, h * 0.9f)
+                    close()
+                }
+                drawPath(path = archPath, color = Color(0xFF1E1B4B)) // Midnight Navy
+
+                // Crescent Moon
+                drawCircle(color = Color(0xFFFDE047), radius = w * 0.15f, center = Offset(w * 0.45f, h * 0.35f))
+                drawCircle(color = Color(0xFF1E1B4B), radius = w * 0.15f, center = Offset(w * 0.51f, h * 0.32f))
+
+                // Fluffy clouds
+                val cloud1 = Path().apply {
+                    moveTo(w * 0.25f, h * 0.85f)
+                    cubicTo(w * 0.2f, h * 0.75f, w * 0.45f, h * 0.7f, w * 0.5f, h * 0.78f)
+                    cubicTo(w * 0.55f, h * 0.72f, w * 0.75f, h * 0.75f, w * 0.75f, h * 0.85f)
+                    close()
+                }
+                drawPath(path = cloud1, color = Color(0xFF475569).copy(alpha = 0.5f))
+
+                // Stars
+                drawCircle(color = Color.White, radius = 4f, center = Offset(w * 0.3f, h * 0.22f))
+                drawCircle(color = Color.White, radius = 5f, center = Offset(w * 0.7f, h * 0.28f))
+                drawCircle(color = Color.White, radius = 3f, center = Offset(w * 0.65f, h * 0.18f))
+
+                if (isAchieved) {
+                    // Extra magical floating stars
+                    drawCircle(color = Color(0xFFFDE047), radius = 6f, center = Offset(w * 0.35f, h * 0.55f))
+                    drawCircle(color = Color(0xFFFDE047), radius = 6f, center = Offset(w * 0.62f, h * 0.52f))
+                }
+
+                // Frame
+                drawPath(path = archPath, color = Color.White, style = Stroke(width = 8.dp.toPx()))
+            }
+            "nutrition" -> {
+                val archPath = Path().apply {
+                    moveTo(w * 0.2f, h * 0.9f)
+                    lineTo(w * 0.2f, h * 0.4f)
+                    cubicTo(w * 0.2f, h * 0.1f, w * 0.8f, h * 0.1f, w * 0.8f, h * 0.4f)
+                    lineTo(w * 0.8f, h * 0.9f)
+                    close()
+                }
+                drawPath(path = archPath, color = Color(0xFFEF4444)) // Crimson Red
+
+                // Draw Apple shape
+                drawCircle(color = Color(0xFFDC2626), radius = 30f, center = Offset(w * 0.44f, h * 0.58f))
+                drawCircle(color = Color(0xFFDC2626), radius = 30f, center = Offset(w * 0.56f, h * 0.58f))
+
+                // Apple stem
+                val stem = Path().apply {
+                    moveTo(w * 0.5f, h * 0.5f)
+                    cubicTo(w * 0.52f, h * 0.44f, w * 0.56f, h * 0.42f, w * 0.58f, h * 0.38f)
+                }
+                drawPath(path = stem, color = Color(0xFF78350F), style = Stroke(width = 4.dp.toPx()))
+
+                // Green leaf
+                val leaf = Path().apply {
+                    moveTo(w * 0.54f, h * 0.45f)
+                    cubicTo(w * 0.52f, h * 0.42f, w * 0.55f, h * 0.38f, w * 0.62f, h * 0.38f)
+                    cubicTo(w * 0.65f, h * 0.42f, w * 0.62f, h * 0.46f, w * 0.54f, h * 0.45f)
+                }
+                drawPath(path = leaf, color = Color(0xFF10B981))
+
+                // Shiny apple spot
+                drawCircle(color = Color.White.copy(alpha = 0.6f), radius = 8f, center = Offset(w * 0.38f, h * 0.52f))
+
+                if (isAchieved) {
+                    // Sparkling magic
+                    drawCircle(color = Color(0xFFFEF08A), radius = 6f, center = Offset(w * 0.32f, h * 0.74f))
+                    drawCircle(color = Color(0xFFFEF08A), radius = 6f, center = Offset(w * 0.68f, h * 0.72f))
+                }
+
+                // Frame
+                drawPath(path = archPath, color = Color.White, style = Stroke(width = 8.dp.toPx()))
+            }
             else -> {
                 val archPath = Path().apply {
                     moveTo(w * 0.2f, h * 0.9f)
@@ -1049,6 +1152,7 @@ fun HabitMonthCalendarCard(daysCompleted: List<String>) {
                             if (dayNum in 1..daysInMonth) {
                                 val dayStr = String.format(Locale.US, "%s-%02d", currentYearMonthPrefix, dayNum)
                                 val isCheckedIn = daysCompleted.contains(dayStr)
+                                val isToday = dayStr == TrackWiseUtils.getTodayString()
 
                                 Box(
                                     modifier = Modifier
@@ -1056,14 +1160,18 @@ fun HabitMonthCalendarCard(daysCompleted: List<String>) {
                                         .clip(CircleShape)
                                         .background(
                                             if (isCheckedIn) Color(0xFF38BDF8) else Color(0xFFF1F5F9)
+                                        )
+                                        .then(
+                                            if (isToday) Modifier.border(2.dp, Color(0xFF0284C7), CircleShape)
+                                            else Modifier
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = "$dayNum",
                                         fontSize = 13.sp,
-                                        fontWeight = if (isCheckedIn) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isCheckedIn) Color.White else Color.Black
+                                        fontWeight = if (isCheckedIn || isToday) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCheckedIn) Color.White else if (isToday) Color(0xFF0284C7) else Color.Black
                                     )
                                 }
                             } else {
@@ -1102,12 +1210,6 @@ fun HabitCheckInStatisticsCard(habit: HabitEntity, daysCompleted: List<String>) 
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = Color.Black
-                )
-                Text(
-                    text = "More >",
-                    fontSize = 12.sp,
-                    color = Color.Gray,
-                    fontWeight = FontWeight.Medium
                 )
             }
 
