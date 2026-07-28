@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -26,13 +28,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.utils.TrackWiseUtils
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 
 data class HabitTemplate(
     val name: String,
@@ -84,15 +89,14 @@ val GALLERY_TEMPLATES = mapOf(
 )
 
 val ICON_OPTIONS = listOf(
-    "😊", "🥛", "🍞", "🍚", "🍌", "🥕", "🍦", "🚫", "🌙", "🏃",
-    "🧘", "🤸", "🦵", "🚴", "🏊", "📖", "✏️", "📓", "💵", "📋",
-    "📞", "👍", "📷", "👁️", "🦷", "🚿", "🧹", "⭐", "📹", "📺",
-    "🎵", "🚶", "🐕", "🐈", "🎬", "📄", "🚭", "💖", "☀️", "💊",
-    "💡", "🚀", "🔥", "🎯", "🎨", "💻", "🧠", "🌱", "🧘‍♀️", "💪",
-    "🍎", "🥗", "🍵", "🧺", "⏰", "📅", "📝", "✍️", "🧩", "🎳",
-    "🎮", "⚽", "🏀", "👟", "👚", "🧴", "💤", "🛌", "🧗", "🛹",
-    "🎸", "🎻", "🎤", "🎧", "🏋️", "🚶‍♂️", "🚴‍♂️", "🧘‍♂️", "🛌", "🙏"
-)
+    "😊", "🥛", "🍞", "🍚", "🍌", "🥕", "🍦", "🌙", "🏃", "🧘",
+    "🚴", "🏊", "📖", "✏️", "📓", "💵", "📋", "📞", "👍", "📷",
+    "👁️", "🦷", "🚿", "🧹", "⭐", "📹", "📺", "🎵", "🚶", "🐕",
+    "🐈", "🎬", "📄", "💖", "☀️", "💊", "💡", "🚀", "🔥", "🎯",
+    "🎨", "💻", "🧠", "🌱", "💪", "🍎", "🥗", "🍵", "⏰", "📅",
+    "📝", "✍️", "🧩", "🎳", "🎮", "⚽", "🏀", "👟", "👚", "🧴",
+    "💤", "🛌", "🧗", "🛹", "🎸", "🎻", "🎤", "🎧", "🏋️", "🙏"
+).distinct()
 
 val MOTIVATIONAL_QUOTES = listOf(
     "Believe in yourself.",
@@ -133,27 +137,47 @@ fun HabitCreationFlowDialog(
         var habitCategory by remember(habitToEdit) { mutableStateOf(habitToEdit?.category ?: "Suggested") }
 
         // Step 2 state
-        var frequencyType by remember(habitToEdit) { 
+        var selectedFrequencyOption by remember(habitToEdit) { 
             mutableStateOf(
                 if (habitToEdit != null) {
-                    when (habitToEdit!!.repeatType) {
+                    when (habitToEdit!!.repeatType.lowercase()) {
                         "daily" -> "DAILY"
+                        "weekdays" -> "WEEKDAYS"
                         "weekly" -> "WEEKLY"
-                        "custom" -> "INTERVAL"
+                        "monthly" -> "MONTHLY"
+                        "yearly" -> "YEARLY"
+                        "custom" -> "CUSTOM"
                         else -> "DAILY"
                     }
                 } else "DAILY"
             ) 
-        } // DAILY, WEEKLY, INTERVAL
-        var selectedDaysOfWeek by remember(habitToEdit) { 
-            mutableStateOf(
-                if (habitToEdit?.customRepeatDaysOfWeek != null) {
-                    habitToEdit!!.customRepeatDaysOfWeek!!.split(",").toSet()
-                } else setOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+        }
+
+        var customRepeatValueState by remember(habitToEdit) { 
+            mutableIntStateOf(
+                if (habitToEdit != null && habitToEdit!!.repeatType.equals("custom", ignoreCase = true)) {
+                    habitToEdit!!.customRepeatValue.coerceAtLeast(1)
+                } else 1
             ) 
         }
-        var daysPerWeek by remember(habitToEdit) { mutableIntStateOf(if (habitToEdit != null && habitToEdit!!.customRepeatUnit == "weeks") habitToEdit!!.customRepeatValue else 2) }
-        var intervalDays by remember(habitToEdit) { mutableIntStateOf(if (habitToEdit != null && habitToEdit!!.customRepeatUnit == "days") habitToEdit!!.customRepeatValue else 2) }
+
+        var customRepeatUnitState by remember(habitToEdit) { 
+            mutableStateOf(
+                if (habitToEdit != null && habitToEdit!!.repeatType.equals("custom", ignoreCase = true) && habitToEdit!!.customRepeatUnit.isNotBlank()) {
+                    habitToEdit!!.customRepeatUnit.lowercase()
+                } else "days"
+            ) 
+        }
+
+        var customSelectedDaysOfWeek by remember(habitToEdit) { 
+            mutableStateOf(
+                if (habitToEdit != null && !habitToEdit?.customRepeatDaysOfWeek.isNullOrBlank()) {
+                    habitToEdit!!.customRepeatDaysOfWeek!!.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+                } else setOf("Tue")
+            ) 
+        }
+
+        var showCustomRepeatDialog by remember { mutableStateOf(false) }
 
         var goalType by remember(habitToEdit) { 
             mutableStateOf(
@@ -571,6 +595,36 @@ fun HabitCreationFlowDialog(
                             ) {
                                 // Card 1: Frequency
                                 item {
+                                    val parsedStart = remember(startDate) {
+                                        try {
+                                            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                                            val date = sdf.parse(startDate)
+                                            Calendar.getInstance().apply { if (date != null) time = date }
+                                        } catch (e: Exception) {
+                                            Calendar.getInstance()
+                                        }
+                                    }
+
+                                    val dayOfWeekName = remember(parsedStart) {
+                                        SimpleDateFormat("EEEE", Locale.getDefault()).format(parsedStart.time)
+                                    }
+
+                                    val dayOfMonthFormatted = remember(parsedStart) {
+                                        val day = parsedStart.get(Calendar.DAY_OF_MONTH)
+                                        val suffix = when {
+                                            day in 11..13 -> "th"
+                                            day % 10 == 1 -> "st"
+                                            day % 10 == 2 -> "nd"
+                                            day % 10 == 3 -> "rd"
+                                            else -> "th"
+                                        }
+                                        "$day$suffix"
+                                    }
+
+                                    val monthAndDayFormatted = remember(parsedStart) {
+                                        SimpleDateFormat("MMM d", Locale.getDefault()).format(parsedStart.time)
+                                    }
+
                                     Card(
                                         shape = RoundedCornerShape(16.dp),
                                         colors = CardDefaults.cardColors(containerColor = surfaceColor),
@@ -586,140 +640,82 @@ fun HabitCreationFlowDialog(
                                             )
                                             Spacer(modifier = Modifier.height(12.dp))
 
-                                            // Frequency Tabs (DAILY, WEEKLY, INTERVAL)
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                listOf("DAILY", "WEEKLY", "INTERVAL").forEach { type ->
-                                                    val isSelected = frequencyType == type
-                                                    Column(
-                                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                                        modifier = Modifier.clickable { frequencyType = type }
-                                                    ) {
-                                                        Text(
-                                                            text = type,
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                            color = if (isSelected) primaryColor else onSurfaceVariantColor
-                                                        )
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                        if (isSelected) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .width(28.dp)
-                                                                    .height(3.dp)
-                                                                    .clip(RoundedCornerShape(2.dp))
-                                                                    .background(primaryColor)
-                                                            )
-                                                        }
-                                                    }
+                                            val customSub = if (selectedFrequencyOption == "CUSTOM") {
+                                                when (customRepeatUnitState) {
+                                                    "days" -> "Every $customRepeatValueState day${if (customRepeatValueState > 1) "s" else ""}"
+                                                    "weeks" -> "Every $customRepeatValueState week${if (customRepeatValueState > 1) "s" else ""}" + (if (customSelectedDaysOfWeek.isNotEmpty()) " on ${customSelectedDaysOfWeek.joinToString(", ")}" else "")
+                                                    "months" -> "Every $customRepeatValueState month${if (customRepeatValueState > 1) "s" else ""}"
+                                                    "years" -> "Every $customRepeatValueState year${if (customRepeatValueState > 1) "s" else ""}"
+                                                    else -> "Custom repeat schedule"
                                                 }
-                                            }
+                                            } else "Custom repeat schedule..."
 
-                                            Spacer(modifier = Modifier.height(16.dp))
+                                            val options = listOf(
+                                                "DAILY" to ("Daily" to "Every day"),
+                                                "WEEKDAYS" to ("Weekdays" to "Saturday and Sunday off"),
+                                                "WEEKLY" to ("Weekly" to "Same day of every week ($dayOfWeekName)"),
+                                                "MONTHLY" to ("Monthly" to "Same date of every month ($dayOfMonthFormatted)"),
+                                                "YEARLY" to ("Yearly" to "Same date of every year ($monthAndDayFormatted)"),
+                                                "CUSTOM" to ("Custom" to customSub)
+                                            )
 
-                                            // Content based on Frequency Tab
-                                            when (frequencyType) {
-                                                "DAILY" -> {
-                                                    // Day Selector S M T W T F S with unique keys to fix the duplicate day selection bug
-                                                    Row(
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        modifier = Modifier.fillMaxWidth()
-                                                    ) {
-                                                        val daysList = listOf(
-                                                            "Sun" to "S",
-                                                            "Mon" to "M",
-                                                            "Tue" to "T",
-                                                            "Wed" to "W",
-                                                            "Thu" to "T",
-                                                            "Fri" to "F",
-                                                            "Sat" to "S"
-                                                        )
-                                                        daysList.forEach { (dayId, dayLabel) ->
-                                                            val isSelected = selectedDaysOfWeek.contains(dayId)
-                                                            Box(
-                                                                contentAlignment = Alignment.Center,
-                                                                modifier = Modifier
-                                                                    .size(40.dp)
-                                                                    .clip(CircleShape)
-                                                                    .background(
-                                                                        if (isSelected) primaryColor else MaterialTheme.colorScheme.surfaceVariant
-                                                                    )
-                                                                    .clickable {
-                                                                        val newSet = selectedDaysOfWeek.toMutableSet()
-                                                                        if (isSelected) newSet.remove(dayId)
-                                                                        else newSet.add(dayId)
-                                                                        selectedDaysOfWeek = newSet
-                                                                    }
-                                                            ) {
-                                                                Text(
-                                                                    text = dayLabel,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = if (isSelected) Color.White else onSurfaceColor
-                                                                )
+                                            options.forEach { (optionKey, titleSubPair) ->
+                                                val (optionTitle, optionSubtitle) = titleSubPair
+                                                val isSelected = selectedFrequencyOption == optionKey
+
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clickable {
+                                                            if (optionKey == "CUSTOM") {
+                                                                selectedFrequencyOption = "CUSTOM"
+                                                                showCustomRepeatDialog = true
+                                                            } else {
+                                                                selectedFrequencyOption = optionKey
                                                             }
                                                         }
-                                                    }
-                                                }
-                                                "WEEKLY" -> {
-                                                    // X days per week selector
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.Center,
-                                                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                                                    ) {
-                                                        IconButton(
-                                                            onClick = { if (daysPerWeek > 1) daysPerWeek-- }
-                                                        ) {
-                                                            Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Decrease", tint = primaryColor)
-                                                        }
+                                                        .padding(vertical = 4.dp, horizontal = 4.dp)
+                                                ) {
+                                                    RadioButton(
+                                                        selected = isSelected,
+                                                        onClick = {
+                                                            if (optionKey == "CUSTOM") {
+                                                                selectedFrequencyOption = "CUSTOM"
+                                                                showCustomRepeatDialog = true
+                                                            } else {
+                                                                selectedFrequencyOption = optionKey
+                                                            }
+                                                        },
+                                                        colors = RadioButtonDefaults.colors(selectedColor = primaryColor)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Column(modifier = Modifier.weight(1f)) {
                                                         Text(
-                                                            text = "$daysPerWeek",
-                                                            fontSize = 28.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = textColor,
-                                                            modifier = Modifier.padding(horizontal = 20.dp)
-                                                        )
-                                                        IconButton(
-                                                            onClick = { if (daysPerWeek < 7) daysPerWeek++ }
-                                                        ) {
-                                                            Icon(Icons.Default.AddCircleOutline, contentDescription = "Increase", tint = primaryColor)
-                                                        }
-                                                        Text(
-                                                            text = "days per week",
+                                                            text = optionTitle,
                                                             fontSize = 15.sp,
-                                                            color = onSurfaceVariantColor,
-                                                            modifier = Modifier.padding(start = 12.dp)
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = textColor
+                                                        )
+                                                        Text(
+                                                            text = optionSubtitle,
+                                                            fontSize = 12.sp,
+                                                            color = onSurfaceVariantColor
                                                         )
                                                     }
-                                                }
-                                                "INTERVAL" -> {
-                                                    // Every X days selector
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.Center,
-                                                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                                                    ) {
-                                                        Text(text = "Every", fontSize = 15.sp, color = onSurfaceVariantColor, modifier = Modifier.padding(end = 12.dp))
+                                                    if (optionKey == "CUSTOM" && isSelected) {
                                                         IconButton(
-                                                            onClick = { if (intervalDays > 1) intervalDays-- }
+                                                            onClick = { showCustomRepeatDialog = true },
+                                                            modifier = Modifier.size(32.dp)
                                                         ) {
-                                                            Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Decrease", tint = primaryColor)
+                                                            Icon(
+                                                                Icons.Default.Edit,
+                                                                contentDescription = "Edit Custom Frequency",
+                                                                tint = primaryColor,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
                                                         }
-                                                        Text(
-                                                            text = "$intervalDays",
-                                                            fontSize = 28.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = textColor,
-                                                            modifier = Modifier.padding(horizontal = 20.dp)
-                                                        )
-                                                        IconButton(
-                                                            onClick = { if (intervalDays < 365) intervalDays++ }
-                                                        ) {
-                                                            Icon(Icons.Default.AddCircleOutline, contentDescription = "Increase", tint = primaryColor)
-                                                        }
-                                                        Text(text = "days", fontSize = 15.sp, color = onSurfaceVariantColor, modifier = Modifier.padding(start = 12.dp))
                                                     }
                                                 }
                                             }
@@ -1020,13 +1016,40 @@ fun HabitCreationFlowDialog(
                                 }
                                 2 -> {
                                     // Save button
-                                    val repeatTypeVal = when (frequencyType) {
+                                    val repeatTypeVal = when (selectedFrequencyOption) {
                                         "DAILY" -> "daily"
+                                        "WEEKDAYS" -> "weekdays"
                                         "WEEKLY" -> "weekly"
-                                        "INTERVAL" -> "custom"
+                                        "MONTHLY" -> "monthly"
+                                        "YEARLY" -> "yearly"
+                                        "CUSTOM" -> "custom"
                                         else -> "daily"
                                     }
-                                    val customDays = if (frequencyType == "DAILY") selectedDaysOfWeek.joinToString(",") else null
+
+                                    val customDays = when (selectedFrequencyOption) {
+                                        "WEEKDAYS" -> "Mon,Tue,Wed,Thu,Fri"
+                                        "CUSTOM" -> {
+                                            if (customRepeatUnitState == "weeks" && customSelectedDaysOfWeek.isNotEmpty()) {
+                                                customSelectedDaysOfWeek.joinToString(",")
+                                            } else {
+                                                null
+                                            }
+                                        }
+                                        else -> null
+                                    }
+
+                                    val customVal = when (selectedFrequencyOption) {
+                                        "CUSTOM" -> customRepeatValueState
+                                        else -> 1
+                                    }
+
+                                    val customUnit = when (selectedFrequencyOption) {
+                                        "CUSTOM" -> customRepeatUnitState
+                                        "WEEKLY" -> "weeks"
+                                        "MONTHLY" -> "months"
+                                        "YEARLY" -> "years"
+                                        else -> "days"
+                                    }
 
                                     if (habitToEdit != null) {
                                         val updated = habitToEdit!!.copy(
@@ -1035,8 +1058,8 @@ fun HabitCreationFlowDialog(
                                             isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
                                             multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
                                             repeatType = repeatTypeVal,
-                                            customRepeatValue = if (frequencyType == "INTERVAL") intervalDays else daysPerWeek,
-                                            customRepeatUnit = if (frequencyType == "INTERVAL") "days" else "weeks",
+                                            customRepeatValue = customVal,
+                                            customRepeatUnit = customUnit,
                                             customRepeatDaysOfWeek = customDays,
                                             startDate = startDate,
                                             remindMe = reminderTimes.isNotEmpty(),
@@ -1055,8 +1078,8 @@ fun HabitCreationFlowDialog(
                                             isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
                                             multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
                                             repeatType = repeatTypeVal,
-                                            customRepeatValue = if (frequencyType == "INTERVAL") intervalDays else daysPerWeek,
-                                            customRepeatUnit = if (frequencyType == "INTERVAL") "days" else "weeks",
+                                            customRepeatValue = customVal,
+                                            customRepeatUnit = customUnit,
                                             customRepeatDaysOfWeek = customDays,
                                             startDate = startDate,
                                             remindMe = reminderTimes.isNotEmpty(),
@@ -1167,9 +1190,23 @@ fun HabitCreationFlowDialog(
             var selMonth by remember { mutableIntStateOf(calendar.get(Calendar.MONTH)) }
             var selDay by remember { mutableIntStateOf(calendar.get(Calendar.DAY_OF_MONTH)) }
 
+            val monthCal = remember(selYear, selMonth) {
+                Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selYear)
+                    set(Calendar.MONTH, selMonth)
+                    set(Calendar.DAY_OF_MONTH, 1)
+                }
+            }
+            val firstDayOfWeek = remember(monthCal) {
+                monthCal.get(Calendar.DAY_OF_WEEK) - 1 // 0-based Sun=0..Sat=6
+            }
+            val daysInMonth = remember(monthCal) {
+                monthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            }
+
             AlertDialog(
                 onDismissRequest = { showDatePickerDialog = false },
-                title = { Text("Date", fontWeight = FontWeight.Bold) },
+                title = { Text("Select Start Date", fontWeight = FontWeight.Bold) },
                 text = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         // Month navigator
@@ -1195,12 +1232,16 @@ fun HabitCreationFlowDialog(
                             columns = GridCells.Fixed(7),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(220.dp)
+                                .height(240.dp)
                         ) {
                             items(listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")) { h ->
-                                Text(h, fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                                Text(h, fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                             }
-                            items(31) { dayIdx ->
+                            // Leading blank cells for first day of week alignment
+                            items(firstDayOfWeek) {
+                                Box(modifier = Modifier.size(32.dp))
+                            }
+                            items(daysInMonth) { dayIdx ->
                                 val dayNum = dayIdx + 1
                                 val isSel = (selDay == dayNum)
                                 Box(
@@ -1214,6 +1255,7 @@ fun HabitCreationFlowDialog(
                                     Text(
                                         text = "$dayNum",
                                         fontSize = 13.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSel) Color.White else textColor
                                     )
                                 }
@@ -1224,8 +1266,9 @@ fun HabitCreationFlowDialog(
                 confirmButton = {
                     TextButton(
                         onClick = {
+                            val finalDay = selDay.coerceAtMost(daysInMonth)
                             val monthStr = (selMonth + 1).toString().padStart(2, '0')
-                            val dayStr = selDay.toString().padStart(2, '0')
+                            val dayStr = finalDay.toString().padStart(2, '0')
                             startDate = "$selYear-$monthStr-$dayStr"
                             showDatePickerDialog = false
                         }
@@ -1408,6 +1451,176 @@ fun HabitCreationFlowDialog(
                     tpd.dismiss()
                 }
             }
+        }
+
+        // Custom Repeat Dialog ("Repeat every ...")
+        if (showCustomRepeatDialog) {
+            var tempValueStr by remember { mutableStateOf(customRepeatValueState.toString()) }
+            var tempUnit by remember { mutableStateOf(customRepeatUnitState) }
+            var tempDays by remember { mutableStateOf(customSelectedDaysOfWeek) }
+            var unitDropdownExpanded by remember { mutableStateOf(false) }
+
+            AlertDialog(
+                onDismissRequest = { showCustomRepeatDialog = false },
+                title = {
+                    Text(
+                        text = "Repeat every ...",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = textColor
+                    )
+                },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Underlined Text Field for Number Input
+                            BasicTextField(
+                                value = tempValueStr,
+                                onValueChange = { newValue ->
+                                    if (newValue.all { it.isDigit() } && newValue.length <= 3) {
+                                        tempValueStr = newValue
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                textStyle = TextStyle(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textColor,
+                                    textAlign = TextAlign.Center
+                                ),
+                                singleLine = true,
+                                modifier = Modifier.width(44.dp)
+                            ) { innerTextField ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    innerTextField()
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(2.dp)
+                                            .background(primaryColor)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            // Dropdown for Unit selection ("days", "weeks", "months", "years")
+                            Box {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.clickable { unitDropdownExpanded = true }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = tempUnit,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = textColor
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            Icons.Default.ArrowDropDown,
+                                            contentDescription = "Select unit",
+                                            tint = onSurfaceVariantColor
+                                        )
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    expanded = unitDropdownExpanded,
+                                    onDismissRequest = { unitDropdownExpanded = false }
+                                ) {
+                                    listOf("days", "weeks", "months", "years").forEach { unitOpt ->
+                                        DropdownMenuItem(
+                                            text = { Text(unitOpt, fontSize = 15.sp) },
+                                            onClick = {
+                                                tempUnit = unitOpt
+                                                unitDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // If "weeks" is selected: show circular day buttons for SUN, MON, TUE, WED, THU, FRI, SAT
+                        if (tempUnit.lowercase() == "weeks") {
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val daysList = listOf(
+                                    "Sun" to "SUN",
+                                    "Mon" to "MON",
+                                    "Tue" to "TUE",
+                                    "Wed" to "WED",
+                                    "Thu" to "THU",
+                                    "Fri" to "FRI",
+                                    "Sat" to "SAT"
+                                )
+                                daysList.forEach { (dayKey, dayLabel) ->
+                                    val isSelected = tempDays.contains(dayKey)
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isSelected) primaryColor else Color.Transparent)
+                                            .border(
+                                                width = if (isSelected) 0.dp else 1.dp,
+                                                color = if (isSelected) Color.Transparent else Color.LightGray,
+                                                shape = CircleShape
+                                            )
+                                            .clickable {
+                                                val newSet = tempDays.toMutableSet()
+                                                if (isSelected) newSet.remove(dayKey)
+                                                else newSet.add(dayKey)
+                                                tempDays = newSet
+                                            }
+                                    ) {
+                                        Text(
+                                            text = dayLabel,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color.White else onSurfaceVariantColor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val parsed = tempValueStr.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                            customRepeatValueState = parsed
+                            customRepeatUnitState = tempUnit.lowercase()
+                            customSelectedDaysOfWeek = tempDays
+                            selectedFrequencyOption = "CUSTOM"
+                            showCustomRepeatDialog = false
+                        }
+                    ) {
+                        Text("DONE", fontWeight = FontWeight.Bold, color = primaryColor)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showCustomRepeatDialog = false }
+                    ) {
+                        Text("CANCEL", fontWeight = FontWeight.Bold, color = onSurfaceVariantColor)
+                    }
+                }
+            )
         }
     }
 }

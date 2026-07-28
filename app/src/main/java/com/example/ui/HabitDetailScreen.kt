@@ -244,6 +244,7 @@ fun HabitDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .clickable(enabled = false) {}
             .background(themeBgColor)
     ) {
         Column(

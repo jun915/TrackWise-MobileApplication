@@ -254,8 +254,12 @@ fun MainScreen(
                     viewModel = viewModel,
                     activeTab = activeTab,
                     onMenuClick = { leftDrawerOpen = !leftDrawerOpen },
-                    onNavigateToDashboard = { navigateTo("dashboard") },
+                    onNavigateToDashboard = {
+                        viewModel.setActiveDetailHabit(null)
+                        navigateTo("dashboard")
+                    },
                     onNavigateToSubTab = { tab, subTab ->
+                        viewModel.setActiveDetailHabit(null)
                         navigateTo(tab)
                         viewModel.setWorkspaceSubTab(subTab)
                     }
@@ -266,11 +270,13 @@ fun MainScreen(
                     activeTab = activeTab,
                     viewModel = viewModel,
                     onTabSelected = {
+                        viewModel.setActiveDetailHabit(null)
                         navigateTo(it)
                         showMoreMenu = false
                         viewModel.setSettingsPanelOpen(false) // Auto-close settings on tab swap
                     },
                     onSubTabSelected = { tab, subTab ->
+                        viewModel.setActiveDetailHabit(null)
                         navigateTo(tab)
                         viewModel.setWorkspaceSubTab(subTab)
                         showMoreMenu = false

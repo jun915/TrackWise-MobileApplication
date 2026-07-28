@@ -527,25 +527,40 @@ object TrackWiseUtils {
             else -> ""
         }
 
+        // Check if habit has specific days of week selected (e.g. "Mon,Wed,Fri")
+        val customDaysList = habit.customRepeatDaysOfWeek?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+        if (customDaysList.isNotEmpty() && !customDaysList.contains(dayOfWeekStr)) {
+            return false
+        }
+
         return when (habit.repeatType.lowercase()) {
             "none" -> {
                 dateStr == sDate
             }
             "daily" -> {
-                true
+                if (customDaysList.isNotEmpty()) {
+                    customDaysList.contains(dayOfWeekStr)
+                } else {
+                    true
+                }
             }
             "weekdays" -> {
                 dayOfWeek in listOf(Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY)
             }
             "weekly" -> {
-                cal.get(Calendar.DAY_OF_WEEK) == calCreated.get(Calendar.DAY_OF_WEEK)
+                if (customDaysList.isNotEmpty()) {
+                    customDaysList.contains(dayOfWeekStr)
+                } else {
+                    cal.get(Calendar.DAY_OF_WEEK) == calCreated.get(Calendar.DAY_OF_WEEK)
+                }
             }
             "monthly" -> {
-                cal.get(Calendar.DAY_OF_MONTH) == calCreated.get(Calendar.DAY_OF_MONTH)
+                val targetDay = minOf(calCreated.get(Calendar.DAY_OF_MONTH), cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                cal.get(Calendar.DAY_OF_MONTH) == targetDay
             }
             "yearly" -> {
-                cal.get(Calendar.DAY_OF_MONTH) == calCreated.get(Calendar.DAY_OF_MONTH) &&
-                        cal.get(Calendar.MONTH) == calCreated.get(Calendar.MONTH)
+                val targetDay = minOf(calCreated.get(Calendar.DAY_OF_MONTH), cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                cal.get(Calendar.DAY_OF_MONTH) == targetDay && cal.get(Calendar.MONTH) == calCreated.get(Calendar.MONTH)
             }
             "custom" -> {
                 val value = habit.customRepeatValue.coerceAtLeast(1)
@@ -573,23 +588,24 @@ object TrackWiseUtils {
                     "weeks" -> {
                         val diffWeeks = diffDays / 7
                         val isCorrectWeek = diffWeeks >= 0 && (diffWeeks % value == 0)
-                        val days = habit.customRepeatDaysOfWeek?.split(",")?.map { it.trim() } ?: emptyList()
-                        if (days.isEmpty()) {
+                        if (customDaysList.isEmpty()) {
                             isCorrectWeek && cal.get(Calendar.DAY_OF_WEEK) == calCreated.get(Calendar.DAY_OF_WEEK)
                         } else {
-                            isCorrectWeek && days.contains(dayOfWeekStr)
+                            isCorrectWeek && customDaysList.contains(dayOfWeekStr)
                         }
                     }
                     "months" -> {
                         val yearDiff = cal.get(Calendar.YEAR) - calCreated.get(Calendar.YEAR)
                         val monthDiff = cal.get(Calendar.MONTH) - calCreated.get(Calendar.MONTH) + (yearDiff * 12)
                         val isCorrectMonth = monthDiff >= 0 && (monthDiff % value == 0)
-                        isCorrectMonth && cal.get(Calendar.DAY_OF_MONTH) == calCreated.get(Calendar.DAY_OF_MONTH)
+                        val targetDay = minOf(calCreated.get(Calendar.DAY_OF_MONTH), cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                        isCorrectMonth && cal.get(Calendar.DAY_OF_MONTH) == targetDay
                     }
                     "years" -> {
                         val yearDiff = cal.get(Calendar.YEAR) - calCreated.get(Calendar.YEAR)
                         val isCorrectYear = yearDiff >= 0 && (yearDiff % value == 0)
-                        isCorrectYear && cal.get(Calendar.DAY_OF_MONTH) == calCreated.get(Calendar.DAY_OF_MONTH) &&
+                        val targetDay = minOf(calCreated.get(Calendar.DAY_OF_MONTH), cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                        isCorrectYear && cal.get(Calendar.DAY_OF_MONTH) == targetDay &&
                                 cal.get(Calendar.MONTH) == calCreated.get(Calendar.MONTH)
                     }
                     else -> true
