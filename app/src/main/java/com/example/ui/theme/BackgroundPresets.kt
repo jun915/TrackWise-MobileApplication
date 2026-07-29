@@ -71,6 +71,7 @@ object BackgroundPresets {
     )
 
     val textures = listOf(
+        "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800", // Clock Wallpaper (Default)
         "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800", // Sand/Gold texture
         "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800", // Silk/Satin
         "https://images.unsplash.com/photo-1533090161767-e6ffed986c88?w=800", // Marble

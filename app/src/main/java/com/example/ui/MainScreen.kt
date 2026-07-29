@@ -138,11 +138,14 @@ fun MainScreen(
                 available: androidx.compose.ui.geometry.Offset,
                 source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
             ): androidx.compose.ui.geometry.Offset {
-                return if (available.y > 0 && !isRefreshing) {
+                return if (available.y > 0 && consumed.y == 0f && !isRefreshing) {
                     viewModel.dismissSuccessMessage()
                     pullOffset = (pullOffset + available.y * 0.45f).coerceAtMost(140f)
                     androidx.compose.ui.geometry.Offset(0f, available.y)
                 } else {
+                    if (consumed.y > 0f) {
+                        pullOffset = 0f
+                    }
                     androidx.compose.ui.geometry.Offset.Zero
                 }
             }
@@ -189,6 +192,7 @@ fun MainScreen(
 
     val showCustomTaskSheet by viewModel.showCustomTaskSheet.collectAsState()
     val showHabitCreationSheet by viewModel.showHabitCreationSheet.collectAsState()
+    val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
     val taskToEdit by viewModel.taskToEdit.collectAsState()
 
     var showImportOptionDialog by remember { mutableStateOf(false) }
@@ -214,10 +218,12 @@ fun MainScreen(
     }
     val focusManager = LocalFocusManager.current
 
-    val isAnyPopupOpen = showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial
+    val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial
 
     BackHandler(enabled = isAnyPopupOpen || navigationHistory.size > 1) {
-        if (showCustomTaskSheet) {
+        if (activeDetailHabit != null) {
+            viewModel.setActiveDetailHabit(null)
+        } else if (showCustomTaskSheet) {
             viewModel.closeCustomTaskSheet()
         } else if (showHabitCreationSheet) {
             viewModel.closeHabitCreationSheet()
@@ -250,230 +256,44 @@ fun MainScreen(
 
         Scaffold(
             topBar = {
-                HeaderToolbar(
-                    viewModel = viewModel,
-                    activeTab = activeTab,
-                    onMenuClick = { leftDrawerOpen = !leftDrawerOpen },
-                    onNavigateToDashboard = {
-                        viewModel.setActiveDetailHabit(null)
-                        navigateTo("dashboard")
-                    },
-                    onNavigateToSubTab = { tab, subTab ->
-                        viewModel.setActiveDetailHabit(null)
-                        navigateTo(tab)
-                        viewModel.setWorkspaceSubTab(subTab)
-                    }
-                )
+                if (activeDetailHabit == null) {
+                    HeaderToolbar(
+                        viewModel = viewModel,
+                        activeTab = activeTab,
+                        onMenuClick = { leftDrawerOpen = !leftDrawerOpen },
+                        onNavigateToDashboard = {
+                            viewModel.setActiveDetailHabit(null)
+                            navigateTo("dashboard")
+                        },
+                        onNavigateToSubTab = { tab, subTab ->
+                            viewModel.setActiveDetailHabit(null)
+                            navigateTo(tab)
+                            viewModel.setWorkspaceSubTab(subTab)
+                        }
+                    )
+                }
             },
             bottomBar = {
-                BottomNavigationBar(
-                    activeTab = activeTab,
-                    viewModel = viewModel,
-                    onTabSelected = {
-                        viewModel.setActiveDetailHabit(null)
-                        navigateTo(it)
-                        showMoreMenu = false
-                        viewModel.setSettingsPanelOpen(false) // Auto-close settings on tab swap
-                    },
-                    onSubTabSelected = { tab, subTab ->
-                        viewModel.setActiveDetailHabit(null)
-                        navigateTo(tab)
-                        viewModel.setWorkspaceSubTab(subTab)
-                        showMoreMenu = false
-                        viewModel.setSettingsPanelOpen(false)
-                    },
-                    onMoreMenuClick = { showMoreMenu = !showMoreMenu },
-                    isMoreMenuActive = isMoreMenuActive
-                )
-            },
-            floatingActionButton = {
-                val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
                 if (activeDetailHabit == null) {
-                    if (activeTab == "workspace" && activeSubTab == 3) {
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (showOccasionSpeedDial) {
-                            val speedDialOptions = listOf(
-                                Triple("countdown", "Countdown", Icons.Default.HourglassEmpty),
-                                Triple("marriage anniversary", "Marriage Anniversary", Icons.Default.Favorite),
-                                Triple("death anniversary", "Death Anniversary", Icons.Default.LocalFlorist),
-                                Triple("birthday", "Birthday", Icons.Default.Cake),
-                                Triple("holiday", "Holiday", Icons.Default.Star)
-                            )
-
-                            speedDialOptions.forEach { (key, label, icon) ->
-                                val color = when (key) {
-                                    "countdown" -> MaterialTheme.colorScheme.secondary
-                                    "marriage anniversary" -> MaterialTheme.colorScheme.tertiary
-                                    "death anniversary" -> MaterialTheme.colorScheme.primary
-                                    "birthday" -> BrandAmber
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.clickable {
-                                        viewModel.triggerAddOccasion(label)
-                                        showOccasionSpeedDial = false
-                                    }
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = MaterialTheme.colorScheme.surface,
-                                        tonalElevation = 4.dp,
-                                        modifier = Modifier.padding(horizontal = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    FloatingActionButton(
-                                        onClick = {
-                                            viewModel.triggerAddOccasion(label)
-                                            showOccasionSpeedDial = false
-                                        },
-                                        containerColor = color,
-                                        contentColor = Color.White,
-                                        modifier = Modifier.size(44.dp),
-                                        shape = CircleShape
-                                    ) {
-                                        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
-                                    }
-                                }
-                            }
-                        }
-
-                        FloatingActionButton(
-                            onClick = { showOccasionSpeedDial = !showOccasionSpeedDial },
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White,
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .size(56.dp)
-                                .testTag("occasion_speed_dial_button")
-                        ) {
-                            Icon(
-                                imageVector = if (showOccasionSpeedDial) Icons.Default.Close else Icons.Default.Add,
-                                contentDescription = "Add Occasion",
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                } else if (activeTab == "workspace" && activeSubTab == 0) {
-                    FloatingActionButton(
-                        onClick = { viewModel.openAddTaskSheet() },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White,
-                        shape = CircleShape,
-                        modifier = Modifier
-                            .offset(y = 8.dp)
-                            .testTag("floating_add_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Quick Add",
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                } else if (activeTab == "workspace" && activeSubTab == 1) {
-                    FloatingActionButton(
-                        onClick = { viewModel.openHabitCreationSheet() },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White,
-                        shape = CircleShape,
-                        modifier = Modifier
-                            .offset(y = 8.dp)
-                            .testTag("floating_add_habit_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Habit",
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (showMainSpeedDial) {
-                            val mainSpeedDialOptions = listOf(
-                                Triple("analytics", "Analytics Center", Icons.Default.BarChart),
-                                Triple("social", "Friends & Achievements", Icons.Default.EmojiEvents),
-                                Triple("settings", "Settings", Icons.Default.Settings),
-                                Triple("archive", "Completed & Archived Items", Icons.Default.Archive)
-                            )
-
-                            mainSpeedDialOptions.forEach { (key, label, icon) ->
-                                val color = when (key) {
-                                    "analytics" -> BrandCyan
-                                    "social" -> BrandOrange
-                                    "settings" -> BrandViolet
-                                    "archive" -> BrandPink
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.clickable {
-                                        showMainSpeedDial = false
-                                        navigateTo(key)
-                                    }
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = MaterialTheme.colorScheme.surface,
-                                        tonalElevation = 4.dp,
-                                        modifier = Modifier.padding(horizontal = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    FloatingActionButton(
-                                        onClick = {
-                                            showMainSpeedDial = false
-                                            navigateTo(key)
-                                        },
-                                        containerColor = color,
-                                        contentColor = Color.White,
-                                        modifier = Modifier.size(44.dp),
-                                        shape = CircleShape
-                                    ) {
-                                        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
-                                    }
-                                }
-                            }
-                        }
-
-                        FloatingActionButton(
-                            onClick = { showMainSpeedDial = !showMainSpeedDial },
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White,
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .size(56.dp)
-                                .offset(y = 8.dp)
-                                .testTag("floating_add_button")
-                        ) {
-                            Icon(
-                                imageVector = if (showMainSpeedDial) Icons.Default.Close else Icons.Default.Add,
-                                contentDescription = "Quick Add",
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
+                    BottomNavigationBar(
+                        activeTab = activeTab,
+                        viewModel = viewModel,
+                        onTabSelected = {
+                            viewModel.setActiveDetailHabit(null)
+                            navigateTo(it)
+                            showMoreMenu = false
+                            viewModel.setSettingsPanelOpen(false) // Auto-close settings on tab swap
+                        },
+                        onSubTabSelected = { tab, subTab ->
+                            viewModel.setActiveDetailHabit(null)
+                            navigateTo(tab)
+                            viewModel.setWorkspaceSubTab(subTab)
+                            showMoreMenu = false
+                            viewModel.setSettingsPanelOpen(false)
+                        },
+                        onMoreMenuClick = { showMoreMenu = !showMoreMenu },
+                        isMoreMenuActive = isMoreMenuActive
+                    )
                 }
             },
             containerColor = Color.Transparent
@@ -568,29 +388,7 @@ fun MainScreen(
                     }
                 }
 
-                if (showOccasionSpeedDial) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.45f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showOccasionSpeedDial = false }
-                    )
-                }
 
-                if (showMainSpeedDial) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.45f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showMainSpeedDial = false }
-                    )
-                }
 
                 // In-App Toast alerts (Section 13.4)
                 successMessage?.let { msg ->
@@ -628,6 +426,23 @@ fun MainScreen(
                     )
                 }
             }
+        }
+
+        // --- Full Screen Backdrop Scrim when Speed Dial or Add Popup is active ---
+        if (showMainSpeedDial || showOccasionSpeedDial || showAddChoiceDialog) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        showMainSpeedDial = false
+                        showOccasionSpeedDial = false
+                        showAddChoiceDialog = false
+                    }
+            )
         }
 
         // --- Semi-Transparent Backdrop Scrim when Drawer is Open ---
@@ -828,6 +643,204 @@ fun MainScreen(
                 viewModel = viewModel,
                 currentUser = user!!
             )
+        }
+
+        // --- Floating Action Button & Speed Dials Rendered at Root level above the Scrims ---
+        val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
+        if (activeDetailHabit == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 16.dp, bottom = 100.dp)
+                    .navigationBarsPadding(),
+                contentAlignment = Alignment.BottomEnd
+            ) {
+                if (activeTab == "workspace" && activeSubTab == 3) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (showOccasionSpeedDial) {
+                            val speedDialOptions = listOf(
+                                Triple("countdown", "Countdown", Icons.Default.HourglassEmpty),
+                                Triple("marriage anniversary", "Marriage Anniversary", Icons.Default.Favorite),
+                                Triple("death anniversary", "Death Anniversary", Icons.Default.LocalFlorist),
+                                Triple("birthday", "Birthday", Icons.Default.Cake),
+                                Triple("holiday", "Holiday", Icons.Default.Star)
+                            )
+
+                            speedDialOptions.forEach { (key, label, icon) ->
+                                val color = when (key) {
+                                    "countdown" -> MaterialTheme.colorScheme.secondary
+                                    "marriage anniversary" -> MaterialTheme.colorScheme.tertiary
+                                    "death anniversary" -> MaterialTheme.colorScheme.primary
+                                    "birthday" -> BrandAmber
+                                    else -> MaterialTheme.colorScheme.primary
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.clickable {
+                                        viewModel.triggerAddOccasion(label)
+                                        showOccasionSpeedDial = false
+                                    }
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 4.dp,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    FloatingActionButton(
+                                        onClick = {
+                                            viewModel.triggerAddOccasion(label)
+                                            showOccasionSpeedDial = false
+                                        },
+                                        containerColor = color,
+                                        contentColor = Color.White,
+                                        modifier = Modifier.size(44.dp),
+                                        shape = CircleShape
+                                    ) {
+                                        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        FloatingActionButton(
+                            onClick = { showOccasionSpeedDial = !showOccasionSpeedDial },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .testTag("occasion_speed_dial_button")
+                        ) {
+                            Icon(
+                                imageVector = if (showOccasionSpeedDial) Icons.Default.Close else Icons.Default.Add,
+                                contentDescription = "Add Occasion",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                } else if (activeTab == "workspace" && activeSubTab == 0) {
+                    FloatingActionButton(
+                        onClick = { viewModel.openAddTaskSheet() },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .offset(y = 8.dp)
+                            .testTag("floating_add_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Quick Add",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                } else if (activeTab == "workspace" && activeSubTab == 1) {
+                    FloatingActionButton(
+                        onClick = { viewModel.openHabitCreationSheet() },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .offset(y = 8.dp)
+                            .testTag("floating_add_habit_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Habit",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (showMainSpeedDial) {
+                            val mainSpeedDialOptions = listOf(
+                                Triple("analytics", "Analytics Center", Icons.Default.BarChart),
+                                Triple("social", "Friends & Achievements", Icons.Default.EmojiEvents),
+                                Triple("settings", "Settings", Icons.Default.Settings),
+                                Triple("archive", "Completed & Archived Items", Icons.Default.Archive)
+                            )
+
+                            mainSpeedDialOptions.forEach { (key, label, icon) ->
+                                val color = when (key) {
+                                    "analytics" -> BrandCyan
+                                    "social" -> BrandOrange
+                                    "settings" -> BrandViolet
+                                    "archive" -> BrandPink
+                                    else -> MaterialTheme.colorScheme.primary
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.clickable {
+                                        showMainSpeedDial = false
+                                        navigateTo(key)
+                                    }
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 4.dp,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    FloatingActionButton(
+                                        onClick = {
+                                            showMainSpeedDial = false
+                                            navigateTo(key)
+                                        },
+                                        containerColor = color,
+                                        contentColor = Color.White,
+                                        modifier = Modifier.size(44.dp),
+                                        shape = CircleShape
+                                    ) {
+                                        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        FloatingActionButton(
+                            onClick = { showMainSpeedDial = !showMainSpeedDial },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .offset(y = 8.dp)
+                                .testTag("floating_add_button")
+                        ) {
+                            Icon(
+                                imageVector = if (showMainSpeedDial) Icons.Default.Close else Icons.Default.Add,
+                                contentDescription = "Quick Add",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1188,6 +1201,8 @@ fun HeaderToolbar(
         "finance" -> "Finance"
         "analytics" -> "Analytics"
         "settings", "profile" -> "Settings"
+        "folders" -> "Task & Habit Folders"
+        "tags" -> "Hashtags (#)"
         "social" -> "Friends"
         "help" -> "How It Works"
         "archive" -> "Archive"

@@ -247,7 +247,7 @@ class TrackWiseViewModel(
     private val _appThemeSelection = MutableStateFlow("Default Violet")
     val appThemeSelection: StateFlow<String> = _appThemeSelection.asStateFlow()
 
-    private val _appBgType = MutableStateFlow("gradient") // "none", "color", "gradient", "image"
+    private val _appBgType = MutableStateFlow("image") // "none", "color", "gradient", "image"
     val appBgType: StateFlow<String> = _appBgType.asStateFlow()
 
     private val _appBgColor = MutableStateFlow("Lavender & Amethyst")
@@ -256,7 +256,7 @@ class TrackWiseViewModel(
     private val _appBgGradient = MutableStateFlow("Sunset Glow")
     val appBgGradient: StateFlow<String> = _appBgGradient.asStateFlow()
 
-    private val _appBgImage = MutableStateFlow("https://images.unsplash.com/photo-1557683316-973673baf926?w=800")
+    private val _appBgImage = MutableStateFlow("https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800")
     val appBgImage: StateFlow<String> = _appBgImage.asStateFlow()
 
     private val _appBgCustomUri = MutableStateFlow("")
@@ -303,6 +303,67 @@ class TrackWiseViewModel(
             _customTags.value = newList
             val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
             prefs.edit().putString("custom_tags_list", newList.joinToString(",")).apply()
+        }
+    }
+
+    fun deleteCustomFolder(folder: String) {
+        val trimmed = folder.trim()
+        val newList = _customFolders.value.filter { !it.equals(trimmed, ignoreCase = true) }
+        _customFolders.value = newList
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("custom_folders_list", newList.joinToString(",")).apply()
+
+        if (selectedTaskFolder.value.equals(trimmed, ignoreCase = true)) {
+            _selectedTaskFolder.value = null
+        }
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            allTasks.value.filter { it.project.equals(trimmed, ignoreCase = true) }.forEach { task ->
+                updateTask(task.copy(project = "Inbox"))
+            }
+            allHabits.value.forEach { habit ->
+                val sections = habit.section.split(",").map { it.trim() }.filter { !it.equals(trimmed, ignoreCase = true) }
+                val newSec = if (sections.isEmpty()) "Inbox" else sections.joinToString(",")
+                if (newSec != habit.section) {
+                    updateHabit(habit.copy(section = newSec))
+                }
+            }
+        }
+    }
+
+    fun deleteCustomTag(tag: String) {
+        val cleanTag = tag.trim().removePrefix("#")
+        val newList = _customTags.value.filter { !it.equals(cleanTag, ignoreCase = true) }
+        _customTags.value = newList
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("custom_tags_list", newList.joinToString(",")).apply()
+
+        if (selectedTaskTag.value.equals(cleanTag, ignoreCase = true)) {
+            _selectedTaskTag.value = null
+        }
+
+        val tagWithHash = "#$cleanTag"
+        viewModelScope.launch(Dispatchers.IO) {
+            allTasks.value.forEach { task ->
+                if (task.title.contains(tagWithHash, ignoreCase = true) ||
+                    task.description.contains(tagWithHash, ignoreCase = true) ||
+                    task.notes.contains(tagWithHash, ignoreCase = true)) {
+                    val newTitle = task.title.replace(tagWithHash, "", ignoreCase = true).trim()
+                    val newDesc = task.description.replace(tagWithHash, "", ignoreCase = true).trim()
+                    val newNotes = task.notes.replace(tagWithHash, "", ignoreCase = true).trim()
+                    updateTask(task.copy(title = if (newTitle.isEmpty()) "Task" else newTitle, description = newDesc, notes = newNotes))
+                }
+            }
+            allHabits.value.forEach { habit ->
+                if (habit.name.contains(tagWithHash, ignoreCase = true) ||
+                    habit.notes.contains(tagWithHash, ignoreCase = true) ||
+                    habit.category.contains(tagWithHash, ignoreCase = true)) {
+                    val newName = habit.name.replace(tagWithHash, "", ignoreCase = true).trim()
+                    val newNotes = habit.notes.replace(tagWithHash, "", ignoreCase = true).trim()
+                    val newCat = habit.category.replace(tagWithHash, "", ignoreCase = true).trim()
+                    updateHabit(habit.copy(name = if (newName.isEmpty()) "Habit" else newName, notes = newNotes, category = newCat))
+                }
+            }
         }
     }
 
@@ -583,7 +644,7 @@ class TrackWiseViewModel(
                 
                 // Persist session
                 val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
-                prefs.edit().putString("saved_user_id", user.id).apply()
+                prefs.edit().putString("saved_user_id", user.id).putLong("last_active_timestamp", System.currentTimeMillis()).apply()
             } catch (e: Exception) {
                 _authError.value = e.message ?: "Authentication failed."
             }
@@ -599,7 +660,7 @@ class TrackWiseViewModel(
                 
                 // Persist session
                 val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
-                prefs.edit().putString("saved_user_id", user.id).apply()
+                prefs.edit().putString("saved_user_id", user.id).putLong("last_active_timestamp", System.currentTimeMillis()).apply()
                 
                 addNotification("Account Created", "Welcome to TrackWise, ${user.fullName}!")
             } catch (e: Exception) {
@@ -617,7 +678,7 @@ class TrackWiseViewModel(
             if (user != null) {
                 _sessionUser.value = user
                 val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
-                prefs.edit().putString("saved_user_id", user.id).apply()
+                prefs.edit().putString("saved_user_id", user.id).putLong("last_active_timestamp", System.currentTimeMillis()).apply()
                 addNotification("Account Switched", "Switched to account: ${user.fullName}")
             }
         }
@@ -2244,11 +2305,24 @@ class TrackWiseViewModel(
         val user = _sessionUser.value ?: return
         _settingsPanelOpen.value = false
         
+        // Reset in-memory state
+        _customFolders.value = emptyList()
+        _customTags.value = emptyList()
+        _selectedTaskFolder.value = null
+        _selectedTaskTag.value = null
+
+        // Clear preferences
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        prefs.edit()
+            .remove("custom_folders_list")
+            .remove("custom_tags_list")
+            .apply()
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 repository.clearUserData(user.id)
                 viewModelScope.launch(Dispatchers.Main) {
-                    _successMessage.value = "All your personal logs and statistics have been successfully cleared! Your account is active."
+                    _successMessage.value = "All data, finance logs, habit runways, and detailed records cleared! Account remains active."
                 }
                 updateAppWidget()
             } catch (e: Exception) {
@@ -2725,7 +2799,7 @@ class TrackWiseViewModel(
                 try {
                     val uri = androidx.core.content.FileProvider.getUriForFile(
                         getApplication(),
-                        "com.example.fileprovider",
+                        "${getApplication<Application>().packageName}.fileprovider",
                         file
                     )
                     val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
@@ -3299,11 +3373,13 @@ class TrackWiseViewModel(
         }
         
         if (savedUserId != null) {
-            if (dayOfMonth == 28) {
+            val lastActiveTime = prefs.getLong("last_active_timestamp", System.currentTimeMillis())
+            val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000L
+            if (lastActiveTime > 0L && (System.currentTimeMillis() - lastActiveTime) > thirtyDaysMs) {
                 prefs.edit().remove("saved_user_id").apply()
-                _authError.value = "Monthly security check: Please log in again (28th of the month)."
-                addNotification("Security Check", "Session expired on the 28th for monthly re-login.", showSystem = true)
+                _authError.value = "Session expired due to 30 days of inactivity. Please log in again."
             } else {
+                prefs.edit().putLong("last_active_timestamp", System.currentTimeMillis()).apply()
                 viewModelScope.launch(Dispatchers.IO) {
                     val user = repository.findUserById(savedUserId)
                     if (user != null) {

@@ -1731,28 +1731,8 @@ fun HabitCard(
                             )
                         }
                         if (habit.repeatType != "none") {
-                            val repeatLabel = when (habit.repeatType) {
-                                "daily" -> "Daily"
-                                "weekdays" -> "Weekdays"
-                                "weekly" -> "Weekly"
-                                "monthly" -> "Monthly"
-                                "yearly" -> "Yearly"
-                                "custom" -> {
-                                    val unitStr = if (habit.customRepeatValue == 1) {
-                                        habit.customRepeatUnit.removeSuffix("s")
-                                    } else {
-                                        habit.customRepeatUnit
-                                    }
-                                    var base = "Every ${habit.customRepeatValue} $unitStr"
-                                    if (habit.customRepeatUnit == "weeks" && !habit.customRepeatDaysOfWeek.isNullOrBlank()) {
-                                        base += " on ${habit.customRepeatDaysOfWeek}"
-                                    }
-                                    base
-                                }
-                                else -> habit.repeatType
-                            }
                             Text(
-                                text = "• 🔁 $repeatLabel",
+                                text = "• 🔁",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = BrandGreen
@@ -2464,6 +2444,40 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
     }
 
     if (showAddOccasionDialog || editingBirthday != null) {
+        ModernAddOccasionDialog(
+            onDismissRequest = {
+                showAddOccasionDialog = false
+                editingBirthday = null
+            },
+            onSaveOccasion = { entity ->
+                if (editingBirthday != null) {
+                    viewModel.updateBirthday(entity)
+                } else {
+                    viewModel.addBirthday(
+                        name = entity.name,
+                        date = entity.date,
+                        giftIdea = entity.giftIdea,
+                        category = entity.category,
+                        remindMe = entity.remindMe,
+                        reminderDate = entity.reminderDate,
+                        reminderTime = entity.reminderTime ?: "09:00",
+                        customBgImage = entity.customBgImage,
+                        customTextColor = entity.customTextColor,
+                        customFontStyle = entity.customFontStyle,
+                        reminderOptions = entity.reminderOptions,
+                        repeatPattern = entity.repeatPattern,
+                        countingMode = entity.countingMode
+                    )
+                }
+                showAddOccasionDialog = false
+                editingBirthday = null
+            },
+            initialCategory = addOccasionType,
+            editingBirthday = editingBirthday
+        )
+    }
+
+    if (false) {
         val bday = editingBirthday
         val isEdit = bday != null
 

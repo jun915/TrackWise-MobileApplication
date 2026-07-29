@@ -87,7 +87,7 @@ fun ProfileScreen(
     }
 
     // --- State Holders for Personal Information ---
-    var isPersonalInfoExpanded by remember { mutableStateOf(false) }
+    var isPersonalInfoExpanded by remember { mutableStateOf(true) }
     var firstName by remember { mutableStateOf("") }
     var middleName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }

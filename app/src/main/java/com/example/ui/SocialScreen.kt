@@ -270,11 +270,6 @@ fun SocialScreen(
                                     placeholder = { Text("friend@trackwise.com") },
                                     singleLine = true,
                                     isError = showFriendErrors && friendEmailError != null,
-                                    supportingText = {
-                                        if (showFriendErrors && friendEmailError != null) {
-                                            Text(friendEmailError, color = MaterialTheme.colorScheme.error)
-                                        }
-                                    },
                                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = BrandViolet) },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = BrandViolet,
@@ -282,6 +277,7 @@ fun SocialScreen(
                                     ),
                                     modifier = Modifier
                                         .weight(1f)
+                                        .height(56.dp)
                                         .testTag("friend_email_input")
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -305,6 +301,15 @@ fun SocialScreen(
                                 ) {
                                     Text("Add", fontWeight = FontWeight.Bold)
                                 }
+                            }
+
+                            if (showFriendErrors && friendEmailError != null) {
+                                Text(
+                                    text = friendEmailError,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
 
                             if (authError != null) {
@@ -923,14 +928,14 @@ fun SocialScreen(
                     
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isUnlocked) BrandViolet.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surface
+                            containerColor = MaterialTheme.colorScheme.surface
                         ),
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .border(
-                                width = 1.dp,
-                                color = if (isUnlocked) BrandViolet.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                                width = if (isUnlocked) 2.dp else 1.dp,
+                                color = if (isUnlocked) BrandViolet else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(16.dp)
                             )
                     ) {
@@ -944,7 +949,7 @@ fun SocialScreen(
                                     .size(48.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(
-                                        if (isUnlocked) achievement.iconColor.copy(alpha = 0.2f)
+                                        if (isUnlocked) BrandViolet
                                         else MaterialTheme.colorScheme.surfaceVariant
                                     ),
                                 contentAlignment = Alignment.Center
@@ -952,7 +957,7 @@ fun SocialScreen(
                                 Icon(
                                     imageVector = achievement.icon,
                                     contentDescription = null,
-                                    tint = if (isUnlocked) achievement.iconColor else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                    tint = if (isUnlocked) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                                     modifier = Modifier.size(24.dp)
                                 )
                             }

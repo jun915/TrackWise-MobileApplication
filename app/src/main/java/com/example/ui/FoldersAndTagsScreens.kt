@@ -38,6 +38,7 @@ fun TaskFoldersScreen(
     val customFolders by viewModel.customFolders.collectAsState()
     
     var showAddFolderDialog by remember { mutableStateOf(false) }
+    var folderToDelete by remember { mutableStateOf<String?>(null) }
     var newFolderName by remember { mutableStateOf("") }
     
     // Dedicated folder detail view state (opens separately with separate tabs for tasks & habits)
@@ -78,41 +79,42 @@ fun TaskFoldersScreen(
         return
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Task & Habit Folders",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        if (folderToDelete != null) {
+            AlertDialog(
+                onDismissRequest = { folderToDelete = null },
+                title = { Text("Delete Folder", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete folder '${folderToDelete}'? Tasks and habits will be moved to Inbox.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            folderToDelete?.let { viewModel.deleteCustomFolder(it) }
+                            folderToDelete = null
+                        }
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                dismissButton = {
+                    TextButton(onClick = { folderToDelete = null }) {
+                        Text("Cancel")
+                    }
+                }
             )
         }
-    ) { innerPadding ->
-        Box(
+
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 100.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 32.dp)
-            ) {
                 item {
                     Button(
                         onClick = { showAddFolderDialog = true },
@@ -148,13 +150,13 @@ fun TaskFoldersScreen(
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            containerColor = MaterialTheme.colorScheme.surface
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .border(
                                 width = 1.dp,
-                                color = if (isExpanded) BrandViolet.copy(alpha = 0.3f) else Color.Transparent,
+                                color = if (isExpanded) BrandViolet.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(16.dp)
                             )
                     ) {
@@ -205,6 +207,19 @@ fun TaskFoldersScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    // Delete folder button
+                                    IconButton(
+                                        onClick = { folderToDelete = folder },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Folder",
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
                                     // Assign tasks button
                                     Button(
                                         onClick = {
@@ -391,54 +406,53 @@ fun TaskFoldersScreen(
                     }
                 }
             }
-        }
 
-        // Add Folder Dialog
-        if (showAddFolderDialog) {
-            AlertDialog(
-                onDismissRequest = { showAddFolderDialog = false },
-                title = {
-                    Text(
-                        text = "Create New Folder",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                text = {
-                    OutlinedTextField(
-                        value = newFolderName,
-                        onValueChange = { newFolderName = it },
-                        placeholder = { Text("Folder Name", fontSize = 13.sp) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (newFolderName.isNotBlank()) {
-                                viewModel.addCustomFolder(newFolderName)
-                                newFolderName = ""
-                                showAddFolderDialog = false
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandViolet)
-                    ) {
-                        Text("Add", color = Color.White)
+            // Add Folder Dialog
+            if (showAddFolderDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAddFolderDialog = false },
+                    title = {
+                        Text(
+                            text = "Create New Folder",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    },
+                    text = {
+                        OutlinedTextField(
+                            value = newFolderName,
+                            onValueChange = { newFolderName = it },
+                            placeholder = { Text("Folder Name", fontSize = 13.sp) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandViolet),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (newFolderName.isNotBlank()) {
+                                    viewModel.addCustomFolder(newFolderName)
+                                    newFolderName = ""
+                                    showAddFolderDialog = false
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandViolet)
+                        ) {
+                            Text("Add", color = Color.White)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddFolderDialog = false }) {
+                            Text("Cancel", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                        }
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddFolderDialog = false }) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                    }
-                }
-            )
+                )
+            }
         }
     }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -452,6 +466,7 @@ fun HashtagsScreen(
     val customTags by viewModel.customTags.collectAsState()
     
     var showAddTagDialog by remember { mutableStateOf(false) }
+    var tagToDelete by remember { mutableStateOf<String?>(null) }
     var newTagName by remember { mutableStateOf("") }
     
     // Dedicated details state
@@ -507,41 +522,42 @@ fun HashtagsScreen(
         return
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Hashtags (#)",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        if (tagToDelete != null) {
+            AlertDialog(
+                onDismissRequest = { tagToDelete = null },
+                title = { Text("Delete Hashtag", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete hashtag '#${tagToDelete}'?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            tagToDelete?.let { viewModel.deleteCustomTag(it) }
+                            tagToDelete = null
+                        }
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                dismissButton = {
+                    TextButton(onClick = { tagToDelete = null }) {
+                        Text("Cancel")
+                    }
+                }
             )
         }
-    ) { innerPadding ->
-        Box(
+
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 100.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 32.dp)
-            ) {
                 item {
                     Button(
                         onClick = { showAddTagDialog = true },
@@ -584,13 +600,13 @@ fun HashtagsScreen(
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            containerColor = MaterialTheme.colorScheme.surface
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .border(
                                 width = 1.dp,
-                                color = if (isExpanded) BrandOrange.copy(alpha = 0.3f) else Color.Transparent,
+                                color = if (isExpanded) BrandOrange.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
                                 shape = RoundedCornerShape(16.dp)
                             )
                     ) {
@@ -641,6 +657,19 @@ fun HashtagsScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    // Delete tag button
+                                    IconButton(
+                                        onClick = { tagToDelete = tag },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Tag",
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
                                     // Assign tasks button
                                     Button(
                                         onClick = {
@@ -801,55 +830,54 @@ fun HashtagsScreen(
                     }
                 }
             }
-        }
 
-        // Add Tag Dialog
-        if (showAddTagDialog) {
-            AlertDialog(
-                onDismissRequest = { showAddTagDialog = false },
-                title = {
-                    Text(
-                        text = "Create New Hashtag",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                text = {
-                    OutlinedTextField(
-                        value = newTagName,
-                        onValueChange = { newTagName = it },
-                        placeholder = { Text("tagname", fontSize = 13.sp) },
-                        prefix = { Text("#") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandOrange),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (newTagName.isNotBlank()) {
-                                viewModel.addCustomTag(newTagName)
-                                newTagName = ""
-                                showAddTagDialog = false
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandOrange)
-                    ) {
-                        Text("Add", color = Color.White)
+            // Add Tag Dialog
+            if (showAddTagDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAddTagDialog = false },
+                    title = {
+                        Text(
+                            text = "Create New Hashtag",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    },
+                    text = {
+                        OutlinedTextField(
+                            value = newTagName,
+                            onValueChange = { newTagName = it },
+                            placeholder = { Text("tagname", fontSize = 13.sp) },
+                            prefix = { Text("#") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandOrange),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (newTagName.isNotBlank()) {
+                                    viewModel.addCustomTag(newTagName)
+                                    newTagName = ""
+                                    showAddTagDialog = false
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandOrange)
+                        ) {
+                            Text("Add", color = Color.White)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddTagDialog = false }) {
+                            Text("Cancel", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                        }
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showAddTagDialog = false }) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                    }
-                }
-            )
+                )
+            }
         }
     }
-}
 
 // Helper to append/remove hashtag safely from the description field
 private fun toggleTagForTask(viewModel: TrackWiseViewModel, task: TaskEntity, tagWithHash: String, enable: Boolean) {

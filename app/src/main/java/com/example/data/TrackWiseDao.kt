@@ -245,7 +245,11 @@ interface TrackWiseDao {
         clearTabletRemindersForUser(userId)
         clearPeriodCyclesForUser(userId)
         clearFinanceLogsForUser(userId)
+        clearNetWorthItemsForUser(userId)
     }
+
+    @Query("DELETE FROM net_worth_items WHERE userId = :userId")
+    suspend fun clearNetWorthItemsForUser(userId: String)
 
     @Query("DELETE FROM tasks WHERE userId = :userId")
     suspend fun clearTasksForUser(userId: String)

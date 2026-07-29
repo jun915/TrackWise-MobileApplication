@@ -411,6 +411,41 @@ fun HabitDetailScreen(
                             color = Color.White.copy(alpha = 0.85f),
                             textAlign = TextAlign.Center
                         )
+                        val repeatLabel = remember(habit) {
+                            when (habit.repeatType.lowercase()) {
+                                "daily" -> "Daily"
+                                "weekdays" -> "Weekdays (Mon - Fri)"
+                                "weekly" -> "Weekly"
+                                "monthly" -> "Monthly"
+                                "yearly" -> "Yearly"
+                                "custom" -> {
+                                    val unitStr = if (habit.customRepeatValue == 1) {
+                                        habit.customRepeatUnit.removeSuffix("s")
+                                    } else {
+                                        habit.customRepeatUnit
+                                    }
+                                    var base = "Every ${habit.customRepeatValue} $unitStr"
+                                    if (habit.customRepeatUnit.equals("weeks", ignoreCase = true) && !habit.customRepeatDaysOfWeek.isNullOrBlank()) {
+                                        base += " on ${habit.customRepeatDaysOfWeek}"
+                                    }
+                                    base
+                                }
+                                else -> "Daily"
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "🔁 $repeatLabel",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        }
                     }
 
                     // SLIDER OR COMPLETED STATS CARD

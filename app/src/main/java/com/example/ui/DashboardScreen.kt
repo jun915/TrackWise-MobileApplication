@@ -1461,14 +1461,14 @@ fun DailyHabitsWidget(
                                 modifier = Modifier.padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Left: Elegant check button
+                                // Left: Sleek small check radio button
                                 Box(
                                     modifier = Modifier
-                                        .size(32.dp)
+                                        .size(20.dp)
                                         .clip(CircleShape)
                                         .clickable { onToggleHabit(habit) }
                                         .border(
-                                            2.dp,
+                                            1.5.dp,
                                             if (isDone) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                                             CircleShape
                                         )
@@ -1483,7 +1483,7 @@ fun DailyHabitsWidget(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = null,
                                             tint = BrandOrange,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(12.dp)
                                         )
                                     }
                                 }
