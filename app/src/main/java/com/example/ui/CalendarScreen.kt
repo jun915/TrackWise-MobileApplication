@@ -46,15 +46,16 @@ fun CalendarScreen(
     val userReligion = currentUser?.religion ?: "Islam"
     val availableOverlays = remember(userReligion) {
         when {
-            userReligion.equals("Islam", ignoreCase = true) -> listOf("none", "islamic")
-            userReligion.equals("Hindu", ignoreCase = true) -> listOf("none", "hindu")
+            userReligion.equals("Islam", ignoreCase = true) -> listOf("islamic", "none")
+            userReligion.equals("Hindu", ignoreCase = true) -> listOf("hindu", "none")
             else -> listOf("none")
         }
     }
 
     LaunchedEffect(userReligion, availableOverlays) {
         if (overlay !in availableOverlays) {
-            viewModel.setCalendarOverlay("none")
+            val defaultOverlay = if (userReligion.equals("Islam", ignoreCase = true)) "islamic" else "none"
+            viewModel.setCalendarOverlay(defaultOverlay)
         }
     }
 
@@ -183,8 +184,8 @@ fun CalendarScreen(
             }
         }
 
-        // --- Calendar Overlay Selector (Only relevant in Month mode) ---
-        if (activeView == "month" && availableOverlays.size > 1) {
+        // --- Calendar Overlay Selector ---
+        if (availableOverlays.size > 1) {
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -413,7 +414,7 @@ fun CalendarScreen(
                         Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), modifier = Modifier.padding(bottom = 12.dp))
 
                         // 1. Urdu / Hijri details
-                        if (overlay == "islamic") {
+                        if (overlay == "islamic" || userReligion.equals("Islam", ignoreCase = true)) {
                             val hijriInfo = TrackWiseUtils.getHijriInfo(selectedDateStr)
                             val urduDateStr = "${TrackWiseUtils.toUrduNumerals(hijriInfo.day)} ${hijriInfo.monthNameUr} ${TrackWiseUtils.toUrduNumerals(hijriInfo.year)} ہجری"
                             val enHijriDate = "${hijriInfo.day} ${hijriInfo.monthNameEn} ${hijriInfo.year} AH"
@@ -498,7 +499,7 @@ fun CalendarScreen(
                         }
 
                         // --- Integrated Seerah Events for the Current Hijri Month ---
-                        if (overlay == "islamic") {
+                        if (overlay == "islamic" || userReligion.equals("Islam", ignoreCase = true)) {
                             val hijriInfo = TrackWiseUtils.getHijriInfo(selectedDateStr)
                             val seerahEvents = getSeerahEvents().filter { it.hijriMonth == hijriInfo.month }
                             if (seerahEvents.isNotEmpty()) {

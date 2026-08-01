@@ -53,6 +53,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun WorkspaceScreen(
     viewModel: TrackWiseViewModel,
@@ -109,7 +110,7 @@ fun WorkspaceScreen(
             }
         }
 
-        // Subtask custom overlay bottom sheet in the main window context for perfect keyboard tracking
+        // Subtask custom overlay bottom sheet in dedicated Dialog window for top z-index and perfect keyboard tracking
         if (subtaskTargetTask != null) {
             val parentTask = subtaskTargetTask!!
             var newSubtaskTitle by remember { mutableStateOf("") }
@@ -117,27 +118,43 @@ fun WorkspaceScreen(
             var newSubtaskDueTime by remember { mutableStateOf(parentTask.dueTime ?: "") }
             var showSubtaskDatePicker by remember { mutableStateOf(false) }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .clickable { subtaskTargetTask = null },
-                contentAlignment = Alignment.BottomCenter
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { subtaskTargetTask = null },
+                properties = androidx.compose.ui.window.DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    decorFitsSystemWindows = false
+                )
             ) {
-                Card(
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                val view = androidx.compose.ui.platform.LocalView.current
+                SideEffect {
+                    val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+                    if (window != null) {
+                        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+                    }
+                }
+
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = false) {}
-                        .navigationBarsPadding()
-                        .imePadding()
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable { subtaskTargetTask = null },
+                    contentAlignment = Alignment.BottomCenter
                 ) {
+                    Card(
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .imePadding()
+                            .clickable(enabled = false) {}
+                    ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 20.dp),
+                            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // Drag Handle
@@ -281,6 +298,7 @@ fun WorkspaceScreen(
                     }
                 }
             }
+        }
 
             CustomDatePickerSheet(
                 visible = showSubtaskDatePicker,
@@ -589,12 +607,25 @@ fun TaskSection(
         }
 
         if (filteredTasks.isEmpty()) {
-            Text(
-                text = if (selectedFolder != null || selectedTag != null) "No tasks match this filter." else "No tasks added yet. Fill out the form above to get started!",
+            Column(
                 modifier = Modifier.padding(16.dp),
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            )
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = if (selectedFolder != null || selectedTag != null) "No tasks match this filter." else "No tasks added yet. Click below or fill out the quick form to get started!",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
+                Button(
+                    onClick = { viewModel.openAddTaskSheet() },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Your 1st Task", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
         } else {
             filteredTasks.forEach { task ->
                 TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
@@ -1291,12 +1322,25 @@ fun HabitSection(
 
         // Display filtered habits in Workspace so they are always visible, manageable, editable, and deletable
         if (filteredHabits.isEmpty()) {
-            Text(
-                text = if (selectedFolder == null) "No habit runways configured yet. Create one above!" else "No habits assigned to folder \"$selectedFolder\" yet.",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
+            Column(
+                modifier = Modifier.padding(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = if (selectedFolder == null) "No habit runways configured yet. Create one above or click below!" else "No habits assigned to folder \"$selectedFolder\" yet.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
+                Button(
+                    onClick = { viewModel.openHabitCreationSheet() },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Your 1st Habit", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
         } else {
             filteredHabits.forEach { habit ->
                 HabitCard(
@@ -2078,7 +2122,25 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
         }
 
         if (items.isEmpty()) {
-            Text("No wishlist items added yet. Record your dream items!")
+            Column(
+                modifier = Modifier.padding(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "No wishlist items added yet. Record your dream items!",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
+                Button(
+                    onClick = { showForm = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Your 1st Wishlist Item", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
         } else {
             items.forEach { item ->
                 Card(
@@ -3214,15 +3276,25 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
             if (birthdays.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
                         "No occasions registered. Store dates to track countdowns!",
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
+                    Button(
+                        onClick = { viewModel.triggerAddOccasion("Birthday") },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandAmber),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add Your 1st Occasion", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
                 }
             } else {
                 val sortedBirthdays = birthdays.sortedWith(

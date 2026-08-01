@@ -166,6 +166,14 @@ fun DashboardScreen(
         }
         // --- Welcome Header Section ---
         item {
+            var currentTimeState by remember { mutableStateOf(SimpleDateFormat("EEEE, dd MMMM yyyy  •  hh:mm a", Locale.US).format(Date())) }
+            LaunchedEffect(Unit) {
+                while (true) {
+                    currentTimeState = SimpleDateFormat("EEEE, dd MMMM yyyy  •  hh:mm a", Locale.US).format(Date())
+                    kotlinx.coroutines.delay(10000)
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -177,6 +185,32 @@ fun DashboardScreen(
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                    modifier = Modifier.padding(top = 6.dp, bottom = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = "Current Date & Time",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = currentTimeState,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+
                 Text(
                     text = "Your analytics, today's focus, and priority runways at a glance.",
                     fontSize = 14.sp,
@@ -363,7 +397,8 @@ fun DashboardScreen(
                 onDeleteTask = { viewModel.deleteTask(it.id) },
                 onArchiveTask = { viewModel.updateTask(it.copy(notes = it.notes + "[ARCHIVED]")) },
                 onPinTask = { viewModel.updateTask(it.copy(notes = if (it.notes.contains("[PINNED]")) it.notes.replace("[PINNED]", "") else it.notes + "[PINNED]")) },
-                onPostponeTask = { activePostponeTask = it }
+                onPostponeTask = { activePostponeTask = it },
+                onAddTask = { viewModel.openAddTaskSheet() }
             )
         }
 
@@ -384,7 +419,8 @@ fun DashboardScreen(
             DailyHabitsWidget(
                 habits = allHabits,
                 onToggleHabit = { viewModel.toggleHabitToday(it) },
-                onHabitClick = { viewModel.setActiveDetailHabit(it) }
+                onHabitClick = { viewModel.setActiveDetailHabit(it) },
+                onAddHabit = { viewModel.openHabitCreationSheet() }
             )
         }
 
@@ -909,6 +945,7 @@ fun TodayItemsWidget(
     onArchiveTask: (TaskEntity) -> Unit,
     onPinTask: (TaskEntity) -> Unit,
     onPostponeTask: (TaskEntity) -> Unit,
+    onAddTask: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -948,12 +985,25 @@ fun TodayItemsWidget(
             }
 
             if (tasks.isEmpty()) {
-                Text(
-                    text = "All caught up for today! Add tasks with today's deadline in the Workspace tab.",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
+                Column(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "All caught up for today! Add tasks with today's deadline in the Workspace tab.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    )
+                    Button(
+                        onClick = onAddTask,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add Your 1st Task", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     tasks.sortedBy { it.completed }.forEach { task ->
@@ -1367,6 +1417,7 @@ fun DailyHabitsWidget(
     habits: List<HabitEntity>,
     onToggleHabit: (HabitEntity) -> Unit,
     onHabitClick: (HabitEntity) -> Unit,
+    onAddHabit: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val today = TrackWiseUtils.getTodayString()
@@ -1429,12 +1480,25 @@ fun DailyHabitsWidget(
             }
 
             if (filteredHabits.isEmpty()) {
-                Text(
-                    text = if (habits.isEmpty()) "Configure Habits in the Workspace tab to launch daily streak multipliers." else "No active habits scheduled for today.",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
+                Column(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = if (habits.isEmpty()) "Configure Habits in the Workspace tab to launch daily streak multipliers." else "No active habits scheduled for today.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    )
+                    Button(
+                        onClick = onAddHabit,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add Your 1st Habit", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     filteredHabits.sortedBy {

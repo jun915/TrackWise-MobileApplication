@@ -236,6 +236,7 @@ fun HabitCreationFlowDialog(
                 .background(backgroundColor)
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .imePadding()
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Header Bar

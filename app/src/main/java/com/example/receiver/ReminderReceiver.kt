@@ -300,9 +300,9 @@ class ReminderReceiver : BroadcastReceiver() {
         tasks.forEach { task ->
             if (task.remindMe && !task.completed) {
                 val rDate = task.reminderDate?.take(10) ?: task.deadline.take(10)
-                val rTime = task.reminderTime?.trim()
-                if (rDate == todayStr && rTime != null && rTime <= currentTimeStr) {
-                    val key = "task-${task.id}-$rDate-$rTime"
+                val rTime24 = parseTo24HourTime(task.reminderTime)
+                if (rDate == todayStr && rTime24 != null && rTime24 <= currentTimeStr) {
+                    val key = "task-${task.id}-$rDate-$rTime24"
                     if (!notifiedPrefs.getBoolean(key, false)) {
                         notifiedPrefs.edit().putBoolean(key, true).apply()
                         showNotification(
@@ -327,9 +327,9 @@ class ReminderReceiver : BroadcastReceiver() {
         habits.forEach { habit ->
             if (habit.remindMe) {
                 val rDate = habit.reminderDate?.take(10) ?: todayStr
-                val rTime = habit.reminderTime?.trim()
-                if (rDate == todayStr && rTime != null && rTime <= currentTimeStr) {
-                    val key = "habit-${habit.id}-$rDate-$rTime"
+                val rTime24 = parseTo24HourTime(habit.reminderTime)
+                if (rDate == todayStr && rTime24 != null && rTime24 <= currentTimeStr) {
+                    val key = "habit-${habit.id}-$rDate-$rTime24"
                     if (!notifiedPrefs.getBoolean(key, false)) {
                         notifiedPrefs.edit().putBoolean(key, true).apply()
                         showNotification(
@@ -354,9 +354,9 @@ class ReminderReceiver : BroadcastReceiver() {
         wishlist.forEach { item ->
             if (item.remindMe && !item.purchased) {
                 val rDate = item.reminderDate?.take(10)
-                val rTime = item.reminderTime?.trim()
-                if (rDate == todayStr && rTime != null && rTime <= currentTimeStr) {
-                    val key = "wish-${item.id}-$rDate-$rTime"
+                val rTime24 = parseTo24HourTime(item.reminderTime)
+                if (rDate == todayStr && rTime24 != null && rTime24 <= currentTimeStr) {
+                    val key = "wish-${item.id}-$rDate-$rTime24"
                     if (!notifiedPrefs.getBoolean(key, false)) {
                         notifiedPrefs.edit().putBoolean(key, true).apply()
                         showNotification(
@@ -380,9 +380,9 @@ class ReminderReceiver : BroadcastReceiver() {
         birthdays.forEach { bday ->
             if (bday.remindMe) {
                 val rDate = bday.reminderDate?.take(10) ?: bday.date.take(10)
-                val rTime = bday.reminderTime?.trim()
-                if (rDate == todayStr && rTime != null && rTime <= currentTimeStr) {
-                    val key = "bday-${bday.id}-$rDate-$rTime"
+                val rTime24 = parseTo24HourTime(bday.reminderTime)
+                if (rDate == todayStr && rTime24 != null && rTime24 <= currentTimeStr) {
+                    val key = "bday-${bday.id}-$rDate-$rTime24"
                     if (!notifiedPrefs.getBoolean(key, false)) {
                         notifiedPrefs.edit().putBoolean(key, true).apply()
                         showNotification(
@@ -404,8 +404,7 @@ class ReminderReceiver : BroadcastReceiver() {
         // 5. Tablet Reminders Check
         val tabletReminders = dao.getTabletRemindersForUserFlow(userId).first()
         tabletReminders.forEach { tablet ->
-            val rTime12 = tablet.timeOfDay.trim() // e.g. "08:00 AM" or "09:00 PM"
-            val rTime24 = convertTo24Hour(rTime12) ?: return@forEach
+            val rTime24 = parseTo24HourTime(tablet.timeOfDay) ?: return@forEach
             if (rTime24 <= currentTimeStr) {
                 val completedDates = try {
                     val array = org.json.JSONArray(tablet.completedDatesJson)
@@ -440,6 +439,18 @@ class ReminderReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun parseTo24HourTime(timeStr: String?): String? {
+        if (timeStr.isNullOrBlank()) return null
+        val trimmed = timeStr.trim()
+        if (trimmed.matches(Regex("^\\d{1,2}:\\d{2}$"))) {
+            val parts = trimmed.split(":")
+            val h = parts[0].toIntOrNull() ?: return null
+            val m = parts[1].toIntOrNull() ?: return null
+            return String.format(Locale.US, "%02d:%02d", h, m)
+        }
+        return convertTo24Hour(trimmed)
+    }
+
     private fun convertTo24Hour(time12: String): String? {
         return try {
             val sdf12 = SimpleDateFormat("hh:mm a", Locale.US)
@@ -447,7 +458,14 @@ class ReminderReceiver : BroadcastReceiver() {
             val date = sdf12.parse(time12) ?: return null
             sdf24.format(date)
         } catch (e: Exception) {
-            null
+            try {
+                val sdf12NoSpace = SimpleDateFormat("hh:mma", Locale.US)
+                val sdf24 = SimpleDateFormat("HH:mm", Locale.US)
+                val date = sdf12NoSpace.parse(time12) ?: return null
+                sdf24.format(date)
+            } catch (ex: Exception) {
+                null
+            }
         }
     }
 
@@ -533,7 +551,8 @@ class ReminderReceiver : BroadcastReceiver() {
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
+            .setAutoCancel(false)
+            .setOngoing(true)
             .setContentIntent(pendingIntent)
 
         if (taskId != null || tabletId != null || habitId != null) {

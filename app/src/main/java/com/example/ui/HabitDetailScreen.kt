@@ -257,7 +257,7 @@ fun HabitDetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -434,17 +434,36 @@ fun HabitDetailScreen(
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "🔁 $repeatLabel",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "🔁 $repeatLabel",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            }
+                            if (!habit.reminderTime.isNullOrBlank()) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "⏰ ${habit.reminderTime}",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -1289,6 +1308,19 @@ fun HabitCheckInStatisticsCard(habit: HabitEntity, daysCompleted: List<String>) 
                         label = "Best Streak",
                         value = "${habit.streak} Days",
                         modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StatBoxItem(
+                        icon = Icons.Default.Schedule,
+                        iconTint = Color(0xFF8B5CF6),
+                        label = "Reminder Time",
+                        value = if (!habit.reminderTime.isNullOrBlank()) habit.reminderTime!! else "Not Set",
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }

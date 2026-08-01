@@ -15,6 +15,9 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.example.ui.TrackWiseViewModel
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.BoxScope
 
 data class BgColorOption(
@@ -205,5 +208,20 @@ fun AppBackground(
 
         // Render contents over background
         content()
+
+        // Top status bar subtle gradient scrim to ensure mobile time, battery %, and network signal are always clearly visible
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(90.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.45f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
     }
 }

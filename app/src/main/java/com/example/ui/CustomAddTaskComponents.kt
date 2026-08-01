@@ -533,6 +533,15 @@ fun CustomAddTaskBottomSheet(
             decorFitsSystemWindows = false
         )
     ) {
+        val view = androidx.compose.ui.platform.LocalView.current
+        SideEffect {
+            val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+            if (window != null) {
+                window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -550,6 +559,7 @@ fun CustomAddTaskBottomSheet(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
             modifier = (if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                .navigationBarsPadding()
                 .imePadding()
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -562,19 +572,10 @@ fun CustomAddTaskBottomSheet(
                     shape = if (isFullScreen) RoundedCornerShape(0.dp) else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
                 )
         ) {
-            val bottomInset = if (WindowInsets.isImeVisible) {
-                WindowInsets(0, 0, 0, 0)
-            } else {
-                WindowInsets.navigationBars
-            }
-
-            val bottomPadding = if (WindowInsets.isImeVisible) 0.dp else 20.dp
-
             Column(
                 modifier = Modifier
                     .then(if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
-                    .windowInsetsPadding(bottomInset)
-                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = bottomPadding),
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 if (isFullScreen) {
@@ -1068,32 +1069,44 @@ fun CustomAddTaskBottomSheet(
         }
 
         // 2. Add Subtask Dialog/Popup (Slides up from below)
-        AnimatedVisibility(
-            visible = showAddSubtaskDialog,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .imePadding()
-                    .clickable { showAddSubtaskDialog = false },
-                contentAlignment = Alignment.BottomCenter
+        if (showAddSubtaskDialog) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { showAddSubtaskDialog = false },
+                properties = androidx.compose.ui.window.DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    decorFitsSystemWindows = false
+                )
             ) {
-                Card(
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                val view = androidx.compose.ui.platform.LocalView.current
+                SideEffect {
+                    val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+                    if (window != null) {
+                        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+                    }
+                }
+
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = false) {}
-                        .padding(bottom = if (WindowInsets.isImeVisible) 0.dp else WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable { showAddSubtaskDialog = false },
+                    contentAlignment = Alignment.BottomCenter
                 ) {
+                    Card(
+                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .imePadding()
+                            .clickable(enabled = false) {}
+                    ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 20.dp),
+                            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // Drag Handle / Indicator line at top
@@ -1325,7 +1338,8 @@ fun CustomAddTaskBottomSheet(
             maxDateStr = deadline
         )
     }
-    }
+}
+}
 }
 
 fun getReminderDate(selectedDate: String, option: String): String? {

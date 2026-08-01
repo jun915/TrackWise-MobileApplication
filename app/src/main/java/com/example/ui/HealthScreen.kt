@@ -2374,13 +2374,27 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
 
             // List & Weekly Analytics
             if (tabletReminders.isEmpty()) {
-                Text(
-                    text = "No medications logged. Add one above to start tracking!",
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                )
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "No medications logged. Add one above to start tracking!",
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                    Button(
+                        onClick = { showForm = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add Your 1st Medication", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     tabletReminders.forEach { reminder ->

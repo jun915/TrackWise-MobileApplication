@@ -88,9 +88,7 @@ class MainActivity : ComponentActivity() {
             val notificationPermissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission()
             ) { isGranted ->
-                if (isGranted) {
-                    viewModel.addNotification("Notifications Configured", "You will now receive alerts for completed items, goals, and alarms.", showSystem = true)
-                }
+                // Permission handled silently without showing 'Notifications Configured' toast or alert
             }
 
             LaunchedEffect(Unit) {

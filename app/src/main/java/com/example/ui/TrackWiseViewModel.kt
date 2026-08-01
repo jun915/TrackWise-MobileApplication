@@ -367,7 +367,7 @@ class TrackWiseViewModel(
         }
     }
 
-    private val _calendarOverlay = MutableStateFlow("none") // "none", "islamic", "hindu"
+    private val _calendarOverlay = MutableStateFlow("islamic") // "islamic", "none", "hindu"
     val calendarOverlay: StateFlow<String> = _calendarOverlay.asStateFlow()
 
     private val _autoBackupFrequency = MutableStateFlow("none") // "none", "hourly", "daily", "weekly"

@@ -23,6 +23,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1218,14 +1219,17 @@ fun FinanceScreen(
                             .padding(vertical = 24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), modifier = Modifier.size(48.dp))
-                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "No transactions recorded for this category this month",
+                                text = "No transactions recorded for this category this month. Fill out the form above to log your 1st entry!",
                                 fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                fontWeight = FontWeight.Medium
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }

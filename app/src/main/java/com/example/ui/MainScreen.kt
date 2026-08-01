@@ -647,7 +647,7 @@ fun MainScreen(
 
         // --- Floating Action Button & Speed Dials Rendered at Root level above the Scrims ---
         val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
-        if (activeDetailHabit == null) {
+        if (activeDetailHabit == null && !needsOnboarding) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
