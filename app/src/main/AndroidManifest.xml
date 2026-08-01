@@ -42,9 +42,10 @@
 
         <receiver
             android:name="com.example.receiver.ReminderReceiver"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="com.example.action.NOTIFICATION_COMPLETE" />
                 <action android:name="com.example.action.NOTIFICATION_SNOOZE" />
                 <action android:name="com.example.action.NOTIFICATION_DISMISS" />

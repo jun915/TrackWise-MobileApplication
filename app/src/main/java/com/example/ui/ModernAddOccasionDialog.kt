@@ -123,6 +123,14 @@ fun ModernAddOccasionDialog(
     // Repeat state
     var repeatOption by remember { mutableStateOf(editingBirthday?.repeatPattern ?: "Every Year") }
 
+    // Counting Mode state
+    var selectedCountingMode by remember {
+        mutableStateOf(
+            editingBirthday?.countingMode ?: if (selectedType.lowercase() == "countdown") "Count Down" else "Count Up"
+        )
+    }
+    var showCountingModePickerDialog by remember { mutableStateOf(false) }
+
     // Show Age / Smart List state
     var showAge by remember { mutableStateOf(true) }
     var smartListOption by remember { mutableStateOf("On the day") }
@@ -369,6 +377,15 @@ fun ModernAddOccasionDialog(
 
                                     HorizontalDivider(color = textColor.copy(alpha = 0.08f), thickness = 0.8.dp)
 
+                                    // Row 2: Counting Mode
+                                    FormOptionRow(
+                                        label = "Counting Mode",
+                                        valueText = selectedCountingMode,
+                                        onClick = { showCountingModePickerDialog = true }
+                                    )
+
+                                    HorizontalDivider(color = textColor.copy(alpha = 0.08f), thickness = 0.8.dp)
+
                                     // Row 2: Show Age (Switch)
                                     Row(
                                         modifier = Modifier
@@ -478,6 +495,7 @@ fun ModernAddOccasionDialog(
                             categoryType = selectedType,
                             selectedIcon = selectedIcon,
                             onIconSelected = { selectedIcon = it },
+                            onOpenIconPicker = { showIconPickerDialog = true },
                             selectedColorHex = selectedColorHex,
                             onColorSelected = { selectedColorHex = it },
                             selectedBgPreset = selectedBgPreset,
@@ -506,7 +524,7 @@ fun ModernAddOccasionDialog(
                                     customFontStyle = selectedFontStyle,
                                     reminderOptions = selectedReminders.joinToString(","),
                                     repeatPattern = repeatOption,
-                                    countingMode = if (selectedType.lowercase() == "countdown") "Count Down" else "Count Up"
+                                    countingMode = selectedCountingMode
                                 )
                                 onSaveOccasion(finalEntity)
                                 onDismissRequest()
@@ -931,6 +949,73 @@ fun ModernAddOccasionDialog(
         }
     }
 
+    if (showCountingModePickerDialog) {
+        Dialog(onDismissRequest = { showCountingModePickerDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = cardBg,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "Counting Mode",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+
+                    val modesList = listOf("Count Down", "Count Up")
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        modesList.forEach { modeItem ->
+                            val isSel = selectedCountingMode.equals(modeItem, ignoreCase = true)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        selectedCountingMode = modeItem
+                                        showCountingModePickerDialog = false
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = modeItem,
+                                    fontSize = 15.sp,
+                                    color = if (isSel) PinkAccent else textColor
+                                )
+                                if (isSel) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = PinkAccent,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showCountingModePickerDialog = false }) {
+                            Text("Cancel", color = PinkAccent, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 6. SMART LIST PICKER DIALOG
     if (showSmartListPickerDialog) {
         Dialog(onDismissRequest = { showSmartListPickerDialog = false }) {
@@ -1020,44 +1105,86 @@ fun ModernAddOccasionDialog(
 
     // 8. ICON PICKER DIALOG
     if (showIconPickerDialog) {
+        var iconSearchQuery by remember { mutableStateOf("") }
+        val allMaterialIconKeys = remember {
+            listOf(
+                "cake", "favorite", "hourglass", "star", "gift", "party",
+                "balloon", "trophy", "bell", "flower", "flight", "music",
+                "coffee", "fire", "medal", "pets", "sports", "fitness",
+                "work", "school", "medical", "shopping", "money", "camera",
+                "phone", "laptop", "home", "car", "bike", "run", "pool",
+                "restaurant", "movie", "book", "gaming", "spa", "nature",
+                "beach", "sun", "moon", "flag", "brush", "palette",
+                "lightbulb", "smile", "compass", "map", "timer", "alarm",
+                "check", "lock", "shield", "travel", "sparkles", "drink",
+                "fastfood", "diamond", "email", "event", "group", "history",
+                "person", "place", "search", "thumbup", "verified"
+            )
+        }
+        val filteredIconKeys = remember(iconSearchQuery) {
+            if (iconSearchQuery.isBlank()) allMaterialIconKeys
+            else allMaterialIconKeys.filter { it.contains(iconSearchQuery, ignoreCase = true) }
+        }
+
         Dialog(onDismissRequest = { showIconPickerDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = cardBg,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 8.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text(
-                        text = "Choose Icon",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textColor
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Choose Icon (Material Symbols)",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textColor
+                        )
+                        IconButton(onClick = { showIconPickerDialog = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = textColor)
+                        }
+                    }
 
-                    val iconKeys = listOf(
-                        "cake", "favorite", "hourglass", "star", "gift", "party",
-                        "balloon", "trophy", "bell", "flower", "flight", "music",
-                        "coffee", "fire", "medal", "pets"
+                    // Search field
+                    OutlinedTextField(
+                        value = iconSearchQuery,
+                        onValueChange = { iconSearchQuery = it },
+                        placeholder = { Text("Search icons...", fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (iconSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { iconSearchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
 
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Fixed(5),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(220.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                            .height(260.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(iconKeys) { key ->
+                        items(filteredIconKeys) { key ->
                             val isSel = selectedIcon == key
                             Box(
                                 modifier = Modifier
-                                    .size(54.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
                                     .background(if (isSel) PinkAccent else fieldBg)
                                     .clickable {
@@ -1070,7 +1197,7 @@ fun ModernAddOccasionDialog(
                                     imageVector = getVectorForIconKey(key),
                                     contentDescription = key,
                                     tint = if (isSel) Color.White else textColor,
-                                    modifier = Modifier.size(26.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
                         }
@@ -1475,6 +1602,7 @@ private fun AppearanceSelectionScreen(
     categoryType: String,
     selectedIcon: String,
     onIconSelected: (String) -> Unit,
+    onOpenIconPicker: (() -> Unit)? = null,
     selectedColorHex: String,
     onColorSelected: (String) -> Unit,
     selectedBgPreset: String,
@@ -1578,7 +1706,18 @@ private fun AppearanceSelectionScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Select Icon", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Select Icon", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
+                    if (onOpenIconPicker != null) {
+                        TextButton(onClick = onOpenIconPicker) {
+                            Text("More Icons", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PinkAccent)
+                        }
+                    }
+                }
 
                 val icons = listOf(
                     "cake", "favorite", "hourglass", "star", "gift", "party",
@@ -1755,8 +1894,8 @@ fun getVectorForIconKey(key: String): ImageVector {
         "favorite", "heart" -> Icons.Default.Favorite
         "hourglass" -> Icons.Default.HourglassEmpty
         "star" -> Icons.Default.Star
-        "gift" -> Icons.Default.Redeem
-        "party" -> Icons.Default.Celebration
+        "gift", "redeem" -> Icons.Default.Redeem
+        "party", "celebration" -> Icons.Default.Celebration
         "balloon" -> Icons.Default.Brightness7
         "trophy" -> Icons.Default.EmojiEvents
         "bell" -> Icons.Default.Notifications
@@ -1764,9 +1903,59 @@ fun getVectorForIconKey(key: String): ImageVector {
         "flight", "plane" -> Icons.Default.Flight
         "music" -> Icons.Default.MusicNote
         "coffee" -> Icons.Default.LocalCafe
-        "fire" -> Icons.Default.Whatshot
+        "fire", "flame" -> Icons.Default.Whatshot
         "medal" -> Icons.Default.MilitaryTech
-        "pets" -> Icons.Default.Pets
+        "pets", "dog", "cat" -> Icons.Default.Pets
+        "sports", "ball" -> Icons.Default.SportsBasketball
+        "fitness", "gym" -> Icons.Default.FitnessCenter
+        "work", "briefcase" -> Icons.Default.Work
+        "school", "graduation" -> Icons.Default.School
+        "medical", "hospital" -> Icons.Default.LocalHospital
+        "shopping", "cart" -> Icons.Default.ShoppingCart
+        "money", "cash" -> Icons.Default.AttachMoney
+        "camera" -> Icons.Default.CameraAlt
+        "phone" -> Icons.Default.Phone
+        "laptop", "computer" -> Icons.Default.Laptop
+        "home", "house" -> Icons.Default.Home
+        "car", "auto" -> Icons.Default.DirectionsCar
+        "bike" -> Icons.Default.DirectionsBike
+        "run", "jog" -> Icons.Default.DirectionsRun
+        "pool", "swim" -> Icons.Default.Pool
+        "restaurant", "food" -> Icons.Default.Restaurant
+        "movie", "film" -> Icons.Default.LocalMovies
+        "book", "reading" -> Icons.Default.MenuBook
+        "gaming", "game" -> Icons.Default.SportsEsports
+        "spa", "wellness" -> Icons.Default.Spa
+        "nature", "mountain" -> Icons.Default.Landscape
+        "beach", "vacation" -> Icons.Default.BeachAccess
+        "sun", "sunny" -> Icons.Default.WbSunny
+        "moon", "night" -> Icons.Default.DarkMode
+        "flag" -> Icons.Default.Flag
+        "brush", "art" -> Icons.Default.Brush
+        "palette" -> Icons.Default.Palette
+        "lightbulb", "idea" -> Icons.Default.Lightbulb
+        "smile", "happy" -> Icons.Default.SentimentSatisfied
+        "compass" -> Icons.Default.Explore
+        "map" -> Icons.Default.Map
+        "timer" -> Icons.Default.Timer
+        "alarm" -> Icons.Default.Alarm
+        "check" -> Icons.Default.Check
+        "lock" -> Icons.Default.Lock
+        "shield" -> Icons.Default.Shield
+        "travel" -> Icons.Default.Public
+        "sparkles" -> Icons.Default.AutoAwesome
+        "drink", "bar" -> Icons.Default.LocalBar
+        "fastfood" -> Icons.Default.Fastfood
+        "diamond" -> Icons.Default.Diamond
+        "email" -> Icons.Default.Email
+        "event", "calendar" -> Icons.Default.Event
+        "group", "people" -> Icons.Default.Group
+        "history" -> Icons.Default.History
+        "person" -> Icons.Default.Person
+        "place", "location" -> Icons.Default.Place
+        "search" -> Icons.Default.Search
+        "thumbup", "like" -> Icons.Default.ThumbUp
+        "verified" -> Icons.Default.Verified
         else -> Icons.Default.Cake
     }
 }

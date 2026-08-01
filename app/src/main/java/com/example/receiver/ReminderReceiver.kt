@@ -24,7 +24,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
-        if (action == Intent.ACTION_BOOT_COMPLETED) {
+        if (action == Intent.ACTION_BOOT_COMPLETED || action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             scheduleBackgroundReminderAlarm(context)
             return
         }
@@ -439,36 +439,6 @@ class ReminderReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun parseTo24HourTime(timeStr: String?): String? {
-        if (timeStr.isNullOrBlank()) return null
-        val trimmed = timeStr.trim()
-        if (trimmed.matches(Regex("^\\d{1,2}:\\d{2}$"))) {
-            val parts = trimmed.split(":")
-            val h = parts[0].toIntOrNull() ?: return null
-            val m = parts[1].toIntOrNull() ?: return null
-            return String.format(Locale.US, "%02d:%02d", h, m)
-        }
-        return convertTo24Hour(trimmed)
-    }
-
-    private fun convertTo24Hour(time12: String): String? {
-        return try {
-            val sdf12 = SimpleDateFormat("hh:mm a", Locale.US)
-            val sdf24 = SimpleDateFormat("HH:mm", Locale.US)
-            val date = sdf12.parse(time12) ?: return null
-            sdf24.format(date)
-        } catch (e: Exception) {
-            try {
-                val sdf12NoSpace = SimpleDateFormat("hh:mma", Locale.US)
-                val sdf24 = SimpleDateFormat("HH:mm", Locale.US)
-                val date = sdf12NoSpace.parse(time12) ?: return null
-                sdf24.format(date)
-            } catch (ex: Exception) {
-                null
-            }
-        }
-    }
-
     private fun showNotification(
         context: Context,
         notificationManager: NotificationManager,
@@ -569,6 +539,36 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        fun parseTo24HourTime(timeStr: String?): String? {
+            if (timeStr.isNullOrBlank()) return null
+            val trimmed = timeStr.trim()
+            if (trimmed.matches(Regex("^\\d{1,2}:\\d{2}$"))) {
+                val parts = trimmed.split(":")
+                val h = parts[0].toIntOrNull() ?: return null
+                val m = parts[1].toIntOrNull() ?: return null
+                return String.format(Locale.US, "%02d:%02d", h, m)
+            }
+            return convertTo24Hour(trimmed)
+        }
+
+        private fun convertTo24Hour(time12: String): String? {
+            return try {
+                val sdf12 = SimpleDateFormat("hh:mm a", Locale.US)
+                val sdf24 = SimpleDateFormat("HH:mm", Locale.US)
+                val date = sdf12.parse(time12) ?: return null
+                sdf24.format(date)
+            } catch (e: Exception) {
+                try {
+                    val sdf12NoSpace = SimpleDateFormat("hh:mma", Locale.US)
+                    val sdf24 = SimpleDateFormat("HH:mm", Locale.US)
+                    val date = sdf12NoSpace.parse(time12) ?: return null
+                    sdf24.format(date)
+                } catch (ex: Exception) {
+                    null
+                }
+            }
+        }
+
         fun scheduleBackgroundReminderAlarm(context: Context) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
             val intent = Intent(context, ReminderReceiver::class.java)

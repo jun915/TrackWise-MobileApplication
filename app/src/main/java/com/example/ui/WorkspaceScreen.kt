@@ -1,5 +1,10 @@
 package com.example.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -110,7 +115,7 @@ fun WorkspaceScreen(
             }
         }
 
-        // Subtask custom overlay bottom sheet in dedicated Dialog window for top z-index and perfect keyboard tracking
+        // Subtask custom overlay bottom sheet in the main window context for perfect keyboard tracking
         if (subtaskTargetTask != null) {
             val parentTask = subtaskTargetTask!!
             var newSubtaskTitle by remember { mutableStateOf("") }
@@ -118,39 +123,23 @@ fun WorkspaceScreen(
             var newSubtaskDueTime by remember { mutableStateOf(parentTask.dueTime ?: "") }
             var showSubtaskDatePicker by remember { mutableStateOf(false) }
 
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = { subtaskTargetTask = null },
-                properties = androidx.compose.ui.window.DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    decorFitsSystemWindows = false
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+                    .navigationBarsPadding()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { subtaskTargetTask = null },
+                contentAlignment = Alignment.BottomCenter
             ) {
-                val view = androidx.compose.ui.platform.LocalView.current
-                SideEffect {
-                    val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
-                    if (window != null) {
-                        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-                        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
-                    }
-                }
-
-                Box(
+                Card(
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .clickable { subtaskTargetTask = null },
-                    contentAlignment = Alignment.BottomCenter
+                        .fillMaxWidth()
+                        .clickable(enabled = false) {}
                 ) {
-                    Card(
-                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .imePadding()
-                            .clickable(enabled = false) {}
-                    ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -298,7 +287,6 @@ fun WorkspaceScreen(
                     }
                 }
             }
-        }
 
             CustomDatePickerSheet(
                 visible = showSubtaskDatePicker,
@@ -2368,17 +2356,23 @@ private fun calculateOccasionDays(bday: com.example.data.BirthdayEntity): Int {
         }
 
         if (bday.countingMode == "Count Up") {
-            if (eventDate.before(today) || eventDate == today) {
+            if (eventDate.before(today) || eventDate.timeInMillis == today.timeInMillis) {
                 val diffMs = today.timeInMillis - eventDate.timeInMillis
-                return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
             }
             return 0
-        } else if (bday.countingMode == "Count Down") {
+        } else {
+            // Count Down mode (or default)
             if (eventDate.after(today)) {
                 val diffMs = eventDate.timeInMillis - today.timeInMillis
-                return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
+            } else if (eventDate.timeInMillis == today.timeInMillis) {
+                return 0
+            } else {
+                // If eventDate year was in the past (e.g. 1995 or 2020 birth/event year),
+                // calculate days until the next annual occurrence!
+                return daysUntilBirthday(bday.date)
             }
-            return 0
         }
     }
     // Default to the yearly occurrence countdown logic
@@ -2885,29 +2879,52 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
             )
         }
 
-        // 5. Background Image preset row popup
+        // 5. Background Image preset grid popup & local image launcher
         var showBgImagePopup by remember { mutableStateOf(false) }
+        val localImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) {
+                customBgImage = uri.toString()
+                showBgImagePopup = false
+            }
+        }
+
         if (showBgImagePopup) {
             AlertDialog(
                 onDismissRequest = { showBgImagePopup = false },
-                title = { Text("Select Background Image Preset", fontWeight = FontWeight.Bold) },
+                title = { Text("Select Background Image", fontWeight = FontWeight.Bold) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Text("Swipe horizontally to select a high-quality preset background style:", fontSize = 13.sp)
-                        LazyRow(
+                        Text("Choose a preset or upload your local rectangle image to fit full screen:", fontSize = 13.sp)
+
+                        OutlinedButton(
+                            onClick = { localImagePicker.launch("image/*") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Upload Local Image (Rectangle)", fontWeight = FontWeight.Bold)
+                        }
+
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp)
                         ) {
                             item {
                                 Box(
                                     modifier = Modifier
-                                        .size(60.dp)
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .fillMaxWidth()
+                                        .height(75.dp)
+                                        .clip(RoundedCornerShape(10.dp))
                                         .background(MaterialTheme.colorScheme.surfaceVariant)
                                         .border(
                                             width = if (customBgImage.isNullOrEmpty()) 2.dp else 1.dp,
                                             color = if (customBgImage.isNullOrEmpty()) BrandCyan else Color.Transparent,
-                                            shape = RoundedCornerShape(8.dp)
+                                            shape = RoundedCornerShape(10.dp)
                                         )
                                         .clickable {
                                             customBgImage = null
@@ -2925,12 +2942,13 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
-                                        .size(60.dp)
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .fillMaxWidth()
+                                        .height(75.dp)
+                                        .clip(RoundedCornerShape(10.dp))
                                         .border(
-                                            width = if (isSelected) 2.dp else 0.dp,
+                                            width = if (isSelected) 3.dp else 0.dp,
                                             color = if (isSelected) BrandCyan else Color.Transparent,
-                                            shape = RoundedCornerShape(8.dp)
+                                            shape = RoundedCornerShape(10.dp)
                                         )
                                         .clickable {
                                             customBgImage = imageUrl
@@ -3461,7 +3479,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
         val bday = detailedBirthday!!
         val activeBday = birthdays.find { it.id == bday.id } ?: bday
         val bdayType = activeBday.category.split("|")[0]
-        val daysLeft = daysUntilBirthday(activeBday.date)
+        val daysLeft = calculateOccasionDays(activeBday)
         val formattedDate = formatBirthdayDate(activeBday.date)
         val age = calculateAge(activeBday.date)
 
@@ -3833,27 +3851,47 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
         }
 
         // Dialog/BottomSheet to edit appearance
+        val detailImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) {
+                val updated = activeBday.copy(customBgImage = uri.toString())
+                viewModel.updateBirthday(updated)
+            }
+        }
+
         if (showAppearanceDialog) {
             AlertDialog(
                 onDismissRequest = { showAppearanceDialog = false },
                 title = { Text("Customize Appearance", fontWeight = FontWeight.Bold) },
                 text = {
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Background Image", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        
-                        // Preset backgrounds horizontal list
-                        LazyRow(
+
+                        OutlinedButton(
+                            onClick = { detailImagePicker.launch("image/*") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Upload Local Image (Rectangle)", fontWeight = FontWeight.Bold)
+                        }
+
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
                         ) {
                             item {
-                                // None/Default Background
                                 Box(
                                     modifier = Modifier
-                                        .size(60.dp)
+                                        .fillMaxWidth()
+                                        .height(70.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(MaterialTheme.colorScheme.surfaceVariant)
                                         .border(
@@ -3871,17 +3909,18 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 }
                             }
 
-                            items(presetImages) { imageUrl ->
+                            items(BackgroundPresets.allPresets) { imageUrl ->
                                 val isSelected = activeBday.customBgImage == imageUrl
                                 AsyncImage(
                                     model = imageUrl,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
-                                        .size(60.dp)
+                                        .fillMaxWidth()
+                                        .height(70.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .border(
-                                            width = if (isSelected) 2.dp else 0.dp,
+                                            width = if (isSelected) 3.dp else 0.dp,
                                             color = if (isSelected) themeColor else Color.Transparent,
                                             shape = RoundedCornerShape(8.dp)
                                         )

@@ -1099,6 +1099,22 @@ class TrackWiseViewModel(
                 autoPopup = autoPopup
             )
             repository.insertHabit(habit)
+            if (remindMe && !reminderTime.isNullOrBlank()) {
+                try {
+                    val context = getApplication<android.app.Application>().applicationContext
+                    val notifiedPrefs = context.getSharedPreferences("notified_reminders", android.content.Context.MODE_PRIVATE)
+                    val todayStr = TrackWiseUtils.getTodayString()
+                    val rDate = reminderDate?.take(10) ?: todayStr
+                    val rTime24 = com.example.receiver.ReminderReceiver.parseTo24HourTime(reminderTime)
+                    val currentTimeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
+                    if (rDate == todayStr && rTime24 != null && rTime24 <= currentTimeStr) {
+                        val key = "habit-${habit.id}-$rDate-$rTime24"
+                        notifiedPrefs.edit().putBoolean(key, true).apply()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
             triggerFakeSync()
         }
     }
@@ -2341,6 +2357,22 @@ class TrackWiseViewModel(
     fun updateHabit(habit: HabitEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertHabit(habit)
+            if (habit.remindMe && !habit.reminderTime.isNullOrBlank()) {
+                try {
+                    val context = getApplication<android.app.Application>().applicationContext
+                    val notifiedPrefs = context.getSharedPreferences("notified_reminders", android.content.Context.MODE_PRIVATE)
+                    val todayStr = TrackWiseUtils.getTodayString()
+                    val rDate = habit.reminderDate?.take(10) ?: todayStr
+                    val rTime24 = com.example.receiver.ReminderReceiver.parseTo24HourTime(habit.reminderTime)
+                    val currentTimeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date())
+                    if (rDate == todayStr && rTime24 != null && rTime24 <= currentTimeStr) {
+                        val key = "habit-${habit.id}-$rDate-$rTime24"
+                        notifiedPrefs.edit().putBoolean(key, true).apply()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
             triggerFakeSync()
         }
     }
@@ -2439,11 +2471,42 @@ class TrackWiseViewModel(
         val rootJson = org.json.JSONObject()
         rootJson.put("version", 1)
         
+        // App Preferences & Customizations
+        val prefsJson = org.json.JSONObject()
+        prefsJson.put("saved_theme_mode", _themeMode.value)
+        prefsJson.put("saved_theme_accent", _appThemeSelection.value)
+        prefsJson.put("app_font_size", _appFontSize.value)
+        prefsJson.put("app_font_style", _appFontStyle.value)
+        prefsJson.put("app_bg_type", _appBgType.value)
+        prefsJson.put("app_bg_color", _appBgColor.value)
+        prefsJson.put("app_bg_gradient", _appBgGradient.value)
+        prefsJson.put("app_bg_image", _appBgImage.value)
+        prefsJson.put("app_bg_custom_uri", _appBgCustomUri.value)
+        prefsJson.put("profile_image_uri", _profileImageUri.value ?: "")
+        prefsJson.put("auto_backup_frequency", _autoBackupFrequency.value)
+        prefsJson.put("custom_folders_list", _customFolders.value.joinToString(","))
+        prefsJson.put("custom_tags_list", _customTags.value.joinToString(","))
+        rootJson.put("appPreferences", prefsJson)
+
         // User info
         val userJson = org.json.JSONObject()
         userJson.put("id", user.id)
         userJson.put("email", user.email)
         userJson.put("fullName", user.fullName)
+        userJson.put("dob", user.dob ?: "")
+        userJson.put("gender", user.gender ?: "")
+        userJson.put("heightCm", user.heightCm ?: 0.0)
+        userJson.put("weightKg", user.weightKg ?: 0.0)
+        userJson.put("phone", user.phone ?: "")
+        userJson.put("addressLine1", user.addressLine1 ?: "")
+        userJson.put("addressLine2", user.addressLine2 ?: "")
+        userJson.put("city", user.city ?: "")
+        userJson.put("state", user.state ?: "")
+        userJson.put("zipCode", user.zipCode ?: "")
+        userJson.put("bloodType", user.bloodType ?: "")
+        userJson.put("waterGoalGlasses", user.waterGoalGlasses)
+        userJson.put("enabledConditions", user.enabledConditions)
+        userJson.put("religion", user.religion ?: "")
         rootJson.put("user", userJson)
         
         // Tasks
@@ -2460,7 +2523,16 @@ class TrackWiseViewModel(
             obj.put("points", item.points)
             obj.put("subtasksJson", item.subtasksJson)
             obj.put("reminderTime", item.reminderTime ?: "")
+            obj.put("repeatType", item.repeatType)
+            obj.put("customRepeatValue", item.customRepeatValue)
+            obj.put("customRepeatUnit", item.customRepeatUnit)
+            obj.put("customRepeatDaysOfWeek", item.customRepeatDaysOfWeek ?: "")
+            obj.put("startDate", item.startDate ?: "")
+            obj.put("endDate", item.endDate ?: "")
             obj.put("notes", item.notes)
+            obj.put("remindMe", item.remindMe)
+            obj.put("reminderDate", item.reminderDate ?: "")
+            obj.put("dueTime", item.dueTime ?: "")
             tasksArray.put(obj)
         }
         rootJson.put("tasks", tasksArray)
@@ -2478,6 +2550,28 @@ class TrackWiseViewModel(
             obj.put("maxStreak", item.maxStreak)
             obj.put("badgesEarnedJson", item.badgesEarnedJson)
             obj.put("createdAt", item.createdAt)
+            obj.put("isMultipleTimesPerDay", item.isMultipleTimesPerDay)
+            obj.put("multipleTimesTarget", item.multipleTimesTarget)
+            obj.put("isTimeBound", item.isTimeBound)
+            obj.put("timeBoundDuration", item.timeBoundDuration ?: "")
+            obj.put("repeatType", item.repeatType)
+            obj.put("customRepeatValue", item.customRepeatValue)
+            obj.put("customRepeatUnit", item.customRepeatUnit)
+            obj.put("customRepeatDaysOfWeek", item.customRepeatDaysOfWeek ?: "")
+            obj.put("startDate", item.startDate ?: "")
+            obj.put("endDate", item.endDate ?: "")
+            obj.put("notes", item.notes)
+            obj.put("remindMe", item.remindMe)
+            obj.put("reminderDate", item.reminderDate ?: "")
+            obj.put("reminderTime", item.reminderTime ?: "")
+            obj.put("dueTime", item.dueTime ?: "")
+            obj.put("icon", item.icon)
+            obj.put("quote", item.quote)
+            obj.put("goalType", item.goalType)
+            obj.put("goalDays", item.goalDays)
+            obj.put("section", item.section)
+            obj.put("autoPopup", item.autoPopup)
+            obj.put("backgroundImage", item.backgroundImage)
             habitsArray.put(obj)
         }
         rootJson.put("habits", habitsArray)
@@ -2610,6 +2704,16 @@ class TrackWiseViewModel(
             obj.put("date", item.date)
             obj.put("giftIdea", item.giftIdea ?: "")
             obj.put("category", item.category)
+            obj.put("remindMe", item.remindMe)
+            obj.put("reminderDate", item.reminderDate ?: "")
+            obj.put("reminderTime", item.reminderTime ?: "")
+            obj.put("isPinned", item.isPinned)
+            obj.put("customBgImage", item.customBgImage ?: "")
+            obj.put("customTextColor", item.customTextColor ?: "")
+            obj.put("customFontStyle", item.customFontStyle ?: "")
+            obj.put("reminderOptions", item.reminderOptions ?: "")
+            obj.put("repeatPattern", item.repeatPattern ?: "")
+            obj.put("countingMode", item.countingMode ?: "")
             birthdaysArray.put(obj)
         }
         rootJson.put("birthdays", birthdaysArray)
@@ -2624,6 +2728,9 @@ class TrackWiseViewModel(
             obj.put("link", item.link ?: "")
             obj.put("priority", item.priority)
             obj.put("purchased", item.purchased)
+            obj.put("remindMe", item.remindMe)
+            obj.put("reminderDate", item.reminderDate ?: "")
+            obj.put("reminderTime", item.reminderTime ?: "")
             wishlistArray.put(obj)
         }
         rootJson.put("wishlist", wishlistArray)
@@ -2889,6 +2996,53 @@ class TrackWiseViewModel(
                 
                 val rootJson = org.json.JSONObject(jsonContent)
                 
+                // Restore App Preferences
+                if (rootJson.has("appPreferences")) {
+                    val prefsObj = rootJson.getJSONObject("appPreferences")
+                    if (prefsObj.has("saved_theme_mode")) setThemeMode(prefsObj.getString("saved_theme_mode"))
+                    if (prefsObj.has("saved_theme_accent")) setAppThemeSelection(prefsObj.getString("saved_theme_accent"))
+                    if (prefsObj.has("app_font_size")) setAppFontSize(prefsObj.getString("app_font_size"))
+                    if (prefsObj.has("app_font_style")) setAppFontStyle(prefsObj.getString("app_font_style"))
+                    if (prefsObj.has("app_bg_type")) setAppBgType(prefsObj.getString("app_bg_type"))
+                    if (prefsObj.has("app_bg_color")) setAppBgColor(prefsObj.getString("app_bg_color"))
+                    if (prefsObj.has("app_bg_gradient")) setAppBgGradient(prefsObj.getString("app_bg_gradient"))
+                    if (prefsObj.has("app_bg_image")) setAppBgImage(prefsObj.getString("app_bg_image"))
+                    if (prefsObj.has("app_bg_custom_uri")) setAppBgCustomUri(prefsObj.getString("app_bg_custom_uri"))
+                    if (prefsObj.has("profile_image_uri")) setProfileImageUri(prefsObj.optString("profile_image_uri").ifBlank { null })
+                    if (prefsObj.has("auto_backup_frequency")) updateAutoBackupFrequency(prefsObj.getString("auto_backup_frequency"))
+                    if (prefsObj.has("custom_folders_list")) {
+                        val folders = prefsObj.getString("custom_folders_list").split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        folders.forEach { addCustomFolder(it) }
+                    }
+                    if (prefsObj.has("custom_tags_list")) {
+                        val tags = prefsObj.getString("custom_tags_list").split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        tags.forEach { addCustomTag(it) }
+                    }
+                }
+
+                // Restore User Info if detailed
+                if (rootJson.has("user")) {
+                    val uObj = rootJson.getJSONObject("user")
+                    val updatedUser = user.copy(
+                        dob = if (uObj.has("dob") && uObj.getString("dob").isNotBlank()) uObj.getString("dob") else user.dob,
+                        gender = if (uObj.has("gender") && uObj.getString("gender").isNotBlank()) uObj.getString("gender") else user.gender,
+                        heightCm = if (uObj.has("heightCm") && !uObj.isNull("heightCm")) uObj.getDouble("heightCm") else user.heightCm,
+                        weightKg = if (uObj.has("weightKg") && !uObj.isNull("weightKg")) uObj.getDouble("weightKg") else user.weightKg,
+                        phone = if (uObj.has("phone") && uObj.getString("phone").isNotBlank()) uObj.getString("phone") else user.phone,
+                        addressLine1 = if (uObj.has("addressLine1") && uObj.getString("addressLine1").isNotBlank()) uObj.getString("addressLine1") else user.addressLine1,
+                        addressLine2 = if (uObj.has("addressLine2") && uObj.getString("addressLine2").isNotBlank()) uObj.getString("addressLine2") else user.addressLine2,
+                        city = if (uObj.has("city") && uObj.getString("city").isNotBlank()) uObj.getString("city") else user.city,
+                        state = if (uObj.has("state") && uObj.getString("state").isNotBlank()) uObj.getString("state") else user.state,
+                        zipCode = if (uObj.has("zipCode") && uObj.getString("zipCode").isNotBlank()) uObj.getString("zipCode") else user.zipCode,
+                        bloodType = if (uObj.has("bloodType") && uObj.getString("bloodType").isNotBlank()) uObj.getString("bloodType") else user.bloodType,
+                        waterGoalGlasses = uObj.optInt("waterGoalGlasses", user.waterGoalGlasses),
+                        enabledConditions = uObj.optString("enabledConditions", user.enabledConditions),
+                        religion = if (uObj.has("religion") && uObj.getString("religion").isNotBlank()) uObj.getString("religion") else user.religion
+                    )
+                    repository.updateUserProfile(updatedUser)
+                    _sessionUser.value = updatedUser
+                }
+
                 // Restore Tasks
                 if (rootJson.has("tasks")) {
                     val array = rootJson.getJSONArray("tasks")
@@ -2899,14 +3053,23 @@ class TrackWiseViewModel(
                             userId = user.id,
                             title = obj.getString("title"),
                             description = obj.optString("description", ""),
-                            project = obj.optString("project", "Default"),
+                            project = obj.optString("project", "Inbox"),
                             priority = obj.optString("priority", "medium"),
                             deadline = obj.optString("deadline", TrackWiseUtils.getTodayString()),
                             completed = obj.optBoolean("completed", false),
                             points = obj.optInt("points", 10),
                             subtasksJson = obj.optString("subtasksJson", "[]"),
-                            reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotEmpty()) obj.getString("reminderTime") else null,
-                            notes = obj.optString("notes", "")
+                            reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotBlank()) obj.getString("reminderTime") else null,
+                            repeatType = obj.optString("repeatType", "none"),
+                            customRepeatValue = obj.optInt("customRepeatValue", 1),
+                            customRepeatUnit = obj.optString("customRepeatUnit", "days"),
+                            customRepeatDaysOfWeek = if (obj.has("customRepeatDaysOfWeek") && obj.getString("customRepeatDaysOfWeek").isNotBlank()) obj.getString("customRepeatDaysOfWeek") else null,
+                            startDate = if (obj.has("startDate") && obj.getString("startDate").isNotBlank()) obj.getString("startDate") else null,
+                            endDate = if (obj.has("endDate") && obj.getString("endDate").isNotBlank()) obj.getString("endDate") else null,
+                            notes = obj.optString("notes", ""),
+                            remindMe = obj.optBoolean("remindMe", false),
+                            reminderDate = if (obj.has("reminderDate") && obj.getString("reminderDate").isNotBlank()) obj.getString("reminderDate") else null,
+                            dueTime = if (obj.has("dueTime") && obj.getString("dueTime").isNotBlank()) obj.getString("dueTime") else null
                         )
                         repository.insertTask(entity)
                     }
@@ -2927,7 +3090,29 @@ class TrackWiseViewModel(
                             streak = obj.optInt("streak", 0),
                             maxStreak = obj.optInt("maxStreak", 0),
                             badgesEarnedJson = obj.optString("badgesEarnedJson", "[]"),
-                            createdAt = obj.optString("createdAt", TrackWiseUtils.getTodayString())
+                            createdAt = obj.optString("createdAt", TrackWiseUtils.getTodayString()),
+                            isMultipleTimesPerDay = obj.optBoolean("isMultipleTimesPerDay", false),
+                            multipleTimesTarget = obj.optInt("multipleTimesTarget", 1),
+                            isTimeBound = obj.optBoolean("isTimeBound", false),
+                            timeBoundDuration = if (obj.has("timeBoundDuration") && obj.getString("timeBoundDuration").isNotBlank()) obj.getString("timeBoundDuration") else null,
+                            repeatType = obj.optString("repeatType", "none"),
+                            customRepeatValue = obj.optInt("customRepeatValue", 1),
+                            customRepeatUnit = obj.optString("customRepeatUnit", "days"),
+                            customRepeatDaysOfWeek = if (obj.has("customRepeatDaysOfWeek") && obj.getString("customRepeatDaysOfWeek").isNotBlank()) obj.getString("customRepeatDaysOfWeek") else null,
+                            startDate = if (obj.has("startDate") && obj.getString("startDate").isNotBlank()) obj.getString("startDate") else null,
+                            endDate = if (obj.has("endDate") && obj.getString("endDate").isNotBlank()) obj.getString("endDate") else null,
+                            notes = obj.optString("notes", ""),
+                            remindMe = obj.optBoolean("remindMe", false),
+                            reminderDate = if (obj.has("reminderDate") && obj.getString("reminderDate").isNotBlank()) obj.getString("reminderDate") else null,
+                            reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotBlank()) obj.getString("reminderTime") else null,
+                            dueTime = if (obj.has("dueTime") && obj.getString("dueTime").isNotBlank()) obj.getString("dueTime") else null,
+                            icon = obj.optString("icon", "😊"),
+                            quote = obj.optString("quote", ""),
+                            goalType = obj.optString("goalType", "Achieve it all"),
+                            goalDays = obj.optString("goalDays", "Forever"),
+                            section = obj.optString("section", "Others"),
+                            autoPopup = obj.optBoolean("autoPopup", false),
+                            backgroundImage = obj.optString("backgroundImage", "window")
                         )
                         repository.insertHabit(entity)
                     }
@@ -3084,8 +3269,18 @@ class TrackWiseViewModel(
                             userId = user.id,
                             name = obj.getString("name"),
                             date = obj.getString("date"),
-                            giftIdea = if (obj.has("giftIdea") && obj.getString("giftIdea").isNotEmpty()) obj.getString("giftIdea") else null,
-                            category = obj.optString("category", "Others")
+                            giftIdea = if (obj.has("giftIdea") && obj.getString("giftIdea").isNotBlank()) obj.getString("giftIdea") else null,
+                            category = obj.optString("category", "Others"),
+                            remindMe = obj.optBoolean("remindMe", false),
+                            reminderDate = if (obj.has("reminderDate") && obj.getString("reminderDate").isNotBlank()) obj.getString("reminderDate") else null,
+                            reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotBlank()) obj.getString("reminderTime") else null,
+                            isPinned = obj.optBoolean("isPinned", false),
+                            customBgImage = if (obj.has("customBgImage") && obj.getString("customBgImage").isNotBlank()) obj.getString("customBgImage") else null,
+                            customTextColor = if (obj.has("customTextColor") && obj.getString("customTextColor").isNotBlank()) obj.getString("customTextColor") else null,
+                            customFontStyle = if (obj.has("customFontStyle") && obj.getString("customFontStyle").isNotBlank()) obj.getString("customFontStyle") else null,
+                            reminderOptions = if (obj.has("reminderOptions") && obj.getString("reminderOptions").isNotBlank()) obj.getString("reminderOptions") else null,
+                            repeatPattern = if (obj.has("repeatPattern") && obj.getString("repeatPattern").isNotBlank()) obj.getString("repeatPattern") else null,
+                            countingMode = if (obj.has("countingMode") && obj.getString("countingMode").isNotBlank()) obj.getString("countingMode") else null
                         )
                         repository.insertBirthday(entity)
                     }
@@ -3101,9 +3296,12 @@ class TrackWiseViewModel(
                             userId = user.id,
                             title = obj.getString("title"),
                             price = obj.optDouble("price", 0.0),
-                            link = if (obj.has("link") && obj.getString("link").isNotEmpty()) obj.getString("link") else null,
+                            link = if (obj.has("link") && obj.getString("link").isNotBlank()) obj.getString("link") else null,
                             priority = obj.optString("priority", "medium"),
-                            purchased = obj.optBoolean("purchased", false)
+                            purchased = obj.optBoolean("purchased", false),
+                            remindMe = obj.optBoolean("remindMe", false),
+                            reminderDate = if (obj.has("reminderDate") && obj.getString("reminderDate").isNotBlank()) obj.getString("reminderDate") else null,
+                            reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotBlank()) obj.getString("reminderTime") else null
                         )
                         repository.insertWishItem(entity)
                     }

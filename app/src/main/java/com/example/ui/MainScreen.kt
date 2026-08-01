@@ -282,6 +282,8 @@ fun MainScreen(
                             viewModel.setActiveDetailHabit(null)
                             navigateTo(it)
                             showMoreMenu = false
+                            showMainSpeedDial = false
+                            showOccasionSpeedDial = false
                             viewModel.setSettingsPanelOpen(false) // Auto-close settings on tab swap
                         },
                         onSubTabSelected = { tab, subTab ->
@@ -289,9 +291,18 @@ fun MainScreen(
                             navigateTo(tab)
                             viewModel.setWorkspaceSubTab(subTab)
                             showMoreMenu = false
+                            showMainSpeedDial = false
+                            showOccasionSpeedDial = false
                             viewModel.setSettingsPanelOpen(false)
                         },
-                        onMoreMenuClick = { showMoreMenu = !showMoreMenu },
+                        onMoreMenuClick = {
+                            val next = !showMoreMenu
+                            showMoreMenu = next
+                            if (next) {
+                                showMainSpeedDial = false
+                                showOccasionSpeedDial = false
+                            }
+                        },
                         isMoreMenuActive = isMoreMenuActive
                     )
                 }
@@ -716,7 +727,10 @@ fun MainScreen(
                         }
 
                         FloatingActionButton(
-                            onClick = { showOccasionSpeedDial = !showOccasionSpeedDial },
+                            onClick = {
+                                showMoreMenu = false
+                                showOccasionSpeedDial = !showOccasionSpeedDial
+                            },
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = Color.White,
                             shape = CircleShape,
@@ -733,7 +747,10 @@ fun MainScreen(
                     }
                 } else if (activeTab == "workspace" && activeSubTab == 0) {
                     FloatingActionButton(
-                        onClick = { viewModel.openAddTaskSheet() },
+                        onClick = {
+                            showMoreMenu = false
+                            viewModel.openAddTaskSheet()
+                        },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White,
                         shape = CircleShape,
@@ -749,7 +766,10 @@ fun MainScreen(
                     }
                 } else if (activeTab == "workspace" && activeSubTab == 1) {
                     FloatingActionButton(
-                        onClick = { viewModel.openHabitCreationSheet() },
+                        onClick = {
+                            showMoreMenu = false
+                            viewModel.openHabitCreationSheet()
+                        },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color.White,
                         shape = CircleShape,
@@ -788,6 +808,7 @@ fun MainScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.clickable {
+                                        showMoreMenu = false
                                         showMainSpeedDial = false
                                         navigateTo(key)
                                     }
@@ -808,6 +829,7 @@ fun MainScreen(
                                     }
                                     FloatingActionButton(
                                         onClick = {
+                                            showMoreMenu = false
                                             showMainSpeedDial = false
                                             navigateTo(key)
                                         },
@@ -823,7 +845,10 @@ fun MainScreen(
                         }
 
                         FloatingActionButton(
-                            onClick = { showMainSpeedDial = !showMainSpeedDial },
+                            onClick = {
+                                showMoreMenu = false
+                                showMainSpeedDial = !showMainSpeedDial
+                            },
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = Color.White,
                             shape = CircleShape,

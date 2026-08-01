@@ -96,7 +96,6 @@ object BackgroundPresets {
         "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800", // Organic Waves
         "https://images.unsplash.com/photo-1531315630201-bb15abeb1653?w=800", // Smoky Pastel
         "https://images.unsplash.com/photo-1504333631150-c82014e52ec7?w=800", // Dark Abstract Glass
-        "https://images.unsplash.com/photo-1579783922614-a3fb3927b6a5?w=800", // Watercolor Splatter
         "https://images.unsplash.com/photo-1526047932273-341f2a7631f9?w=800"  // Flowing lines
     )
 
@@ -125,6 +124,23 @@ object BackgroundPresets {
         "https://images.unsplash.com/photo-1511497584788-876760111969?w=800", // Deep Green Forest
         "https://images.unsplash.com/photo-1506929562872-bb421503ef21?w=800"  // Tropical Beach
     )
+
+    val spaceImages = listOf(
+        "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=800", // Galaxy Night
+        "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800", // Earth Atmosphere
+        "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=800", // Orbital View
+        "https://images.unsplash.com/photo-1502134249126-9f3755a50d78?w=800", // Cosmic Dust
+        "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800"  // Red Nebula
+    )
+
+    val darkAesthetic = listOf(
+        "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800", // Obsidian Dark
+        "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800", // Neon Midnight
+        "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=800", // Minimal Charcoal
+        "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800"  // Dark Starry Sky
+    )
+
+    val allPresets = (abstractImages + landscapes + cityscapes + spaceImages + darkAesthetic + textures).distinct()
 }
 
 @Composable

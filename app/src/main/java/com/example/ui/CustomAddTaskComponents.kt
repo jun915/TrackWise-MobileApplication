@@ -526,25 +526,16 @@ fun CustomAddTaskBottomSheet(
         }
     }
 
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+        exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
     ) {
-        val view = androidx.compose.ui.platform.LocalView.current
-        SideEffect {
-            val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
-            if (window != null) {
-                window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
-            }
-        }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .imePadding()
+                .navigationBarsPadding()
                 .background(Color.Black.copy(alpha = 0.55f))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -553,19 +544,17 @@ fun CustomAddTaskBottomSheet(
                 ),
             contentAlignment = Alignment.BottomCenter
         ) {
-        // Sheet Content Container
-        Card(
-            shape = if (isFullScreen) RoundedCornerShape(0.dp) else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-            modifier = (if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
-                .navigationBarsPadding()
-                .imePadding()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {} // Consume clicks to avoid closing
-                )
+            // Sheet Content Container
+            Card(
+                shape = if (isFullScreen) RoundedCornerShape(0.dp) else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                modifier = (if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {} // Consume clicks to avoid closing
+                    )
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
@@ -1069,40 +1058,28 @@ fun CustomAddTaskBottomSheet(
         }
 
         // 2. Add Subtask Dialog/Popup (Slides up from below)
-        if (showAddSubtaskDialog) {
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = { showAddSubtaskDialog = false },
-                properties = androidx.compose.ui.window.DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    decorFitsSystemWindows = false
-                )
+        AnimatedVisibility(
+            visible = showAddSubtaskDialog,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+                    .navigationBarsPadding()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable { showAddSubtaskDialog = false },
+                contentAlignment = Alignment.BottomCenter
             ) {
-                val view = androidx.compose.ui.platform.LocalView.current
-                SideEffect {
-                    val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
-                    if (window != null) {
-                        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-                        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
-                    }
-                }
-
-                Box(
+                Card(
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .clickable { showAddSubtaskDialog = false },
-                    contentAlignment = Alignment.BottomCenter
+                        .fillMaxWidth()
+                        .clickable(enabled = false) {}
                 ) {
-                    Card(
-                        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .imePadding()
-                            .clickable(enabled = false) {}
-                    ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1338,7 +1315,6 @@ fun CustomAddTaskBottomSheet(
             maxDateStr = deadline
         )
     }
-}
 }
 }
 

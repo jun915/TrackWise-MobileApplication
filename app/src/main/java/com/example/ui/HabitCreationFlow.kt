@@ -220,6 +220,7 @@ fun HabitCreationFlowDialog(
         var showGoalDaysDialog by remember { mutableStateOf(false) }
         var showAddSectionDialog by remember { mutableStateOf(false) }
         var showAddReminderDialog by remember { mutableStateOf(false) }
+        var editingReminderTime by remember { mutableStateOf<String?>(null) }
 
         var nameError by remember { mutableStateOf(false) }
 
@@ -318,7 +319,7 @@ fun HabitCreationFlowDialog(
                                                 .clickable {
                                                     habitName = template.name
                                                     selectedIcon = template.icon
-                                                    currentQuote = template.quote
+                                                    currentQuote = template.quote.ifBlank { MOTIVATIONAL_QUOTES.random() }
                                                     habitCategory = template.category
                                                     currentStep = 1
                                                 }
@@ -885,7 +886,10 @@ fun HabitCreationFlowDialog(
                                                 ) {
                                                     reminderTimes.forEach { time ->
                                                         AssistChip(
-                                                            onClick = {},
+                                                            onClick = {
+                                                                editingReminderTime = time
+                                                                showAddReminderDialog = true
+                                                            },
                                                             label = { Text(time) },
                                                             trailingIcon = {
                                                                 IconButton(
@@ -1420,13 +1424,24 @@ fun HabitCreationFlowDialog(
             )
         }
 
-        // Add Reminder Dialog using Native Clock
+        // Add/Edit Reminder Dialog using Native Clock
         if (showAddReminderDialog) {
             val context = androidx.compose.ui.platform.LocalContext.current
             val calendar = java.util.Calendar.getInstance()
             val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
             val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
             
+            var initialHour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+            var initialMinute = calendar.get(java.util.Calendar.MINUTE)
+            if (editingReminderTime != null) {
+                val parsed24 = com.example.receiver.ReminderReceiver.parseTo24HourTime(editingReminderTime)
+                if (parsed24 != null && parsed24.contains(":")) {
+                    val parts = parsed24.split(":")
+                    initialHour = parts[0].toIntOrNull() ?: initialHour
+                    initialMinute = parts[1].toIntOrNull() ?: initialMinute
+                }
+            }
+
             androidx.compose.runtime.DisposableEffect(Unit) {
                 val tpd = android.app.TimePickerDialog(
                     context,
@@ -1437,14 +1452,28 @@ fun HabitCreationFlowDialog(
                             m, 
                             if (h < 12) "AM" else "PM"
                         )
-                        reminderTimes = reminderTimes.toMutableList().apply { if (!contains(formattedTime)) add(formattedTime) }
+                        if (editingReminderTime != null) {
+                            val targetOld = editingReminderTime
+                            reminderTimes = reminderTimes.toMutableList().apply {
+                                val idx = indexOf(targetOld)
+                                if (idx >= 0) {
+                                    set(idx, formattedTime)
+                                } else if (!contains(formattedTime)) {
+                                    add(formattedTime)
+                                }
+                            }
+                            editingReminderTime = null
+                        } else {
+                            reminderTimes = reminderTimes.toMutableList().apply { if (!contains(formattedTime)) add(formattedTime) }
+                        }
                         showAddReminderDialog = false
                     },
-                    calendar.get(java.util.Calendar.HOUR_OF_DAY),
-                    calendar.get(java.util.Calendar.MINUTE),
+                    initialHour,
+                    initialMinute,
                     false // Use 12h clock
                 )
                 tpd.setOnCancelListener {
+                    editingReminderTime = null
                     showAddReminderDialog = false
                 }
                 tpd.show()
