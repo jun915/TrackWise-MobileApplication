@@ -1108,14 +1108,18 @@ fun MainScreen(
     val tasksForSuggestions by viewModel.allTasks.collectAsState()
     val customFoldersForSuggestions by viewModel.customFolders.collectAsState()
     val customTagsForSuggestions by viewModel.customTags.collectAsState()
+    val deletedFolders by viewModel.deletedFolders.collectAsState()
+    val deletedTags by viewModel.deletedTags.collectAsState()
 
-    val initialProjectsList = remember(tasksForSuggestions, customFoldersForSuggestions) {
+    val initialProjectsList = remember(tasksForSuggestions, customFoldersForSuggestions, deletedFolders) {
         val defaults = listOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome")
         val dynamic = tasksForSuggestions.map { it.project }.filter { it.isNotBlank() }
-        (defaults + customFoldersForSuggestions + dynamic).distinct()
+        (defaults + customFoldersForSuggestions + dynamic)
+            .distinct()
+            .filter { folder -> !deletedFolders.any { it.equals(folder, ignoreCase = true) } }
     }
 
-    val initialTagsList = remember(tasksForSuggestions, customTagsForSuggestions) {
+    val initialTagsList = remember(tasksForSuggestions, customTagsForSuggestions, deletedTags) {
         val defaults = listOf("daily routine", "work", "fitness", "learning")
         val extracted = mutableSetOf<String>()
         tasksForSuggestions.forEach { t ->
@@ -1127,7 +1131,13 @@ fun MainScreen(
                 }
             }
         }
-        (defaults + customTagsForSuggestions + extracted).map { if (it.startsWith("#")) it else "#$it" }.distinct()
+        (defaults + customTagsForSuggestions + extracted)
+            .map { if (it.startsWith("#")) it else "#$it" }
+            .distinct()
+            .filter { tag ->
+                val cleanTag = tag.removePrefix("#")
+                !deletedTags.any { it.equals(cleanTag, ignoreCase = true) }
+            }
     }
 
     CustomAddTaskBottomSheet(

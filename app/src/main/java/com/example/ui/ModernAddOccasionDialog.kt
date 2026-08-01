@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -1891,9 +1892,9 @@ private fun AppearanceSelectionScreen(
 fun getVectorForIconKey(key: String): ImageVector {
     return when (key.lowercase()) {
         "cake" -> Icons.Default.Cake
-        "favorite", "heart" -> Icons.Default.Favorite
+        "favorite", "heart", "💖" -> Icons.Default.Favorite
         "hourglass" -> Icons.Default.HourglassEmpty
-        "star" -> Icons.Default.Star
+        "star", "⭐" -> Icons.Default.Star
         "gift", "redeem" -> Icons.Default.Redeem
         "party", "celebration" -> Icons.Default.Celebration
         "balloon" -> Icons.Default.Brightness7
@@ -1901,63 +1902,89 @@ fun getVectorForIconKey(key: String): ImageVector {
         "bell" -> Icons.Default.Notifications
         "flower" -> Icons.Default.LocalFlorist
         "flight", "plane" -> Icons.Default.Flight
-        "music" -> Icons.Default.MusicNote
+        "music", "🎵", "🎸", "🎻", "🎤", "🎧" -> Icons.Default.MusicNote
         "coffee" -> Icons.Default.LocalCafe
-        "fire", "flame" -> Icons.Default.Whatshot
+        "fire", "flame", "🔥" -> Icons.Default.Whatshot
         "medal" -> Icons.Default.MilitaryTech
-        "pets", "dog", "cat" -> Icons.Default.Pets
-        "sports", "ball" -> Icons.Default.SportsBasketball
-        "fitness", "gym" -> Icons.Default.FitnessCenter
+        "pets", "dog", "cat", "🐕", "🐈" -> Icons.Default.Pets
+        "sports", "ball", "⚽", "🏀" -> Icons.Default.SportsBasketball
+        "fitness", "gym", "workout", "💪", "🏋️" -> Icons.Default.FitnessCenter
         "work", "briefcase" -> Icons.Default.Work
         "school", "graduation" -> Icons.Default.School
         "medical", "hospital" -> Icons.Default.LocalHospital
         "shopping", "cart" -> Icons.Default.ShoppingCart
-        "money", "cash" -> Icons.Default.AttachMoney
-        "camera" -> Icons.Default.CameraAlt
-        "phone" -> Icons.Default.Phone
-        "laptop", "computer" -> Icons.Default.Laptop
+        "money", "cash", "💵" -> Icons.Default.AttachMoney
+        "camera", "📷" -> Icons.Default.CameraAlt
+        "phone", "📞" -> Icons.Default.Phone
+        "laptop", "computer", "💻" -> Icons.Default.Laptop
         "home", "house" -> Icons.Default.Home
         "car", "auto" -> Icons.Default.DirectionsCar
-        "bike" -> Icons.Default.DirectionsBike
-        "run", "jog" -> Icons.Default.DirectionsRun
-        "pool", "swim" -> Icons.Default.Pool
-        "restaurant", "food" -> Icons.Default.Restaurant
-        "movie", "film" -> Icons.Default.LocalMovies
-        "book", "reading" -> Icons.Default.MenuBook
-        "gaming", "game" -> Icons.Default.SportsEsports
-        "spa", "wellness" -> Icons.Default.Spa
+        "bike", "cycling", "🚴" -> Icons.Default.DirectionsBike
+        "run", "jog", "steps", "🏃", "🚶" -> Icons.Default.DirectionsRun
+        "pool", "swim", "🏊" -> Icons.Default.Pool
+        "restaurant", "food", "eat", "🍞", "🍚", "🍌", "🥕", "🍦", "🍎", "🥗", "🍵" -> Icons.Default.Restaurant
+        "movie", "film", "🎬" -> Icons.Default.LocalMovies
+        "book", "reading", "read", "📖", "📘" -> Icons.Default.MenuBook
+        "gaming", "game", "🎮" -> Icons.Default.SportsEsports
+        "spa", "wellness", "stretching", "🧘" -> Icons.Default.Spa
         "nature", "mountain" -> Icons.Default.Landscape
         "beach", "vacation" -> Icons.Default.BeachAccess
-        "sun", "sunny" -> Icons.Default.WbSunny
-        "moon", "night" -> Icons.Default.DarkMode
+        "sun", "sunny", "☀️" -> Icons.Default.WbSunny
+        "moon", "night", "🌙" -> Icons.Default.DarkMode
         "flag" -> Icons.Default.Flag
-        "brush", "art" -> Icons.Default.Brush
+        "brush", "art", "🎨" -> Icons.Default.Brush
         "palette" -> Icons.Default.Palette
-        "lightbulb", "idea" -> Icons.Default.Lightbulb
-        "smile", "happy" -> Icons.Default.SentimentSatisfied
+        "lightbulb", "idea", "💡" -> Icons.Default.Lightbulb
+        "smile", "happy", "😊" -> Icons.Default.SentimentSatisfied
         "compass" -> Icons.Default.Explore
         "map" -> Icons.Default.Map
         "timer" -> Icons.Default.Timer
-        "alarm" -> Icons.Default.Alarm
+        "alarm", "⏰" -> Icons.Default.Alarm
         "check" -> Icons.Default.Check
         "lock" -> Icons.Default.Lock
         "shield" -> Icons.Default.Shield
         "travel" -> Icons.Default.Public
-        "sparkles" -> Icons.Default.AutoAwesome
-        "drink", "bar" -> Icons.Default.LocalBar
+        "sparkles", "🚀" -> Icons.Default.AutoAwesome
+        "drink", "bar", "water", "🥛" -> Icons.Default.LocalCafe
         "fastfood" -> Icons.Default.Fastfood
         "diamond" -> Icons.Default.Diamond
         "email" -> Icons.Default.Email
-        "event", "calendar" -> Icons.Default.Event
+        "event", "calendar", "📅" -> Icons.Default.Event
         "group", "people" -> Icons.Default.Group
         "history" -> Icons.Default.History
         "person" -> Icons.Default.Person
         "place", "location" -> Icons.Default.Place
         "search" -> Icons.Default.Search
-        "thumbup", "like" -> Icons.Default.ThumbUp
+        "thumbup", "like", "👍" -> Icons.Default.ThumbUp
         "verified" -> Icons.Default.Verified
-        else -> Icons.Default.Cake
+        "journal", "pencil", "✏️", "📓", "📝", "✍️" -> Icons.Default.Edit
+        "tidy", "broom", "🧹" -> Icons.Default.CleaningServices
+        "plant", "garden", "🪴", "🌱" -> Icons.Default.Park
+        "vitamin", "pill", "💊" -> Icons.Default.Medication
+        "sleep", "bed", "😴", "💤", "🛌" -> Icons.Default.Bedtime
+        "gratitude", "pray", "🙏" -> Icons.Default.SelfImprovement
+        "nosugar", "block", "🚫" -> Icons.Default.Block
+        "target", "🎯" -> Icons.Default.GpsFixed
+        "brain", "mind", "🧠" -> Icons.Default.Psychology
+        else -> Icons.Default.Star
     }
+}
+
+@Composable
+fun HabitIconView(
+    icon: String,
+    tint: Color = MaterialTheme.colorScheme.primary,
+    size: Dp = 22.dp,
+    modifier: Modifier = Modifier
+) {
+    val cleanKey = icon.trim()
+    val vector = getVectorForIconKey(cleanKey)
+    Icon(
+        imageVector = vector,
+        contentDescription = null,
+        tint = tint,
+        modifier = modifier.size(size)
+    )
 }
 
 fun getBrushForPreset(presetKey: String, accentColor: Color): Brush {

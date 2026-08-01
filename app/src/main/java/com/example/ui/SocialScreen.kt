@@ -44,6 +44,7 @@ fun SocialScreen(
     // Fetch stats for achievements progress
     val tasks by viewModel.allTasks.collectAsState()
     val habits by viewModel.allHabits.collectAsState()
+    val badHabits by viewModel.badHabits.collectAsState()
     val waterLogs by viewModel.waterLogs.collectAsState()
     val exerciseLogs by viewModel.exerciseLogs.collectAsState()
     val alarms by viewModel.allAlarms.collectAsState()
@@ -619,136 +620,152 @@ fun SocialScreen(
                 val socialCircleSize = friends.size
                 
                 val achievementsData = listOf(
-                    // --- 1. Habiteers & Streaks ---
+                    // --- 1. Habiteers & Streaks (PUBG Inspired) ---
                     AchievementItem(
-                        title = "Streak Champion",
+                        title = "First Blood: Streak Champion",
                         desc = "Develop consistent routines by checking off habits today.",
                         progress = habitsCheckedToday,
                         target = 1,
                         icon = Icons.Default.LocalFireDepartment,
-                        iconColor = BrandRose
+                        iconColor = BrandRose,
+                        tier = "RARE"
                     ),
                     AchievementItem(
-                        title = "Habit Novice",
+                        title = "Recruit: Habit Novice",
                         desc = "Create 3 habits to structure your life.",
                         progress = habits.size,
                         target = 3,
-                        icon = Icons.Default.Star,
-                        iconColor = BrandViolet
+                        icon = Icons.Default.MilitaryTech,
+                        iconColor = BrandViolet,
+                        tier = "COMMON"
                     ),
                     AchievementItem(
-                        title = "Habit Enthusiast",
+                        title = "Commando: Habit Enthusiast",
                         desc = "Build consistency with 5 active habits.",
                         progress = habits.size,
                         target = 5,
-                        icon = Icons.Default.Star,
-                        iconColor = BrandAmber
+                        icon = Icons.Default.Shield,
+                        iconColor = BrandAmber,
+                        tier = "EPIC"
                     ),
                     AchievementItem(
-                        title = "Habit Master",
+                        title = "Apex Predator: Habit Master",
                         desc = "Reach peak self-discipline with 10 active habits.",
                         progress = habits.size,
                         target = 10,
-                        icon = Icons.Default.Star,
-                        iconColor = BrandCyan
+                        icon = Icons.Default.WorkspacePremium,
+                        iconColor = BrandCyan,
+                        tier = "LEGENDARY"
                     ),
                     AchievementItem(
-                        title = "Consistent Builder",
+                        title = "Overachiever: 5-Day Streak",
                         desc = "Reach a 5-day maximum streak on any habit.",
                         progress = habits.maxOfOrNull { it.maxStreak } ?: 0,
                         target = 5,
-                        icon = Icons.Default.Favorite,
-                        iconColor = BrandViolet
+                        icon = Icons.Default.FlashOn,
+                        iconColor = BrandViolet,
+                        tier = "EPIC"
                     ),
                     AchievementItem(
-                        title = "Unstoppable Force",
+                        title = "Berserker: 15-Day Unbroken",
                         desc = "Reach a 15-day streak to lock in your routine.",
                         progress = habits.maxOfOrNull { it.maxStreak } ?: 0,
                         target = 15,
-                        icon = Icons.Default.Favorite,
-                        iconColor = BrandRose
+                        icon = Icons.Default.Whatshot,
+                        iconColor = BrandRose,
+                        tier = "MYTHIC"
                     ),
                     AchievementItem(
-                        title = "Legendary Routine",
-                        desc = "Maintain a 30-day streak — you are now unbreakable!",
+                        title = "Winner Winner Chicken Dinner: 30-Day Streak",
+                        desc = "Maintain a 30-day streak — legendary unbreakable performance!",
                         progress = habits.maxOfOrNull { it.maxStreak } ?: 0,
                         target = 30,
-                        icon = Icons.Default.Favorite,
-                        iconColor = BrandAmber
+                        icon = Icons.Default.EmojiEvents,
+                        iconColor = BrandAmber,
+                        tier = "MYTHIC"
                     ),
 
                     // --- 2. Tasks & Execution ---
                     AchievementItem(
-                        title = "Getting Things Done",
+                        title = "Gunslinger: Task Specialist",
                         desc = "Mark at least 3 tasks as completed.",
                         progress = completedTasksCount,
                         target = 3,
-                        icon = Icons.Default.TaskAlt,
-                        iconColor = BrandGreen
+                        icon = Icons.Default.GpsFixed,
+                        iconColor = BrandGreen,
+                        tier = "COMMON"
                     ),
                     AchievementItem(
-                        title = "Task Journeyman",
+                        title = "Deadeye: Task Journeyman",
                         desc = "Complete 10 total tasks successfully.",
                         progress = completedTasksCount,
                         target = 10,
-                        icon = Icons.Default.CheckCircle,
-                        iconColor = BrandPink
+                        icon = Icons.Default.GpsFixed,
+                        iconColor = BrandPink,
+                        tier = "RARE"
                     ),
                     AchievementItem(
-                        title = "Task Master",
+                        title = "Terminator: Task Master",
                         desc = "Complete 25 distinct tasks.",
                         progress = completedTasksCount,
                         target = 25,
-                        icon = Icons.Default.CheckCircle,
-                        iconColor = BrandViolet
+                        icon = Icons.Default.PrecisionManufacturing,
+                        iconColor = BrandViolet,
+                        tier = "EPIC"
                     ),
                     AchievementItem(
-                        title = "Task Overlord",
+                        title = "Conqueror: Task Overlord",
                         desc = "Execute 50 tasks to dominate your workflow.",
                         progress = completedTasksCount,
                         target = 50,
-                        icon = Icons.Default.CheckCircle,
-                        iconColor = BrandCyan
+                        icon = Icons.Default.MilitaryTech,
+                        iconColor = BrandCyan,
+                        tier = "LEGENDARY"
                     ),
                     AchievementItem(
-                        title = "Super Planner",
+                        title = "Tactical Master: Super Planner",
                         desc = "Draft 10 tasks to organize your future.",
                         progress = tasks.size,
                         target = 10,
-                        icon = Icons.Default.AddCircle,
-                        iconColor = BrandRose
+                        icon = Icons.Default.AutoAwesome,
+                        iconColor = BrandRose,
+                        tier = "EPIC"
                     ),
                     AchievementItem(
-                        title = "Architect of Life",
+                        title = "Warlord: Architect of Life",
                         desc = "Build a massive plan of 30 total recorded tasks.",
                         progress = tasks.size,
                         target = 30,
-                        icon = Icons.Default.Build,
-                        iconColor = BrandAmber
+                        icon = Icons.Default.Shield,
+                        iconColor = BrandAmber,
+                        tier = "MYTHIC"
                     ),
                     AchievementItem(
-                        title = "High Priority Hero",
+                        title = "Sharpshooter: High Priority Hero",
                         desc = "Complete 1 critical high-priority task.",
                         progress = tasks.count { it.completed && it.priority.lowercase() == "high" },
                         target = 1,
-                        icon = Icons.Default.Warning,
-                        iconColor = BrandRose
+                        icon = Icons.Default.ElectricBolt,
+                        iconColor = BrandRose,
+                        tier = "RARE"
                     ),
                     AchievementItem(
-                        title = "Elite Executor",
+                        title = "Rampage: Elite Executor",
                         desc = "Complete 5 critical high-priority tasks.",
                         progress = tasks.count { it.completed && it.priority.lowercase() == "high" },
                         target = 5,
-                        icon = Icons.Default.Warning,
-                        iconColor = BrandViolet
+                        icon = Icons.Default.Whatshot,
+                        iconColor = BrandViolet,
+                        tier = "EPIC"
                     ),
                     AchievementItem(
-                        title = "Apex Achiever",
+                        title = "Dominator: Apex Achiever",
                         desc = "Conquer 15 high-priority tasks under pressure.",
                         progress = tasks.count { it.completed && it.priority.lowercase() == "high" },
                         target = 15,
-                        icon = Icons.Default.Warning,
-                        iconColor = BrandAmber
+                        icon = Icons.Default.Diamond,
+                        iconColor = BrandAmber,
+                        tier = "MYTHIC"
                     ),
 
                     // --- 3. Hydration & Health ---
@@ -919,6 +936,44 @@ fun SocialScreen(
                         target = 2,
                         icon = Icons.Default.List,
                         iconColor = BrandViolet
+                    ),
+
+                    // --- 8. Break Bad Habits ---
+                    AchievementItem(
+                        title = "Honest Tracker",
+                        desc = "Keep at least 2 custom bad habits under surveillance.",
+                        progress = badHabits.size,
+                        target = 2,
+                        icon = Icons.Default.Verified,
+                        iconColor = BrandGreen,
+                        tier = "COMMON"
+                    ),
+                    AchievementItem(
+                        title = "Self-Awareness Mirror",
+                        desc = "Log your first slip-up honestly.",
+                        progress = badHabits.sumOf { it.logs.size },
+                        target = 1,
+                        icon = Icons.Default.LockOpen,
+                        iconColor = BrandCyan,
+                        tier = "RARE"
+                    ),
+                    AchievementItem(
+                        title = "Truth Seeker",
+                        desc = "Log a slip-up for 'Lying' honestly to break the cycle.",
+                        progress = badHabits.filter { it.name.lowercase().contains("lie") || it.name.lowercase().contains("lying") }.sumOf { it.logs.size },
+                        target = 1,
+                        icon = Icons.Default.History,
+                        iconColor = BrandAmber,
+                        tier = "EPIC"
+                    ),
+                    AchievementItem(
+                        title = "Breaking Chains",
+                        desc = "Build deep self-discipline by logging 5 honest checks.",
+                        progress = badHabits.sumOf { it.logs.size },
+                        target = 5,
+                        icon = Icons.Default.LinkOff,
+                        iconColor = BrandRose,
+                        tier = "LEGENDARY"
                     )
                 )
 
@@ -944,54 +999,40 @@ fun SocialScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        if (isUnlocked) BrandViolet
-                                        else MaterialTheme.colorScheme.surfaceVariant
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = achievement.icon,
-                                    contentDescription = null,
-                                    tint = if (isUnlocked) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
+                                PubgAchievementEmblem(achievement = achievement, isUnlocked = isUnlocked)
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = achievement.title,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isUnlocked) BrandViolet else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(
-                                                if (isUnlocked) BrandViolet.copy(alpha = 0.15f)
-                                                else MaterialTheme.colorScheme.surfaceVariant
-                                            )
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = if (isUnlocked) "UNLOCKED" else "LOCKED",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isUnlocked) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                            text = achievement.title,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = if (isUnlocked) BrandViolet else MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f)
                                         )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(
+                                                    if (isUnlocked) BrandViolet.copy(alpha = 0.15f)
+                                                    else MaterialTheme.colorScheme.surfaceVariant
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isUnlocked) "UNLOCKED" else achievement.tier,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = if (isUnlocked) BrandViolet else achievement.iconColor
+                                            )
+                                        }
                                     }
-                                }
 
                                 Text(
                                     text = achievement.desc,
@@ -1030,13 +1071,109 @@ fun SocialScreen(
     }
 }
 
+@Composable
+private fun PubgAchievementEmblem(
+    achievement: AchievementItem,
+    isUnlocked: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val tierColor = when (achievement.tier) {
+        "MYTHIC" -> Color(0xFFFF3B30) // Crimson Mythic
+        "LEGENDARY" -> Color(0xFFFFD700) // Gold Legendary
+        "EPIC" -> Color(0xFFAF52DE) // Purple Epic
+        "RARE" -> Color(0xFF007AFF) // Blue Rare
+        else -> Color(0xFF34C759) // Green Common
+    }
+    
+    val starCount = when (achievement.tier) {
+        "MYTHIC" -> 3
+        "LEGENDARY" -> 2
+        "EPIC" -> 1
+        else -> 0
+    }
+
+    val gradientBrush = if (isUnlocked) {
+        Brush.verticalGradient(
+            colors = when (achievement.tier) {
+                "MYTHIC" -> listOf(Color(0xFFFF3B30), Color(0xFF8B0000))
+                "LEGENDARY" -> listOf(Color(0xFFFFD700), Color(0xFFFF8C00))
+                "EPIC" -> listOf(Color(0xFFAF52DE), Color(0xFF4A0E4E))
+                "RARE" -> listOf(Color(0xFF007AFF), Color(0xFF003366))
+                else -> listOf(Color(0xFF34C759), Color(0xFF1E5631))
+            }
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(Color(0xFF3A3A3C), Color(0xFF1C1C1E))
+        )
+    }
+
+    val glowBorderColor = if (isUnlocked) tierColor else Color.Gray.copy(alpha = 0.3f)
+
+    Box(
+        modifier = modifier
+            .size(64.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(gradientBrush)
+            .border(
+                width = 2.dp,
+                brush = Brush.radialGradient(
+                    colors = listOf(glowBorderColor, glowBorderColor.copy(alpha = 0.6f))
+                ),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = achievement.icon,
+                contentDescription = null,
+                tint = if (isUnlocked) Color.White else Color.Gray,
+                modifier = Modifier.size(26.dp)
+            )
+            
+            Spacer(modifier = Modifier.height(2.dp))
+            
+            if (starCount > 0 && isUnlocked) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(starCount) {
+                        Text(
+                            text = "★",
+                            fontSize = 8.sp,
+                            color = Color(0xFFFFD700),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 0.5.dp)
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = achievement.tier,
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isUnlocked) Color.White.copy(alpha = 0.8f) else Color.Gray,
+                    letterSpacing = 0.5.sp
+                )
+            }
+        }
+    }
+}
+
 private data class AchievementItem(
     val title: String,
     val desc: String,
     val progress: Int,
     val target: Int,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val iconColor: androidx.compose.ui.graphics.Color
+    val iconColor: androidx.compose.ui.graphics.Color,
+    val tier: String = "EPIC"
 )
 
 private data class FriendLeaderboardItem(

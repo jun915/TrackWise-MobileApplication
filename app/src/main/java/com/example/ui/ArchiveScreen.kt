@@ -22,15 +22,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import com.example.data.*
+import com.example.utils.TrackWiseUtils
+import java.util.Calendar
+
 // Data representation for standard archived items
 data class ArchivedItem(
     val id: String,
     val title: String,
     val category: String, // "Tasks", "Groceries", "Exercise", "Wishlist", "Health Issues"
     val dateCompleted: String, // YYYY-MM-DD or standard display date
-    val details: String = ""
+    val details: String = "",
+    val originalEntity: Any? = null
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ArchiveScreen(
     viewModel: TrackWiseViewModel,
@@ -43,6 +51,13 @@ fun ArchiveScreen(
     val allGroceryItems by viewModel.allGroceryItems.collectAsState()
     val exerciseLogs by viewModel.exerciseLogs.collectAsState()
     val healthIssueLogs by viewModel.healthIssueLogs.collectAsState()
+    val allHabits by viewModel.allHabits.collectAsState()
+    val allBirthdays by viewModel.allBirthdays.collectAsState()
+
+    var pinnedIds by remember { mutableStateOf(setOf<String>()) }
+    var selectedItemIds by remember { mutableStateOf(setOf<String>()) }
+    var show3DotsMenu by remember { mutableStateOf(false) }
+    val isSelectionMode = selectedItemIds.isNotEmpty()
 
     // Process completed categories
     val completedTasks = remember(allTasks) {
@@ -52,7 +67,8 @@ fun ArchiveScreen(
                 title = it.title,
                 category = "Tasks",
                 dateCompleted = it.deadline,
-                details = it.priority.uppercase() + " Priority"
+                details = it.priority.uppercase() + " Priority",
+                originalEntity = it
             )
         }
     }
@@ -64,7 +80,8 @@ fun ArchiveScreen(
                 title = it.name,
                 category = "Groceries",
                 dateCompleted = "Today", // standard mock/recent date or generic label
-                details = "Qty: ${it.quantity}"
+                details = "Qty: ${it.quantity}",
+                originalEntity = it
             )
         }
     }
@@ -76,7 +93,8 @@ fun ArchiveScreen(
                 title = it.exerciseType,
                 category = "Exercise",
                 dateCompleted = it.date,
-                details = "${it.durationMinutes} minutes logged"
+                details = "${it.durationMinutes} minutes logged",
+                originalEntity = it
             )
         }
     }
@@ -88,7 +106,8 @@ fun ArchiveScreen(
                 title = it.title,
                 category = "Wishlist",
                 dateCompleted = "Purchased",
-                details = "₹${String.format("%,.2f", it.price)}"
+                details = "₹${String.format("%,.2f", it.price)}",
+                originalEntity = it
             )
         }
     }
@@ -100,7 +119,39 @@ fun ArchiveScreen(
                 title = it.issueName,
                 category = "Health Issues",
                 dateCompleted = it.date,
-                details = "Severity: ${it.severity.uppercase()}"
+                details = "Severity: ${it.severity.uppercase()}",
+                originalEntity = it
+            )
+        }
+    }
+
+    val completedHabits = remember(allHabits) {
+        allHabits.filter { habit ->
+            val daysCompleted = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+            daysCompleted.isNotEmpty() || habit.streak > 0
+        }.map {
+            ArchivedItem(
+                id = it.id,
+                title = it.name,
+                category = "Habits",
+                dateCompleted = "Streak: ${it.streak} days",
+                details = "${it.category} habit",
+                originalEntity = it
+            )
+        }
+    }
+
+    val completedCountdowns = remember(allBirthdays) {
+        allBirthdays.filter { birthday ->
+            birthday.category.contains("Countdown", ignoreCase = true) || TrackWiseUtils.getDaysUntil(birthday.date) <= 0
+        }.map {
+            ArchivedItem(
+                id = it.id,
+                title = it.name,
+                category = "Countdowns",
+                dateCompleted = it.date,
+                details = it.category,
+                originalEntity = it
             )
         }
     }
@@ -111,7 +162,9 @@ fun ArchiveScreen(
         completedGroceries,
         completedExercises,
         completedWishlist,
-        resolvedHealthIssues
+        resolvedHealthIssues,
+        completedHabits,
+        completedCountdowns
     ) {
         val list = mutableListOf<ArchivedItem>()
         list.addAll(completedTasks)
@@ -119,6 +172,8 @@ fun ArchiveScreen(
         list.addAll(completedExercises)
         list.addAll(completedWishlist)
         list.addAll(resolvedHealthIssues)
+        list.addAll(completedHabits)
+        list.addAll(completedCountdowns)
         // Sort items by date descending (safely falls back to title if dates are same)
         list.sortedWith(compareByDescending<ArchivedItem> { it.dateCompleted }.thenBy { it.title })
     }
@@ -127,49 +182,237 @@ fun ArchiveScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategoryFilter by remember { mutableStateOf("All") }
 
-    val filteredItems = remember(allArchivedItems, searchQuery, selectedCategoryFilter) {
-        allArchivedItems.filter { item ->
-            val matchesCategory = selectedCategoryFilter == "All" || item.category == selectedCategoryFilter
-            val matchesSearch = item.title.contains(searchQuery, ignoreCase = true) ||
-                    item.category.contains(searchQuery, ignoreCase = true)
-            matchesCategory && matchesSearch
-        }
+    val filteredItems = remember(allArchivedItems, searchQuery, selectedCategoryFilter, pinnedIds) {
+        allArchivedItems
+            .filter { item ->
+                val matchesCategory = selectedCategoryFilter == "All" || item.category == selectedCategoryFilter
+                val matchesSearch = item.title.contains(searchQuery, ignoreCase = true) ||
+                        item.category.contains(searchQuery, ignoreCase = true)
+                matchesCategory && matchesSearch
+            }
+            .sortedWith(compareByDescending<ArchivedItem> { pinnedIds.contains(it.id) }.thenByDescending { it.dateCompleted })
     }
 
     Scaffold(
         topBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            if (isSelectionMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BrandViolet.copy(alpha = 0.12f))
+                        .statusBarsPadding()
+                        .padding(horizontal = 8.dp, vertical = 10.dp)
                 ) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Go back",
-                            tint = BrandViolet
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            IconButton(onClick = { selectedItemIds = emptySet() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cancel selection",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "${selectedItemIds.size} Selected",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            // Select All / Deselect All Toggle Button
+                            val allFilteredIds = remember(filteredItems) { filteredItems.map { it.id }.toSet() }
+                            val isAllSelected = selectedItemIds.containsAll(allFilteredIds) && allFilteredIds.isNotEmpty()
+
+                            TextButton(
+                                onClick = {
+                                    selectedItemIds = if (isAllSelected) emptySet() else allFilteredIds
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = if (isAllSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
+                                    contentDescription = if (isAllSelected) "Deselect All" else "Select All",
+                                    tint = BrandViolet,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isAllSelected) "Deselect All" else "Select All",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandViolet
+                                )
+                            }
+
+                            // 3-Dots Menu
+                            Box {
+                                IconButton(onClick = { show3DotsMenu = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More options",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = show3DotsMenu,
+                                    onDismissRequest = { show3DotsMenu = false }
+                                ) {
+                                    val isSingleSelected = selectedItemIds.size == 1
+                                    val singleId = if (isSingleSelected) selectedItemIds.first() else null
+                                    val isSinglePinned = singleId != null && pinnedIds.contains(singleId)
+
+                                    if (isSingleSelected) {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = if (isSinglePinned) "Unpin from Top" else "Pin to Top",
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.PushPin,
+                                                    contentDescription = null,
+                                                    tint = BrandAmber
+                                                )
+                                            },
+                                            onClick = {
+                                                singleId?.let { id ->
+                                                    pinnedIds = if (isSinglePinned) pinnedIds - id else pinnedIds + id
+                                                }
+                                                selectedItemIds = emptySet()
+                                                show3DotsMenu = false
+                                            }
+                                        )
+                                    }
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "Mark Incomplete (${selectedItemIds.size})",
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = BrandViolet
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Undo,
+                                                contentDescription = null,
+                                                tint = BrandViolet
+                                            )
+                                        },
+                                        onClick = {
+                                            val targets = allArchivedItems.filter { selectedItemIds.contains(it.id) }
+                                            targets.forEach { item ->
+                                                when (item.category) {
+                                                    "Tasks" -> (item.originalEntity as? TaskEntity)?.let { viewModel.updateTask(it.copy(completed = false)) }
+                                                    "Groceries" -> (item.originalEntity as? GroceryItemEntity)?.let { viewModel.updateGroceryItem(it.copy(completed = false)) }
+                                                    "Wishlist" -> (item.originalEntity as? WishItemEntity)?.let { viewModel.updateWishItem(it.copy(purchased = false)) }
+                                                    "Exercise" -> (item.originalEntity as? ExerciseLogEntity)?.let { viewModel.updateExerciseLog(it.copy(completed = false)) }
+                                                    "Health Issues" -> (item.originalEntity as? HealthIssueLogEntity)?.let { viewModel.updateHealthIssueLog(it.copy(resolved = false)) }
+                                                    "Habits" -> (item.originalEntity as? HabitEntity)?.let { viewModel.updateHabit(it.copy(daysCompletedJson = "[]", streak = 0)) }
+                                                    "Countdowns" -> (item.originalEntity as? BirthdayEntity)?.let { birthday ->
+                                                        val parts = birthday.date.split("-")
+                                                        val nextDate = if (parts.size == 3) {
+                                                            val year = parts[0].toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+                                                            "${year + 1}-${parts[1]}-${parts[2]}"
+                                                        } else {
+                                                            val nextYear = Calendar.getInstance().get(Calendar.YEAR) + 1
+                                                            "$nextYear-${birthday.date}"
+                                                        }
+                                                        viewModel.updateBirthday(birthday.copy(date = nextDate))
+                                                    }
+                                                }
+                                            }
+                                            selectedItemIds = emptySet()
+                                            show3DotsMenu = false
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "Delete Permanently (${selectedItemIds.size})",
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        onClick = {
+                                            val targets = allArchivedItems.filter { selectedItemIds.contains(it.id) }
+                                            targets.forEach { item ->
+                                                when (item.category) {
+                                                    "Tasks" -> viewModel.deleteTask(item.id)
+                                                    "Groceries" -> viewModel.deleteGroceryItem(item.id)
+                                                    "Wishlist" -> viewModel.deleteWishItem(item.id)
+                                                    "Exercise" -> viewModel.deleteExerciseLog(item.id)
+                                                    "Health Issues" -> viewModel.deleteHealthIssueLog(item.id)
+                                                    "Habits" -> viewModel.deleteHabit(item.id)
+                                                    "Countdowns" -> viewModel.deleteBirthday(item.id)
+                                                }
+                                            }
+                                            pinnedIds = pinnedIds - selectedItemIds
+                                            selectedItemIds = emptySet()
+                                            show3DotsMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
-                    Column {
-                        Text(
-                            text = "HISTORY LOGS",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandViolet,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = "Completed Archive",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Go back",
+                                tint = BrandViolet
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "HISTORY LOGS",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandViolet,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = "Completed Archive",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -261,6 +504,30 @@ fun ArchiveScreen(
                             isSelected = selectedCategoryFilter == "Health Issues",
                             onClick = {
                                 selectedCategoryFilter = if (selectedCategoryFilter == "Health Issues") "All" else "Health Issues"
+                            }
+                        )
+                    }
+                    item {
+                        ArchiveCategoryCard(
+                            name = "Habits",
+                            count = completedHabits.size,
+                            color = BrandViolet,
+                            icon = Icons.Default.Autorenew,
+                            isSelected = selectedCategoryFilter == "Habits",
+                            onClick = {
+                                selectedCategoryFilter = if (selectedCategoryFilter == "Habits") "All" else "Habits"
+                            }
+                        )
+                    }
+                    item {
+                        ArchiveCategoryCard(
+                            name = "Countdowns",
+                            count = completedCountdowns.size,
+                            color = BrandPink,
+                            icon = Icons.Default.Timer,
+                            isSelected = selectedCategoryFilter == "Countdowns",
+                            onClick = {
+                                selectedCategoryFilter = if (selectedCategoryFilter == "Countdowns") "All" else "Countdowns"
                             }
                         )
                     }
@@ -370,7 +637,21 @@ fun ArchiveScreen(
                 }
             } else {
                 items(filteredItems) { item ->
-                    ArchivedItemRow(item = item)
+                    val isSelected = selectedItemIds.contains(item.id)
+                    ArchivedItemRow(
+                        item = item,
+                        isPinned = pinnedIds.contains(item.id),
+                        isSelected = isSelected,
+                        isSelectionMode = isSelectionMode,
+                        onClick = {
+                            if (isSelectionMode) {
+                                selectedItemIds = if (isSelected) selectedItemIds - item.id else selectedItemIds + item.id
+                            }
+                        },
+                        onLongClick = {
+                            selectedItemIds = if (isSelected) selectedItemIds - item.id else selectedItemIds + item.id
+                        }
+                    )
                 }
             }
         }
@@ -447,9 +728,15 @@ fun ArchiveCategoryCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ArchivedItemRow(
     item: ArchivedItem,
+    isPinned: Boolean = false,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onClick: () -> Unit = {},
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val categoryColor = when (item.category) {
@@ -458,15 +745,35 @@ fun ArchivedItemRow(
         "Exercise" -> BrandPink
         "Wishlist" -> BrandAmber
         "Health Issues" -> BrandRose
+        "Habits" -> BrandViolet
+        "Countdowns" -> BrandPink
         else -> BrandViolet
     }
 
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                isSelected -> BrandViolet.copy(alpha = 0.15f)
+                isPinned -> BrandAmber.copy(alpha = 0.08f)
+                else -> MaterialTheme.colorScheme.surface
+            }
+        ),
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+            .border(
+                width = if (isSelected || isPinned) 1.5.dp else 1.dp,
+                color = when {
+                    isSelected -> BrandViolet
+                    isPinned -> BrandAmber.copy(alpha = 0.5f)
+                    else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                },
+                shape = RoundedCornerShape(16.dp)
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
         Row(
             modifier = Modifier
@@ -475,27 +782,47 @@ fun ArchivedItemRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Checkmark Circle Indicator
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .background(categoryColor.copy(alpha = 0.12f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Completed icon",
-                    tint = categoryColor,
-                    modifier = Modifier.size(14.dp)
+            // Checkbox in selection mode or checkmark indicator
+            if (isSelectionMode || isSelected) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onClick() },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = BrandViolet,
+                        uncheckedColor = MaterialTheme.colorScheme.outline
+                    ),
+                    modifier = Modifier.size(24.dp)
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(categoryColor.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Completed icon",
+                        tint = categoryColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
 
             // Info Column
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    if (isPinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Pinned",
+                            tint = BrandAmber,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                     Text(
                         text = item.title,
                         fontSize = 14.sp,

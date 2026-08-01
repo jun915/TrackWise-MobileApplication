@@ -1,9 +1,13 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.example.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -36,6 +40,7 @@ fun TaskFoldersScreen(
     val tasks by viewModel.allTasks.collectAsState()
     val habits by viewModel.allHabits.collectAsState()
     val customFolders by viewModel.customFolders.collectAsState()
+    val deletedFolders by viewModel.deletedFolders.collectAsState()
     
     var showAddFolderDialog by remember { mutableStateOf(false) }
     var folderToDelete by remember { mutableStateOf<String?>(null) }
@@ -48,11 +53,13 @@ fun TaskFoldersScreen(
     // Track which folder is expanding its "Assign Tasks & Habits" list
     var expandedFolderAssign by remember { mutableStateOf<String?>(null) }
     
-    val allFolders = remember(tasks, habits, customFolders) {
+    val allFolders = remember(tasks, habits, customFolders, deletedFolders) {
         val defaults = listOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome")
         val dynamicTasks = tasks.map { it.project }.filter { it.isNotBlank() }
         val dynamicHabits = habits.flatMap { it.section.split(",") }.map { it.trim() }.filter { it.isNotBlank() }
-        (defaults + customFolders + dynamicTasks + dynamicHabits).distinct()
+        (defaults + customFolders + dynamicTasks + dynamicHabits)
+            .distinct()
+            .filter { folder -> !deletedFolders.any { it.equals(folder, ignoreCase = true) } }
     }
 
     if (selectedHabitForDetail != null) {
@@ -93,7 +100,7 @@ fun TaskFoldersScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            folderToDelete?.let { viewModel.deleteCustomFolder(it) }
+                            folderToDelete?.let { viewModel.deleteFolderPermanently(it) }
                             folderToDelete = null
                         }
                     ) {
@@ -161,18 +168,24 @@ fun TaskFoldersScreen(
                             )
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            var showFolderMenu by remember { mutableStateOf(false) }
+
                             // Folder row header - opens separately in dedicated FolderDetailView
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { activeDetailFolder = folder }
+                                    .combinedClickable(
+                                        onClick = { activeDetailFolder = folder },
+                                        onLongClick = { showFolderMenu = true }
+                                    )
                                     .padding(16.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -207,19 +220,6 @@ fun TaskFoldersScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // Delete folder button
-                                    IconButton(
-                                        onClick = { folderToDelete = folder },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete Folder",
-                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-
                                     // Assign tasks button
                                     Button(
                                         onClick = {
@@ -240,6 +240,40 @@ fun TaskFoldersScreen(
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text("Assign", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    // Options dropdown button (3-dot options)
+                                    Box {
+                                        IconButton(
+                                            onClick = { showFolderMenu = true },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreVert,
+                                                contentDescription = "Options",
+                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = showFolderMenu,
+                                            onDismissRequest = { showFolderMenu = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Delete Permanently", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
+                                                onClick = {
+                                                    showFolderMenu = false
+                                                    folderToDelete = folder
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                            )
+                                        }
                                     }
 
                                     Icon(
@@ -454,7 +488,7 @@ fun TaskFoldersScreen(
         }
     }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HashtagsScreen(
     viewModel: TrackWiseViewModel,
@@ -464,6 +498,7 @@ fun HashtagsScreen(
     val tasks by viewModel.allTasks.collectAsState()
     val habits by viewModel.allHabits.collectAsState()
     val customTags by viewModel.customTags.collectAsState()
+    val deletedTags by viewModel.deletedTags.collectAsState()
     
     var showAddTagDialog by remember { mutableStateOf(false) }
     var tagToDelete by remember { mutableStateOf<String?>(null) }
@@ -477,7 +512,7 @@ fun HashtagsScreen(
     var expandedTagAssign by remember { mutableStateOf<String?>(null) }
     
     // Extract dynamic tags from tasks (checking description, title, or notes)
-    val allTags = remember(tasks, habits, customTags) {
+    val allTags = remember(tasks, habits, customTags, deletedTags) {
         val extracted = mutableSetOf<String>()
         tasks.forEach { task ->
             val textToSearch = "${task.title} ${task.description} ${task.notes}"
@@ -497,7 +532,9 @@ fun HashtagsScreen(
                 }
             }
         }
-        (customTags + extracted).distinct()
+        (customTags + extracted)
+            .distinct()
+            .filter { tag -> !deletedTags.any { it.equals(tag, ignoreCase = true) } }
     }
 
     if (selectedHabitForDetail != null) {
@@ -509,6 +546,9 @@ fun HashtagsScreen(
         )
         return
     }
+
+    // Track long press tag menu
+    var longPressTag by remember { mutableStateOf<String?>(null) }
 
     if (activeDetailTag != null) {
         HashtagDetailView(
@@ -528,6 +568,44 @@ fun HashtagsScreen(
             .statusBarsPadding()
             .background(MaterialTheme.colorScheme.background)
     ) {
+        if (longPressTag != null) {
+            AlertDialog(
+                onDismissRequest = { longPressTag = null },
+                title = { Text("#${longPressTag}", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                val tagToPin = longPressTag!!
+                                onNavigateToWorkspaceWithTag(tagToPin)
+                                longPressTag = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Pin / Filter in Workspace", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(
+                            onClick = {
+                                val t = longPressTag!!
+                                longPressTag = null
+                                tagToDelete = t
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Delete Hashtag", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { longPressTag = null }) { Text("Cancel") }
+                }
+            )
+        }
         if (tagToDelete != null) {
             AlertDialog(
                 onDismissRequest = { tagToDelete = null },
@@ -536,7 +614,7 @@ fun HashtagsScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            tagToDelete?.let { viewModel.deleteCustomTag(it) }
+                            tagToDelete?.let { viewModel.deleteTagPermanently(it) }
                             tagToDelete = null
                         }
                     ) {
@@ -611,18 +689,24 @@ fun HashtagsScreen(
                             )
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
+                            var showTagMenu by remember { mutableStateOf(false) }
+
                             // Tag row header
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { activeDetailTag = tag }
+                                    .combinedClickable(
+                                        onClick = { activeDetailTag = tag },
+                                        onLongClick = { showTagMenu = true }
+                                    )
                                     .padding(16.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -657,19 +741,6 @@ fun HashtagsScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    // Delete tag button
-                                    IconButton(
-                                        onClick = { tagToDelete = tag },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete Tag",
-                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-
                                     // Assign tasks button
                                     Button(
                                         onClick = {
@@ -690,6 +761,40 @@ fun HashtagsScreen(
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text("Assign", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    // Options dropdown button (3-dot options)
+                                    Box {
+                                        IconButton(
+                                            onClick = { showTagMenu = true },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreVert,
+                                                contentDescription = "Options",
+                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = showTagMenu,
+                                            onDismissRequest = { showTagMenu = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Delete Permanently", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) },
+                                                onClick = {
+                                                    showTagMenu = false
+                                                    tagToDelete = tag
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                            )
+                                        }
                                     }
 
                                     Icon(
@@ -1132,16 +1237,14 @@ fun HashtagDetailView(
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(CircleShape)
-                                                .background(if (isCompletedToday) BrandOrange.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant)
+                                                .size(28.dp)
                                                 .clickable { viewModel.toggleHabitToday(habit) },
                                             contentAlignment = Alignment.Center
                                         ) {
                                             if (isCompletedToday) {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange)
+                                                Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(22.dp))
                                             } else {
-                                                Text(text = habit.icon.ifBlank { "⭐" }, fontSize = 18.sp)
+                                                HabitIconView(icon = habit.icon, tint = BrandOrange, size = 22.dp)
                                             }
                                         }
 
@@ -1266,7 +1369,7 @@ fun FolderDetailView(
             Spacer(modifier = Modifier.height(8.dp))
 
             if (selectedTab == 0) {
-                // TASKS TAB CONTENT
+                // TASKS TAB CONTENT (READ-ONLY)
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1274,21 +1377,6 @@ fun FolderDetailView(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
-                    item {
-                        Button(
-                            onClick = { showAddTaskDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add Task to $folder", fontWeight = FontWeight.Bold)
-                        }
-                    }
-
                     if (folderTasks.isEmpty()) {
                         item {
                             Card(
@@ -1302,7 +1390,7 @@ fun FolderDetailView(
                                     Icon(Icons.Default.Task, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(36.dp))
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text("No tasks in this folder yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                                    Text("Tap the button above to create one!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                                    Text("Assign tasks to this folder using the Assign button on the Folders page!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
                                 }
                             }
                         }
@@ -1327,11 +1415,21 @@ fun FolderDetailView(
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Checkbox(
-                                            checked = task.completed,
-                                            onCheckedChange = { viewModel.toggleTaskCompletion(task) },
-                                            colors = CheckboxDefaults.colors(checkedColor = BrandViolet)
-                                        )
+                                        if (task.completed) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "Completed",
+                                                tint = BrandViolet,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.RadioButtonUnchecked,
+                                                contentDescription = "Active",
+                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
                                         Column {
                                             Text(
                                                 text = task.title,
@@ -1349,17 +1447,13 @@ fun FolderDetailView(
                                             }
                                         }
                                     }
-
-                                    IconButton(onClick = { viewModel.deleteTask(task.id) }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = BrandRose, modifier = Modifier.size(18.dp))
-                                    }
                                 }
                             }
                         }
                     }
                 }
             } else {
-                // HABITS TAB CONTENT
+                // HABITS TAB CONTENT (READ-ONLY)
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1380,7 +1474,7 @@ fun FolderDetailView(
                                     Icon(Icons.Default.Favorite, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(36.dp))
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text("No habits in this folder yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                                    Text("Assign habits to this folder using the Assign button!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                                    Text("Assign habits to this folder using the Assign button on the Folders page!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
                                 }
                             }
                         }
@@ -1411,17 +1505,13 @@ fun FolderDetailView(
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(CircleShape)
-                                                .background(if (isCompletedToday) BrandOrange.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant)
-                                                .clickable { viewModel.toggleHabitToday(habit) },
+                                            modifier = Modifier.size(28.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             if (isCompletedToday) {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange)
+                                                Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(22.dp))
                                             } else {
-                                                Text(text = habit.icon.ifBlank { "⭐" }, fontSize = 18.sp)
+                                                HabitIconView(icon = habit.icon, tint = BrandOrange, size = 22.dp)
                                             }
                                         }
 

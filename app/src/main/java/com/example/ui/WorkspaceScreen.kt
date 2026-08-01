@@ -6,10 +6,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -550,7 +552,7 @@ fun TaskSection(
                 } else {
                     true
                 }
-            }
+            }.sortedByDescending { it.notes.contains("[PINNED]") }
         }
 
         if (selectedFolder != null || selectedTag != null) {
@@ -625,6 +627,7 @@ fun TaskSection(
 
 
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TaskCard(
     task: TaskEntity,
@@ -638,6 +641,47 @@ fun TaskCard(
     var newSubtaskTitle by remember { mutableStateOf("") }
     var newSubtaskDueDate by remember { mutableStateOf(task.deadline) }
     var newSubtaskDueTime by remember { mutableStateOf(task.dueTime ?: "") }
+
+    var showLongPressMenu by remember { mutableStateOf(false) }
+    val isPinned = task.notes.contains("[PINNED]")
+
+    if (showLongPressMenu) {
+        AlertDialog(
+            onDismissRequest = { showLongPressMenu = false },
+            title = { Text(task.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            val newNotes = if (isPinned) task.notes.replace("[PINNED]", "").trim() else (task.notes + " [PINNED]").trim()
+                            viewModel.updateTask(task.copy(notes = newNotes))
+                            showLongPressMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            viewModel.deleteTask(task.id)
+                            showLongPressMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete Task", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLongPressMenu = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     val priorityColor = when (task.priority) {
         "high" -> BrandRose
@@ -664,7 +708,10 @@ fun TaskCard(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-            .clickable { viewModel.openEditTaskSheet(task) }
+            .combinedClickable(
+                onClick = { viewModel.openEditTaskSheet(task) },
+                onLongClick = { showLongPressMenu = true }
+            )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -978,7 +1025,10 @@ fun HabitSection(
 ) {
     val focusManager = LocalFocusManager.current
     val habits by viewModel.allHabits.collectAsState()
+    val badHabits by viewModel.badHabits.collectAsState()
     var showForm by remember { mutableStateOf(false) }
+    var habitModeTab by remember { mutableStateOf(0) } // 0 = Good Habits, 1 = Bad Habits (Break)
+    var badHabitNameInput by remember { mutableStateOf("") }
 
     var name by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Wellness") }
@@ -1010,7 +1060,37 @@ fun HabitSection(
     val categories = listOf("Wellness", "Fitness", "Learning", "Productivity")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (showForm) {
+        // Mode Selector: Good Habits vs. Bad Habits
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("📈 Good Habits", "📉 Bad Habits (To Remove)").forEachIndexed { index, title ->
+                val isSelected = habitModeTab == index
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) BrandOrange else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .clickable { habitModeTab = index }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+
+        if (habitModeTab == 0) {
+            // --- GOOD HABITS SECTION ---
+            if (showForm) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier
@@ -1259,13 +1339,14 @@ fun HabitSection(
         val selectedFolder by viewModel.selectedTaskFolder.collectAsState()
         
         val filteredHabits = remember(habits, selectedFolder) {
-            if (selectedFolder != null) {
+            val list = if (selectedFolder != null) {
                 habits.filter { habit ->
                     habit.section.split(",").map { it.trim().lowercase() }.contains(selectedFolder!!.lowercase())
                 }
             } else {
                 habits
             }
+            list.sortedByDescending { it.notes.contains("[PINNED]") }
         }
 
         if (selectedFolder != null) {
@@ -1338,9 +1419,140 @@ fun HabitSection(
                 )
             }
         }
+        } else {
+            // --- BAD HABITS SECTION ---
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("MONITOR DESTRUCTIVE HABITS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                    Text("Identify bad behaviors you intend to completely eliminate from your life. Check in honestly each time they occur.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CompactOutlinedTextField(
+                            value = badHabitNameInput,
+                            onValueChange = { badHabitNameInput = it },
+                            label = "Enter bad habit to remove... (e.g. Lying)",
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandRose, focusedLabelColor = BrandRose),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = {
+                                if (badHabitNameInput.isNotBlank()) {
+                                    viewModel.addBadHabit(badHabitNameInput)
+                                    badHabitNameInput = ""
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add")
+                        }
+                    }
+                }
+            }
+
+            if (badHabits.isEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.SentimentVeryDissatisfied, contentDescription = null, tint = BrandRose, modifier = Modifier.size(36.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("No bad habits added yet", fontWeight = FontWeight.Bold)
+                        Text("Add habits above to monitor slip-ups.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                    }
+                }
+            } else {
+                val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                badHabits.forEach { badHabit ->
+                    val logsToday = badHabit.logs.filter { it.startsWith(todayStr) }
+                    val countToday = logsToday.size
+                    val countTotal = badHabit.logs.size
+
+                    val encouragement = when {
+                        countToday == 0 -> "Pristine record today! Keep it up! 🌟"
+                        countToday <= 2 -> "Stay strong. Reflect on what triggered this."
+                        else -> "Take a deep breath. Pause and reset your focus."
+                    }
+
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = badHabit.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Today: $countToday slip-ups · Total: $countTotal",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = BrandRose
+                                    )
+                                }
+                                IconButton(onClick = { viewModel.removeBadHabit(badHabit.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = BrandRose.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = encouragement,
+                                    fontSize = 12.sp,
+                                    color = if (countToday == 0) BrandGreen else BrandOrange,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Button(
+                                    onClick = { viewModel.logBadHabitOccurrence(badHabit.id) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = BrandRose.copy(alpha = 0.9f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Logged Slip-Up", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun HabitCard(
     habit: HabitEntity,
@@ -1355,6 +1567,47 @@ fun HabitCard(
         completedCountToday >= habit.multipleTimesTarget
     } else {
         completedCountToday >= 1
+    }
+
+    var showLongPressMenu by remember { mutableStateOf(false) }
+    val isPinned = habit.notes.contains("[PINNED]")
+
+    if (showLongPressMenu) {
+        AlertDialog(
+            onDismissRequest = { showLongPressMenu = false },
+            title = { Text(habit.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            val newNotes = if (isPinned) habit.notes.replace("[PINNED]", "").trim() else (habit.notes + " [PINNED]").trim()
+                            viewModel.updateHabit(habit.copy(notes = newNotes))
+                            showLongPressMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            viewModel.deleteHabit(habit.id)
+                            showLongPressMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete Habit", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLongPressMenu = false }) { Text("Cancel") }
+            }
+        )
     }
 
     var showEditDialog by remember { mutableStateOf(false) }
@@ -1657,7 +1910,10 @@ fun HabitCard(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-            .clickable { onHabitClick(habit) }
+            .combinedClickable(
+                onClick = { onHabitClick(habit) },
+                onLongClick = { showLongPressMenu = true }
+            )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1675,22 +1931,13 @@ fun HabitCard(
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .border(
-                                2.dp,
-                                if (isCompletedToday) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                CircleShape
-                            )
-                            .background(
-                                if (isCompletedToday) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
-                                CircleShape
-                            )
                             .clickable { viewModel.incrementHabitToday(habit) },
                         contentAlignment = Alignment.Center
                     ) {
                         if (isCompletedToday) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
                         } else {
-                            Text(text = habit.icon, fontSize = 16.sp)
+                            HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
                         }
                     }
 
@@ -1704,22 +1951,13 @@ fun HabitCard(
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .border(
-                                2.dp,
-                                if (isCompletedToday) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                CircleShape
-                            )
-                            .background(
-                                if (isCompletedToday) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
-                                CircleShape
-                            )
                             .clickable { viewModel.toggleHabitToday(habit) },
                         contentAlignment = Alignment.Center
                     ) {
                         if (isCompletedToday) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
                         } else {
-                            Text(text = habit.icon, fontSize = 16.sp)
+                            HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
                         }
                     }
                 }
@@ -2894,7 +3132,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 title = { Text("Select Background Image", fontWeight = FontWeight.Bold) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Text("Choose a preset or upload your local rectangle image to fit full screen:", fontSize = 13.sp)
+                        Text("Choose a preset or upload your local image to fit full screen:", fontSize = 13.sp)
 
                         OutlinedButton(
                             onClick = { localImagePicker.launch("image/*") },
@@ -2903,7 +3141,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         ) {
                             Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Upload Local Image (Rectangle)", fontWeight = FontWeight.Bold)
+                            Text("Upload Image", fontWeight = FontWeight.Bold)
                         }
 
                         LazyVerticalGrid(
@@ -3410,62 +3648,44 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 else -> MaterialTheme.colorScheme.onSecondaryContainer
                             }
 
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(boxBg)
-                                    .border(
-                                        width = 1.dp,
-                                        color = boxText.copy(alpha = 0.3f),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    if (daysLeft == 0) {
-                                        val emoji = when (bdayType) {
-                                            "Death Anniversary" -> "🕯"
-                                            "Marriage Anniversary" -> "💖"
-                                            "Holiday" -> "🎄"
-                                            "Countdown" -> "🚀"
-                                            else -> "🎂"
-                                        }
-                                        Text(
-                                            text = emoji,
-                                            fontSize = 20.sp,
-                                            textAlign = TextAlign.Center
-                                        )
-                                        Text(
-                                            text = "TODAY",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = boxText,
-                                            textAlign = TextAlign.Center
-                                        )
-                                    } else {
-                                        Text(
-                                            text = "$daysLeft",
-                                            fontSize = 20.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = boxText,
-                                            textAlign = TextAlign.Center
-                                        )
-                                        val label = when {
-                                            daysLeft == 1 -> "TOMORROW"
-                                            bday.countingMode == "Count Up" -> "DAYS AGO"
-                                            else -> "DAYS LEFT"
-                                        }
-                                        Text(
-                                            text = label,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = boxText.copy(alpha = 0.8f),
-                                            textAlign = TextAlign.Center
-                                        )
+                                if (daysLeft == 0) {
+                                    val emoji = when (bdayType) {
+                                        "Death Anniversary" -> "🕯"
+                                        "Marriage Anniversary" -> "💖"
+                                        "Holiday" -> "🎄"
+                                        "Countdown" -> "🚀"
+                                        else -> "🎂"
                                     }
+                                    Text(
+                                        text = "$emoji TODAY",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = boxText
+                                    )
+                                } else {
+                                    Text(
+                                        text = "$daysLeft",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = boxText,
+                                        lineHeight = 24.sp
+                                    )
+                                    val label = when {
+                                        daysLeft == 1 -> "TOMORROW"
+                                        bday.countingMode == "Count Up" -> "DAYS AGO"
+                                        else -> "DAYS LEFT"
+                                    }
+                                    Text(
+                                        text = label,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = boxText.copy(alpha = 0.85f),
+                                        letterSpacing = 0.5.sp
+                                    )
                                 }
                             }
                         }
@@ -3876,7 +4096,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         ) {
                             Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Upload Local Image (Rectangle)", fontWeight = FontWeight.Bold)
+                            Text("Upload Image", fontWeight = FontWeight.Bold)
                         }
 
                         LazyVerticalGrid(

@@ -1525,29 +1525,25 @@ fun DailyHabitsWidget(
                                 modifier = Modifier.padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Left: Sleek small check radio button
+                                // Left: Habit icon / checkmark
                                 Box(
                                     modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .clickable { onToggleHabit(habit) }
-                                        .border(
-                                            1.5.dp,
-                                            if (isDone) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                            CircleShape
-                                        )
-                                        .background(
-                                            if (isDone) BrandOrange.copy(alpha = 0.2f) else Color.Transparent,
-                                            CircleShape
-                                        ),
+                                        .size(28.dp)
+                                        .clickable { onToggleHabit(habit) },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (isDone) {
                                         Icon(
                                             imageVector = Icons.Default.Check,
-                                            contentDescription = null,
+                                            contentDescription = "Done",
                                             tint = BrandOrange,
-                                            modifier = Modifier.size(12.dp)
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    } else {
+                                        HabitIconView(
+                                            icon = habit.icon,
+                                            tint = BrandOrange,
+                                            size = 22.dp
                                         )
                                     }
                                 }

@@ -99,6 +99,53 @@ object TrackWiseUtils {
         return formatDate(Date())
     }
 
+    fun getDaysUntil(storedDate: String): Int {
+        val parts = storedDate.split("-")
+        val (month, day) = if (parts.size == 3) {
+            Pair(parts[1].toIntOrNull() ?: 1, parts[2].toIntOrNull() ?: 1)
+        } else if (parts.size == 2) {
+            Pair(parts[0].toIntOrNull() ?: 1, parts[1].toIntOrNull() ?: 1)
+        } else {
+            return 999
+        }
+
+        val today = Calendar.getInstance()
+        today.set(Calendar.HOUR_OF_DAY, 0)
+        today.set(Calendar.MINUTE, 0)
+        today.set(Calendar.SECOND, 0)
+        today.set(Calendar.MILLISECOND, 0)
+
+        val bdayThisYear = Calendar.getInstance()
+        bdayThisYear.set(Calendar.YEAR, today.get(Calendar.YEAR))
+        bdayThisYear.set(Calendar.MONTH, month - 1)
+        bdayThisYear.set(Calendar.DAY_OF_MONTH, day)
+        bdayThisYear.set(Calendar.HOUR_OF_DAY, 0)
+        bdayThisYear.set(Calendar.MINUTE, 0)
+        bdayThisYear.set(Calendar.SECOND, 0)
+        bdayThisYear.set(Calendar.MILLISECOND, 0)
+
+        if (bdayThisYear.timeInMillis == today.timeInMillis) {
+            return 0
+        }
+
+        if (bdayThisYear.before(today)) {
+            val bdayNextYear = Calendar.getInstance()
+            bdayNextYear.set(Calendar.YEAR, today.get(Calendar.YEAR) + 1)
+            bdayNextYear.set(Calendar.MONTH, month - 1)
+            bdayNextYear.set(Calendar.DAY_OF_MONTH, day)
+            bdayNextYear.set(Calendar.HOUR_OF_DAY, 0)
+            bdayNextYear.set(Calendar.MINUTE, 0)
+            bdayNextYear.set(Calendar.SECOND, 0)
+            bdayNextYear.set(Calendar.MILLISECOND, 0)
+            
+            val diffMs = bdayNextYear.timeInMillis - today.timeInMillis
+            return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+        } else {
+            val diffMs = bdayThisYear.timeInMillis - today.timeInMillis
+            return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+        }
+    }
+
     fun isBeforeLaunch(dateStr: String): Boolean {
         return dateStr < APP_LAUNCH_DATE
     }

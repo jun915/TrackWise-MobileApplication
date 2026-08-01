@@ -89,13 +89,13 @@ val GALLERY_TEMPLATES = mapOf(
 )
 
 val ICON_OPTIONS = listOf(
-    "😊", "🥛", "🍞", "🍚", "🍌", "🥕", "🍦", "🌙", "🏃", "🧘",
-    "🚴", "🏊", "📖", "✏️", "📓", "💵", "📋", "📞", "👍", "📷",
-    "👁️", "🦷", "🚿", "🧹", "⭐", "📹", "📺", "🎵", "🚶", "🐕",
-    "🐈", "🎬", "📄", "💖", "☀️", "💊", "💡", "🚀", "🔥", "🎯",
-    "🎨", "💻", "🧠", "🌱", "💪", "🍎", "🥗", "🍵", "⏰", "📅",
-    "📝", "✍️", "🧩", "🎳", "🎮", "⚽", "🏀", "👟", "👚", "🧴",
-    "💤", "🛌", "🧗", "🛹", "🎸", "🎻", "🎤", "🎧", "🏋️", "🙏"
+    "star", "fire", "fitness", "run", "water", "book", "food", "sun", "moon", "smile",
+    "journal", "tidy", "phone", "plant", "vitamin", "sleep", "sports", "music", "coffee", "camera",
+    "home", "car", "bike", "pool", "movie", "gaming", "nature", "beach", "flag", "brush",
+    "lightbulb", "compass", "map", "timer", "alarm", "shield", "sparkles", "diamond", "event", "heart",
+    "trophy", "bell", "flight", "pets", "work", "school", "medical", "shopping", "money", "laptop",
+    "spa", "check", "lock", "cake", "balloon", "medal", "fastfood", "email", "group", "person",
+    "place", "search", "like", "verified", "target", "brain", "nosugar", "gratitude"
 ).distinct()
 
 val MOTIVATIONAL_QUOTES = listOf(
@@ -197,10 +197,13 @@ fun HabitCreationFlowDialog(
         }
         val tasks by viewModel.allTasks.collectAsState()
         val customFolders by viewModel.customFolders.collectAsState()
-        val allFolders = remember(tasks, customFolders) {
+        val deletedFolders by viewModel.deletedFolders.collectAsState()
+        val allFolders = remember(tasks, customFolders, deletedFolders) {
             val defaults = listOf("Inbox", "Work", "Personal", "Shopping", "Learning", "Wish List", "Fitness", "Welcome")
             val dynamic = tasks.map { it.project }.filter { it.isNotBlank() }
-            (defaults + customFolders + dynamic).distinct()
+            (defaults + customFolders + dynamic)
+                .distinct()
+                .filter { folder -> !deletedFolders.any { it.equals(folder, ignoreCase = true) } }
         }
 
         var customTagInput by remember { mutableStateOf("") }
@@ -337,7 +340,7 @@ fun HabitCreationFlowDialog(
                                                         .clip(CircleShape)
                                                         .background(template.iconBgColor)
                                                 ) {
-                                                    Text(text = template.icon, fontSize = 24.sp)
+                                                    HabitIconView(icon = template.icon, tint = template.iconColor, size = 24.dp)
                                                 }
 
                                                 Spacer(modifier = Modifier.width(14.dp))
@@ -472,7 +475,7 @@ fun HabitCreationFlowDialog(
                                                         .clip(CircleShape)
                                                         .background(primaryColor.copy(alpha = 0.15f))
                                                 ) {
-                                                    Text(text = selectedIcon, fontSize = 26.sp)
+                                                    HabitIconView(icon = selectedIcon, tint = primaryColor, size = 26.dp)
                                                 }
                                             }
 
@@ -510,7 +513,11 @@ fun HabitCreationFlowDialog(
                                                                     )
                                                                     .clickable { selectedIcon = iconStr }
                                                             ) {
-                                                                Text(text = iconStr, fontSize = 22.sp)
+                                                                HabitIconView(
+                                                                    icon = iconStr,
+                                                                    tint = if (isSelected) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    size = 22.dp
+                                                                )
                                                                 if (isSelected) {
                                                                     Icon(
                                                                         imageVector = Icons.Default.Check,

@@ -40,6 +40,7 @@ fun AnalyticsScreen(
     modifier: Modifier = Modifier
 ) {
     val habits by viewModel.allHabits.collectAsState()
+    val badHabits by viewModel.badHabits.collectAsState()
     val tasks by viewModel.allTasks.collectAsState()
     val weightLogs by viewModel.weightEntries.collectAsState()
     val vitals by viewModel.vitalReadings.collectAsState()
@@ -370,6 +371,11 @@ fun AnalyticsScreen(
                 // --- 3. Overdued Tasks Chart (Top 5) ---
                 item {
                     OverdueTasksCard(tasks = tasks)
+                }
+
+                // --- 3.1 Bad Habits Monitor Card (Demotivator & Frequency Tracker) ---
+                item {
+                    BadHabitsAnalyticsCard(badHabits = badHabits)
                 }
             }
             "Health & Fitness" -> {
@@ -4519,4 +4525,146 @@ data class PriorityStats(
     val tasks: List<TaskEntity>,
     val color: Color
 )
+
+@Composable
+fun BadHabitsAnalyticsCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
+    val totalSlipups = remember(badHabits) { badHabits.sumOf { it.logs.size } }
+    val mostCommitted = remember(badHabits) {
+        badHabits.maxByOrNull { it.logs.size }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
+            ) {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                Text("DESTRUCTIVE HABITS REALITY CHECK", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+            }
+
+            if (badHabits.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No bad habits configured under surveillance yet.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+            } else {
+                // Reality Check / Demotivator Panel
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(BrandRose.copy(alpha = 0.08f))
+                        .border(1.dp, BrandRose.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        .padding(14.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "TOTAL SLIP-UPS DETECTED: $totalSlipups",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandRose
+                        )
+                        
+                        val soberMessage = when {
+                            totalSlipups == 0 -> "Your slate is perfectly clean! You are master of your desires. Stay pure. ⚔️"
+                            totalSlipups <= 3 -> "Slip-ups detected. Each compromise makes the next compromise easier. Resist the urge."
+                            totalSlipups <= 8 -> "Multiple failures logged. You are letting your baser impulses win. Regain control immediately."
+                            else -> "CRITICAL ALERT: Your self-control is fracturing. Stop, put down your phone, and breathe. This path ends in defeat."
+                        }
+                        
+                        Text(
+                            text = soberMessage,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        Text(
+                            text = "Estimated Willpower Depletion: ${(totalSlipups * 12).coerceAtMost(100)}%\nEach failure erodes self-respect and delays your ideal life. Keep tracking and hold yourself accountable.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                if (mostCommitted != null && mostCommitted.logs.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "MOST REPETITIVE WEAKNESS: \"${mostCommitted.name.uppercase()}\"",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = "Triggered ${mostCommitted.logs.size} times total. This is your primary challenge area. Target this behavior.",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = "RELATIVE COMPARATIVE SLIP-UP RATES",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                // Render horizontal progress bar for each bad habit
+                badHabits.forEach { habit ->
+                    val habitCount = habit.logs.size
+                    val fraction = if (totalSlipups > 0) habitCount.toFloat() / totalSlipups else 0f
+                    
+                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = habit.name, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "$habitCount slip-ups (${(fraction * 100).toInt()}%)", fontSize = 11.sp, color = BrandRose, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(BrandRose, BrandOrange)
+                                        )
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 

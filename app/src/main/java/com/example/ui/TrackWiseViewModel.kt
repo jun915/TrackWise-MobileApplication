@@ -286,6 +286,111 @@ class TrackWiseViewModel(
     private val _customTags = MutableStateFlow<List<String>>(emptyList())
     val customTags: StateFlow<List<String>> = _customTags.asStateFlow()
 
+    private val _deletedFolders = MutableStateFlow<List<String>>(emptyList())
+    val deletedFolders: StateFlow<List<String>> = _deletedFolders.asStateFlow()
+
+    private val _deletedTags = MutableStateFlow<List<String>>(emptyList())
+    val deletedTags: StateFlow<List<String>> = _deletedTags.asStateFlow()
+
+    data class BadHabitSpec(
+        val id: String,
+        val name: String,
+        val logs: List<String> = emptyList() // Timestamps of occurrences
+    )
+
+    private val _badHabits = MutableStateFlow<List<BadHabitSpec>>(emptyList())
+    val badHabits: StateFlow<List<BadHabitSpec>> = _badHabits.asStateFlow()
+
+    fun loadBadHabits() {
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        val listStr = prefs.getString("bad_habits_list", "") ?: ""
+        if (listStr.isBlank()) {
+            val defaultList = listOf(
+                BadHabitSpec("lying", "Lying to others", emptyList()),
+                BadHabitSpec("procrastination", "Procrastinating", emptyList()),
+                BadHabitSpec("nail_biting", "Nail biting", emptyList())
+            )
+            saveBadHabitsList(defaultList)
+            _badHabits.value = defaultList
+        } else {
+            val list = listStr.split(",").mapNotNull { item ->
+                val parts = item.split("|")
+                if (parts.size >= 2) {
+                    val id = parts[0]
+                    val name = parts[1]
+                    val logsStr = prefs.getString("bad_habit_logs_$id", "") ?: ""
+                    val logs = if (logsStr.isNotBlank()) logsStr.split(";") else emptyList()
+                    BadHabitSpec(id, name, logs)
+                } else null
+            }
+            _badHabits.value = list
+        }
+    }
+
+    private fun saveBadHabitsList(list: List<BadHabitSpec>) {
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        val listStr = list.joinToString(",") { "${it.id}|${it.name}" }
+        prefs.edit().putString("bad_habits_list", listStr).apply()
+        list.forEach {
+            prefs.edit().putString("bad_habit_logs_${it.id}", it.logs.joinToString(";")).apply()
+        }
+    }
+
+    fun addBadHabit(name: String) {
+        val cleanName = name.trim()
+        if (cleanName.isBlank()) return
+        val id = "bad_habit_" + System.currentTimeMillis()
+        val current = _badHabits.value.toMutableList()
+        val newItem = BadHabitSpec(id, cleanName, emptyList())
+        current.add(newItem)
+        _badHabits.value = current
+        saveBadHabitsList(current)
+    }
+
+    fun logBadHabitOccurrence(id: String) {
+        var habitName = "Bad Habit"
+        val current = _badHabits.value.map { item ->
+            if (item.id == id) {
+                habitName = item.name
+                val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+                item.copy(logs = item.logs + timestamp)
+            } else item
+        }
+        _badHabits.value = current
+        saveBadHabitsList(current)
+        addNotification("Slip-Up Logged ⚠️", "Logged occurrence for '$habitName'. Take a deep breath and regain focus.")
+    }
+
+    fun removeBadHabit(id: String) {
+        val current = _badHabits.value.filter { it.id != id }
+        _badHabits.value = current
+        saveBadHabitsList(current)
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().remove("bad_habit_logs_$id").apply()
+    }
+
+    fun deleteFolderPermanently(folder: String) {
+        val trimmed = folder.trim()
+        if (!_deletedFolders.value.contains(trimmed)) {
+            val newList = _deletedFolders.value + trimmed
+            _deletedFolders.value = newList
+            val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("deleted_folders_list", newList.joinToString(",")).apply()
+        }
+        deleteCustomFolder(trimmed)
+    }
+
+    fun deleteTagPermanently(tag: String) {
+        val cleanTag = tag.trim().removePrefix("#")
+        if (!_deletedTags.value.contains(cleanTag)) {
+            val newList = _deletedTags.value + cleanTag
+            _deletedTags.value = newList
+            val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("deleted_tags_list", newList.joinToString(",")).apply()
+        }
+        deleteCustomTag(cleanTag)
+    }
+
     fun addCustomFolder(folder: String) {
         val trimmed = folder.trim()
         if (trimmed.isNotEmpty() && !_customFolders.value.contains(trimmed)) {
@@ -2862,6 +2967,19 @@ class TrackWiseViewModel(
         }
         rootJson.put("friends", friendsArray)
 
+        // Bad Habits
+        val badHabitsArray = org.json.JSONArray()
+        _badHabits.value.forEach { bh ->
+            val obj = org.json.JSONObject()
+            obj.put("id", bh.id)
+            obj.put("name", bh.name)
+            val logsArr = org.json.JSONArray()
+            bh.logs.forEach { l -> logsArr.put(l) }
+            obj.put("logs", logsArr)
+            badHabitsArray.put(obj)
+        }
+        rootJson.put("badHabits", badHabitsArray)
+
         return rootJson.toString(2)
     }
 
@@ -3470,6 +3588,27 @@ class TrackWiseViewModel(
                     }
                 }
 
+                // Restore Bad Habits
+                if (rootJson.has("badHabits")) {
+                    val array = rootJson.getJSONArray("badHabits")
+                    val restoredBadHabits = mutableListOf<BadHabitSpec>()
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val bhId = obj.getString("id")
+                        val bhName = obj.getString("name")
+                        val bhLogs = mutableListOf<String>()
+                        if (obj.has("logs")) {
+                            val logsArr = obj.getJSONArray("logs")
+                            for (j in 0 until logsArr.length()) {
+                                bhLogs.add(logsArr.getString(j))
+                            }
+                        }
+                        restoredBadHabits.add(BadHabitSpec(bhId, bhName, bhLogs))
+                    }
+                    _badHabits.value = restoredBadHabits
+                    saveBadHabitsList(restoredBadHabits)
+                }
+
                 _isSyncing.value = false
                 _successMessage.value = "Backup successfully restored! All data has been filled."
                 addNotification("Data Imported", "All your offline categories and states have been restored successfully.")
@@ -3569,6 +3708,15 @@ class TrackWiseViewModel(
         if (customTagsStr.isNotBlank()) {
             _customTags.value = customTagsStr.split(",")
         }
+        val deletedFoldersStr = prefs.getString("deleted_folders_list", "") ?: ""
+        if (deletedFoldersStr.isNotBlank()) {
+            _deletedFolders.value = deletedFoldersStr.split(",")
+        }
+        val deletedTagsStr = prefs.getString("deleted_tags_list", "") ?: ""
+        if (deletedTagsStr.isNotBlank()) {
+            _deletedTags.value = deletedTagsStr.split(",")
+        }
+        loadBadHabits()
         
         if (savedUserId != null) {
             val lastActiveTime = prefs.getLong("last_active_timestamp", System.currentTimeMillis())
