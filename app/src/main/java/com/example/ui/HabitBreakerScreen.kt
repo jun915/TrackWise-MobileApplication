@@ -1,13 +1,19 @@
 package com.example.ui
 
+import android.app.DatePickerDialog
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -24,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,231 +56,225 @@ fun HabitBreakerScreen(
     onBack: () -> Unit = {}
 ) {
     val badHabits by viewModel.badHabits.collectAsState()
-    var currentView by remember { mutableStateOf(HabitBreakerView.LIST) }
-    var filterType by remember { mutableStateOf("All") }
+    val viewState by viewModel.habitBreakerViewState.collectAsState()
+    
+    val currentView = when (viewState) {
+        "gallery" -> HabitBreakerView.GALLERY
+        "create" -> HabitBreakerView.CREATE
+        else -> HabitBreakerView.LIST
+    }
 
     var prefilledName by remember { mutableStateOf("") }
     var prefilledType by remember { mutableStateOf("Habit") }
     var prefilledTag by remember { mutableStateOf("Health") }
     var prefilledPriority by remember { mutableStateOf("Medium") }
 
+    var selectedItemForOptions by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+    var selectedItemForLogUpdate by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+    var selectedItemForAI by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+    var selectedItemForGraph by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+    var selectedItemForReflections by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+    var selectedItemForMilestones by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+    var selectedItemForGames by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+    var selectedItemForIconPicker by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+
     when (currentView) {
         HabitBreakerView.LIST -> {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = {
-                            Column {
-                                Text(
-                                    text = "Avoid List",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 20.sp
-                                )
-                                Text(
-                                    text = "Break habits, avoid triggers & stay clean",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
-                        navigationIcon = {
-                            IconButton(
-                                onClick = onBack,
-                                modifier = Modifier.testTag("habit_breaker_back")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowBack,
-                                    contentDescription = "Back"
-                                )
-                            }
-                        },
-                        actions = {
-                            IconButton(
-                                onClick = { currentView = HabitBreakerView.GALLERY },
-                                modifier = Modifier
-                                    .padding(end = 8.dp)
-                                    .clip(CircleShape)
-                                    .background(BrandRose.copy(alpha = 0.15f))
-                                    .testTag("habit_breaker_add_btn")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Add Item to Avoid",
-                                    tint = BrandRose
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.background
-                        )
-                    )
-                },
-                floatingActionButton = {
-                    ExtendedFloatingActionButton(
-                        onClick = { currentView = HabitBreakerView.GALLERY },
-                        icon = { Icon(Icons.Default.Add, contentDescription = "Add") },
-                        text = { Text("Add Item to Avoid") },
-                        containerColor = BrandRose,
-                        contentColor = Color.White,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.testTag("habit_breaker_fab")
-                    )
+            var tick by remember { mutableStateOf(0) }
+            LaunchedEffect(Unit) {
+                while (true) {
+                    kotlinx.coroutines.delay(1000)
+                    tick++
                 }
-            ) { padding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .background(MaterialTheme.colorScheme.background)
-                ) {
-                    // Category Filter Bar
-                    LazyRow(
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                if (badHabits.isEmpty()) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        val filters = listOf("All", "Habit", "Person", "Event", "Place", "Trigger")
-                        items(filters) { filter ->
-                            val isSelected = filterType == filter
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { filterType = filter },
-                                label = { Text(filter) },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                } else null,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = BrandRose.copy(alpha = 0.2f),
-                                    selectedLabelColor = BrandRose
-                                ),
-                                modifier = Modifier.testTag("filter_chip_$filter")
-                            )
-                        }
-                    }
-
-                    // Guidance Banner
-                    Surface(
-                        color = BrandRose.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            ),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.Swipe, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
-                            Text(
-                                text = "👉 Swipe Right: Avoided (Keep Streak) | 👈 Swipe Left: Slipped (Reset Timer)",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = BrandRose
-                            )
-                        }
-                    }
-
-                    val filteredList = remember(badHabits, filterType) {
-                        if (filterType == "All") badHabits
-                        else badHabits.filter { it.avoidType.equals(filterType, ignoreCase = true) }
-                    }
-
-                    if (filteredList.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                ),
-                                shape = RoundedCornerShape(20.dp),
-                                modifier = Modifier.fillMaxWidth()
+                            Column(
+                                modifier = Modifier
+                                    .padding(24.dp)
+                                    .fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                Column(
+                                Box(
                                     modifier = Modifier
-                                        .padding(24.dp)
-                                        .fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                        .size(64.dp)
+                                        .clip(CircleShape)
+                                        .background(BrandRose.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(64.dp)
-                                            .clip(CircleShape)
-                                            .background(BrandRose.copy(alpha = 0.15f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Block,
-                                            contentDescription = null,
-                                            tint = BrandRose,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                    }
-
-                                    Text(
-                                        text = if (filterType == "All") "No Items to Avoid Yet" else "No $filterType items found",
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center
+                                    Icon(
+                                        imageVector = Icons.Default.Block,
+                                        contentDescription = null,
+                                        tint = BrandRose,
+                                        modifier = Modifier.size(36.dp)
                                     )
+                                }
 
-                                    Text(
-                                        text = "Add bad habits, triggers, people, or events you want to avoid to build discipline and self-control.",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
+                                Text(
+                                    text = "No Items to Avoid Yet",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center
+                                )
 
-                                    Button(
-                                        onClick = { currentView = HabitBreakerView.GALLERY },
-                                        colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.testTag("empty_add_avoid_button")
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Browse Gallery & Add")
-                                    }
+                                Text(
+                                    text = "Add bad habits, triggers, people, or events you want to avoid to build discipline and self-control.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Button(
+                                    onClick = { viewModel.setHabitBreakerViewState("gallery") },
+                                    colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.testTag("empty_add_avoid_button")
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Browse Gallery & Add")
                                 }
                             }
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
-                        ) {
-                            items(filteredList, key = { it.id }) { item ->
-                                SwipeableAvoidCard(
-                                    item = item,
-                                    onLogAvoidance = { viewModel.logBadHabitAvoidance(item.id) },
-                                    onLogSlipUp = { viewModel.logBadHabitOccurrence(item.id) },
-                                    onDelete = { viewModel.removeBadHabit(item.id) }
-                                )
-                            }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(top = 12.dp, bottom = 88.dp)
+                    ) {
+                        items(badHabits, key = { it.id }) { item ->
+                            SwipeableAvoidCard(
+                                item = item,
+                                onLogAvoidance = { viewModel.logBadHabitAvoidance(item.id) },
+                                onLogSlipUp = { viewModel.logBadHabitOccurrence(item.id) },
+                                onDelete = { viewModel.removeBadHabit(item.id) },
+                                onCardClick = { selectedItemForOptions = item },
+                                tick = tick
+                            )
                         }
                     }
                 }
+            }
+
+            // Bottom Sheets & Dialogs for Tile Interactions
+            if (selectedItemForOptions != null) {
+                val item = selectedItemForOptions!!
+                val cleanTimerText = calculateCleanTimeText(item.logs, item.id)
+                HabitBreakerOptionsBottomSheet(
+                    item = item,
+                    cleanTimerText = cleanTimerText,
+                    onDismiss = { selectedItemForOptions = null },
+                    onLogNow = { selectedItemForLogUpdate = item },
+                    onAISupport = { selectedItemForAI = item },
+                    onEdit = {
+                        prefilledName = item.name
+                        prefilledType = item.avoidType
+                        prefilledTag = item.tags.firstOrNull() ?: "Health"
+                        prefilledPriority = item.priority
+                        viewModel.setHabitBreakerViewState("create")
+                    },
+                    onChangeIcon = { selectedItemForIconPicker = item },
+                    onSelectGame = { selectedItemForGames = item },
+                    onGraph = { selectedItemForGraph = item },
+                    onReflections = { selectedItemForReflections = item },
+                    onMilestones = { selectedItemForMilestones = item },
+                    onRemove = { viewModel.removeBadHabit(item.id) }
+                )
+            }
+
+            if (selectedItemForLogUpdate != null) {
+                val item = selectedItemForLogUpdate!!
+                LogTodayUpdateBottomSheet(
+                    item = item,
+                    onDismiss = { selectedItemForLogUpdate = null },
+                    onAvoided = { viewModel.logBadHabitAvoidance(item.id) },
+                    onSlipped = { viewModel.logBadHabitOccurrence(item.id) }
+                )
+            }
+
+            if (selectedItemForAI != null) {
+                val item = selectedItemForAI!!
+                AISupportBottomSheet(
+                    item = item,
+                    onDismiss = { selectedItemForAI = null }
+                )
+            }
+
+            if (selectedItemForGraph != null) {
+                val item = selectedItemForGraph!!
+                GraphBottomSheet(
+                    item = item,
+                    onDismiss = { selectedItemForGraph = null }
+                )
+            }
+
+            if (selectedItemForReflections != null) {
+                val item = selectedItemForReflections!!
+                ReflectionsBottomSheet(
+                    item = item,
+                    onDismiss = { selectedItemForReflections = null }
+                )
+            }
+
+            if (selectedItemForMilestones != null) {
+                val item = selectedItemForMilestones!!
+                MilestonesBottomSheet(
+                    item = item,
+                    onDismiss = { selectedItemForMilestones = null }
+                )
+            }
+
+            if (selectedItemForGames != null) {
+                val item = selectedItemForGames!!
+                BreakGameBottomSheet(
+                    item = item,
+                    onDismiss = { selectedItemForGames = null }
+                )
+            }
+
+            if (selectedItemForIconPicker != null) {
+                val item = selectedItemForIconPicker!!
+                IconPickerBottomSheet(
+                    item = item,
+                    onDismiss = { selectedItemForIconPicker = null },
+                    onSelectIcon = { newIcon ->
+                        viewModel.updateBadHabitIcon(item.id, newIcon)
+                    }
+                )
             }
         }
 
         HabitBreakerView.GALLERY -> {
             FullPageGallery(
-                onBack = { currentView = HabitBreakerView.LIST },
+                onBack = { viewModel.setHabitBreakerViewState("list") },
                 onCreateCustomClick = { initialName, initialType ->
                     prefilledName = initialName
                     prefilledType = initialType
                     prefilledTag = "Health"
                     prefilledPriority = "Medium"
-                    currentView = HabitBreakerView.CREATE
+                    viewModel.setHabitBreakerViewState("create")
                 },
                 onAddTemplateDirectly = { templateName, type, tag, priority ->
                     viewModel.addBadHabit(
@@ -282,7 +283,7 @@ fun HabitBreakerScreen(
                         tags = listOf(tag),
                         priority = priority
                     )
-                    currentView = HabitBreakerView.LIST
+                    viewModel.setHabitBreakerViewState("list")
                 }
             )
         }
@@ -293,7 +294,7 @@ fun HabitBreakerScreen(
                 initialType = prefilledType,
                 initialTag = prefilledTag,
                 initialPriority = prefilledPriority,
-                onBack = { currentView = HabitBreakerView.GALLERY },
+                onBack = { viewModel.setHabitBreakerViewState("gallery") },
                 onSave = { name, avoidType, reminderTime, tags, priority, isRecurring, eventDate, costType, costValue, iconName ->
                     viewModel.addBadHabit(
                         name = name,
@@ -307,20 +308,22 @@ fun HabitBreakerScreen(
                         costValue = costValue,
                         iconName = iconName
                     )
-                    currentView = HabitBreakerView.LIST
+                    viewModel.setHabitBreakerViewState("list")
                 }
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SwipeableAvoidCard(
     item: TrackWiseViewModel.BadHabitSpec,
     onLogAvoidance: () -> Unit,
     onLogSlipUp: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onCardClick: () -> Unit,
+    tick: Int
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -361,7 +364,7 @@ fun SwipeableAvoidCard(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(color)
                     .padding(horizontal = 20.dp),
                 contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
@@ -385,39 +388,74 @@ fun SwipeableAvoidCard(
             item = item,
             onLogAvoidance = onLogAvoidance,
             onLogSlipUp = onLogSlipUp,
-            onDelete = onDelete
+            onDelete = onDelete,
+            onCardClick = onCardClick,
+            tick = tick
         )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AvoidItemCard(
     item: TrackWiseViewModel.BadHabitSpec,
     onLogAvoidance: () -> Unit,
     onLogSlipUp: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onCardClick: () -> Unit,
+    tick: Int
 ) {
-    val cleanTimerText = remember(item.logs, item.id) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val cleanTimerText = remember(item.logs, item.id, tick) {
         calculateCleanTimeText(item.logs, item.id)
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Habit Breaker?") },
+            text = { Text("Are you sure you want to permanently delete '${item.name}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = BrandRose)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .combinedClickable(
+                onLongClick = { showDeleteConfirm = true },
+                onClick = onCardClick
+            )
             .testTag("avoid_card_${item.id}")
     ) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(12.dp)
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            // First Line: Icon + Title (Left) & Timer (Right)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -425,7 +463,7 @@ fun AvoidItemCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     val icon = getHabitBreakerIcon(item.iconName, item.avoidType)
@@ -439,208 +477,118 @@ fun AvoidItemCard(
 
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
-                            .background(typeColor.copy(alpha = 0.15f)),
+                            .background(typeColor.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
                             tint = typeColor,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
 
-                    Column {
-                        Text(
-                            text = item.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = item.avoidType,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = typeColor
-                            )
-                            Text(text = "•", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Surface(
-                                color = BrandGreen.copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Timer,
-                                        contentDescription = null,
-                                        tint = BrandGreen,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Text(
-                                        text = cleanTimerText,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = BrandGreen
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteOutline,
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp)
+                    Text(
+                        text = item.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                // Timer at the right side
+                Text(
+                    text = cleanTimerText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Black,
+                    color = BrandGreen,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
             }
 
-            // Tags & Priority Row
+            // Second Line: Priority, Tags, Avoided stats, Slipped stats
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Priority flag badge
                 val prioColor = when (item.priority.lowercase()) {
                     "high" -> BrandRose
                     "low" -> BrandGreen
                     else -> BrandOrange
                 }
                 Surface(
-                    color = prioColor.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(6.dp)
+                    color = prioColor.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
-                        text = "${item.priority} Priority",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = item.priority,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         color = prioColor,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
 
+                // Tags
                 item.tags.forEach { tag ->
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(6.dp)
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
                             text = "#$tag",
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
 
-                if (item.reminderTime.isNotBlank()) {
-                    Surface(
-                        color = BrandViolet.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Schedule,
-                                contentDescription = null,
-                                tint = BrandViolet,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Text(
-                                text = item.reminderTime,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandViolet
-                            )
-                        }
-                    }
-                }
-            }
+                Spacer(modifier = Modifier.weight(1f))
 
-            if (item.costValue.isNotBlank()) {
-                val costPrefix = when (item.costType.lowercase()) {
-                    "money" -> "💰"
-                    "mood" -> "😊"
-                    "health" -> "🛡️"
-                    "time" -> "⏱️"
-                    else -> "⚠️"
-                }
-                Text(
-                    text = "$costPrefix Cost/Impact: ${item.costValue}",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-            // Action Buttons Row (Avoided vs Slipped)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val slipUpCount = item.logs.size
-                Column {
+                // Stats: Avoided (Star with number of times avoided)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Avoided count",
+                        tint = BrandAmber,
+                        modifier = Modifier.size(13.dp)
+                    )
                     Text(
-                        text = if (slipUpCount == 0) "Pristine Record ✨" else "$slipUpCount Relapse${if (slipUpCount > 1) "s" else ""}",
-                        fontSize = 12.sp,
+                        text = "${item.avoidCount}",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (slipUpCount == 0) BrandGreen else BrandOrange
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onLogAvoidance,
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandGreen.copy(alpha = 0.15f), contentColor = BrandGreen),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Avoided! ✨", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    OutlinedButton(
-                        onClick = onLogSlipUp,
-                        border = BorderStroke(1.dp, BrandRose.copy(alpha = 0.5f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandRose),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier
-                            .height(34.dp)
-                            .testTag("log_slip_up_${item.id}")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Replay,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Slipped ⚠️", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
+                // Stats: Slipped (Error mark with number of relapses)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Cancel,
+                        contentDescription = "Relapses count",
+                        tint = BrandRose,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = "${item.logs.size}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -880,6 +828,7 @@ fun FullPageAddAvoidItem(
         iconName: String
     ) -> Unit
 ) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf(initialName) }
     var avoidType by remember { mutableStateOf(initialType) }
     var reminderTime by remember { mutableStateOf("") }
@@ -887,13 +836,14 @@ fun FullPageAddAvoidItem(
     var priority by remember { mutableStateOf(initialPriority) }
     var isRecurring by remember { mutableStateOf(true) }
     var eventDate by remember { mutableStateOf("") }
-    var costType by remember { mutableStateOf("Money") }
-    var costValue by remember { mutableStateOf("") }
+    var costType by remember { mutableStateOf("Time") }
+    var costValue by remember { mutableStateOf("6.0") }
     var iconName by remember { mutableStateOf("Block") }
+    var isAdvancedExpanded by remember { mutableStateOf(true) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     val avoidTypes = listOf("Habit", "Person", "Event", "Place", "Trigger")
     val tagsList = listOf("Health", "Productivity", "Social", "Digital", "Mindset", "Finance", "Relationship", "Fitness")
-    val costTypes = listOf("Money", "Mood", "Health", "Time", "Focus")
     val iconsList = listOf(
         "Block" to "🚫 Block",
         "SmokeFree" to "🚭 Smoke Free",
@@ -912,15 +862,36 @@ fun FullPageAddAvoidItem(
         "AutoAwesome" to "✨ Sparkle"
     )
 
+    if (showDatePicker) {
+        val cal = Calendar.getInstance()
+        val datePickerDialog = DatePickerDialog(
+            context,
+            { _, y, m, d ->
+                val selectedCal = Calendar.getInstance()
+                selectedCal.set(y, m, d)
+                val sdf = SimpleDateFormat("EEE, MMM d", Locale.getDefault())
+                eventDate = sdf.format(selectedCal.time)
+                showDatePicker = false
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        )
+        datePickerDialog.setOnDismissListener { showDatePicker = false }
+        DisposableEffect(Unit) {
+            datePickerDialog.show()
+            onDispose {
+                if (datePickerDialog.isShowing) {
+                    datePickerDialog.dismiss()
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Create Avoid Item", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag("add_avoid_back")) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         }
@@ -1042,36 +1013,187 @@ fun FullPageAddAvoidItem(
                 }
             }
 
-            // Slidable Cost Type Selector
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Impact / Cost Category 💔", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(costTypes) { cost ->
-                        val isSelected = costType == cost
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { costType = cost },
-                            label = { Text(cost) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = BrandOrange,
-                                selectedLabelColor = Color.White
-                            )
-                        )
-                    }
+            // Is Recurring Switch (Screenshot 1)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Is this a recurring habit?",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Switch(
+                    checked = isRecurring,
+                    onCheckedChange = { isRecurring = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+            }
+
+            // Event Date Row (Screenshot 1 & 2)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Event Date:",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                TextButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.testTag("select_event_date_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = null,
+                        tint = BrandViolet,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (eventDate.isBlank()) "Select Date" else eventDate,
+                        color = BrandViolet,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
                 }
             }
 
-            OutlinedTextField(
-                value = costValue,
-                onValueChange = { costValue = it },
-                label = { Text("Impact Description / Cost") },
-                placeholder = { Text("e.g. $50 wasted, Loss of peace of mind, Ruined evening") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = BrandRose,
-                    focusedLabelColor = BrandRose
+            // Advanced Options Collapsible Header (Screenshot 1)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isAdvancedExpanded = !isAdvancedExpanded }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = if (isAdvancedExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            )
+                Text(
+                    text = "Advanced options",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (isAdvancedExpanded) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Cost Type selector
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Cost Type:",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        val costOptions = listOf(
+                            "Money" to Pair("Money", Icons.Default.AttachMoney),
+                            "Mood" to Pair("Mood", Icons.Default.SentimentDissatisfied),
+                            "Health" to Pair("Health", Icons.Default.Shield),
+                            "Time" to Pair("Time", Icons.Default.Timer)
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(costOptions) { (key, pair) ->
+                                val (label, icon) = pair
+                                val isSelected = costType.equals(key, ignoreCase = true)
+                                val activeBg = if (isSelected) Color(0xFF00A3FF) else MaterialTheme.colorScheme.surface
+                                val activeFg = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+
+                                Surface(
+                                    onClick = { costType = key },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = activeBg,
+                                    border = BorderStroke(1.dp, if (isSelected) Color(0xFF00A3FF) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                    modifier = Modifier.height(42.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = if (isSelected) Color.White else BrandViolet,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = label,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = activeFg
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Subfield based on Cost Type
+                    val fieldLabel = when (costType.lowercase()) {
+                        "time" -> "Hours lost/relapse"
+                        "mood" -> "Mood lost"
+                        "money" -> "Amount lost/relapse ($)"
+                        "health" -> "Health score impact"
+                        else -> "Cost Value"
+                    }
+                    val fieldIcon = when (costType.lowercase()) {
+                        "time" -> Icons.Default.Timer
+                        "mood" -> Icons.Default.SentimentDissatisfied
+                        "money" -> Icons.Default.AttachMoney
+                        "health" -> Icons.Default.Shield
+                        else -> Icons.Default.Warning
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = fieldLabel,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
+                        )
+                        OutlinedTextField(
+                            value = costValue,
+                            onValueChange = { costValue = it },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = fieldIcon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            placeholder = { Text("6.0") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        if (costType.equals("mood", ignoreCase = true)) {
+                            Text(
+                                text = "Higher = more mood lost.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
 
             TimePickerField(
                 timeStr = reminderTime,
@@ -1083,31 +1205,51 @@ fun FullPageAddAvoidItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
-                onClick = {
-                    if (name.isNotBlank()) {
-                        onSave(
-                            name,
-                            avoidType,
-                            reminderTime,
-                            listOf(selectedTag),
-                            priority,
-                            isRecurring,
-                            eventDate,
-                            costType,
-                            costValue,
-                            iconName
-                        )
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
-                shape = RoundedCornerShape(12.dp),
+            // Cancel and Save Pills (Screenshot 1)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("save_avoid_item_btn")
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Save Avoid Item", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                OutlinedButton(
+                    onClick = onBack,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface),
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("cancel_avoid_item_btn")
+                ) {
+                    Text("Cancel", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                }
+
+                Button(
+                    onClick = {
+                        if (name.isNotBlank()) {
+                            onSave(
+                                name,
+                                avoidType,
+                                reminderTime,
+                                listOf(selectedTag),
+                                priority,
+                                isRecurring,
+                                eventDate,
+                                costType,
+                                costValue.ifBlank { "6.0" },
+                                iconName
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .testTag("save_avoid_item_btn")
+                ) {
+                    Text("Save", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
         }
     }
@@ -1164,19 +1306,686 @@ fun calculateCleanTimeText(logs: List<String>, id: String): String {
     }
 
     val diffMs = maxOf(0L, now - lastSlipTimestamp)
-    val seconds = diffMs / 1000
-    val minutes = seconds / 60
-    val hours = minutes / 60
-    val days = hours / 24
+    val totalSeconds = diffMs / 1000
 
-    val remHours = hours % 24
-    val remMins = minutes % 60
+    // Limit to 5 years (5 * 365 days * 24 * 3600 seconds)
+    val maxSeconds = 5L * 365 * 24 * 3600
+    if (totalSeconds >= maxSeconds) {
+        return "5y"
+    }
 
-    return if (days > 0) {
-        "${days}d ${remHours}h clean"
-    } else if (hours > 0) {
-        "${hours}h ${remMins}m clean"
-    } else {
-        "${remMins}m clean"
+    val secondsInYear = 365L * 24 * 3600
+    val secondsInDay = 24L * 3600
+    val secondsInHour = 3600L
+    val secondsInMinute = 60L
+
+    val years = totalSeconds / secondsInYear
+    var remSeconds = totalSeconds % secondsInYear
+
+    val days = remSeconds / secondsInDay
+    remSeconds %= secondsInDay
+
+    val hours = remSeconds / secondsInHour
+    remSeconds %= secondsInHour
+
+    val minutes = remSeconds / secondsInMinute
+    val seconds = remSeconds % secondsInMinute
+
+    return when {
+        years > 0 -> {
+            "${years}y ${days}d ${hours}h ${minutes}m"
+        }
+        days > 0 -> {
+            "${days}d ${hours}h ${minutes}m"
+        }
+        hours > 0 -> {
+            "${hours}h ${minutes}m"
+        }
+        minutes > 0 -> {
+            "${minutes}m"
+        }
+        else -> {
+            "${seconds}s"
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HabitBreakerOptionsBottomSheet(
+    item: TrackWiseViewModel.BadHabitSpec,
+    cleanTimerText: String,
+    onDismiss: () -> Unit,
+    onLogNow: () -> Unit,
+    onAISupport: () -> Unit,
+    onEdit: () -> Unit,
+    onChangeIcon: () -> Unit,
+    onSelectGame: () -> Unit,
+    onGraph: () -> Unit,
+    onReflections: () -> Unit,
+    onMilestones: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val context = LocalContext.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val typeColor = when (item.avoidType.lowercase()) {
+                        "person" -> BrandIndigo
+                        "event" -> BrandOrange
+                        "place" -> BrandGreen
+                        "trigger" -> BrandViolet
+                        else -> BrandRose
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(typeColor.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = getHabitBreakerIcon(item.iconName, item.avoidType),
+                            contentDescription = null,
+                            tint = typeColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = item.name,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Streak $cleanTimerText",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                IconButton(
+                    onClick = {
+                        val sendIntent = android.content.Intent().apply {
+                            action = android.content.Intent.ACTION_SEND
+                            putExtra(android.content.Intent.EXTRA_TEXT, "I've been avoiding ${item.name} for $cleanTimerText!")
+                            type = "text/plain"
+                        }
+                        context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Streak"))
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    OptionRowItem(
+                        icon = Icons.Default.CheckCircle,
+                        iconTint = BrandGreen,
+                        title = "Log Now",
+                        onClick = {
+                            onDismiss()
+                            onLogNow()
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                    OptionRowItem(
+                        icon = Icons.Default.AutoAwesome,
+                        iconTint = BrandViolet,
+                        title = "AI Support",
+                        onClick = {
+                            onDismiss()
+                            onAISupport()
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                    OptionRowItem(
+                        icon = Icons.Default.Edit,
+                        iconTint = MaterialTheme.colorScheme.onSurface,
+                        title = "Edit",
+                        onClick = {
+                            onDismiss()
+                            onEdit()
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                    OptionRowItem(
+                        icon = Icons.Default.Palette,
+                        iconTint = MaterialTheme.colorScheme.onSurface,
+                        title = "Icon",
+                        onClick = {
+                            onDismiss()
+                            onChangeIcon()
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                    OptionRowItem(
+                        icon = Icons.Default.PushPin,
+                        iconTint = MaterialTheme.colorScheme.onSurface,
+                        title = "Select Break Game",
+                        subtitle = "Random from pool",
+                        onClick = {
+                            onDismiss()
+                            onSelectGame()
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                    OptionRowItem(
+                        icon = Icons.Default.BarChart,
+                        iconTint = MaterialTheme.colorScheme.onSurface,
+                        title = "Graph",
+                        onClick = {
+                            onDismiss()
+                            onGraph()
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                    OptionRowItem(
+                        icon = Icons.Default.MenuBook,
+                        iconTint = MaterialTheme.colorScheme.onSurface,
+                        title = "Reflections",
+                        onClick = {
+                            onDismiss()
+                            onReflections()
+                        }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                    OptionRowItem(
+                        icon = Icons.Default.Flag,
+                        iconTint = MaterialTheme.colorScheme.onSurface,
+                        title = "Milestones",
+                        badge = "Plus",
+                        onClick = {
+                            onDismiss()
+                            onMilestones()
+                        }
+                    )
+                }
+            }
+
+            TextButton(
+                onClick = {
+                    onDismiss()
+                    onRemove()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Remove",
+                    tint = BrandRose,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Remove",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandRose
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun OptionRowItem(
+    icon: ImageVector,
+    iconTint: Color,
+    title: String,
+    subtitle: String? = null,
+    badge: String? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(20.dp)
+            )
+            Column {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        if (badge != null) {
+            Surface(
+                color = Color(0xFFFF9800),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = badge,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LogTodayUpdateBottomSheet(
+    item: TrackWiseViewModel.BadHabitSpec,
+    onDismiss: () -> Unit,
+    onAvoided: () -> Unit,
+    onSlipped: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Log today's update",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = item.name,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    onAvoided()
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFE8F8EE),
+                    contentColor = BrandGreen
+                ),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = BrandGreen,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Avoided",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Button(
+                onClick = {
+                    onSlipped()
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFDE8EB),
+                    contentColor = BrandRose
+                ),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .padding(bottom = 12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Replay,
+                    contentDescription = null,
+                    tint = BrandRose,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Slipped",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AISupportBottomSheet(
+    item: TrackWiseViewModel.BadHabitSpec,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(BrandViolet.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(32.dp))
+            }
+            Text("AI Support for ${item.name}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("💡 Resisting Urges:", fontWeight = FontWeight.Bold, color = BrandViolet)
+                    Text("• Take 3 deep diaphragmatic breaths (4s in, 4s hold, 6s out).")
+                    Text("• Change your immediate environment or stand up for 2 minutes.")
+                    Text("• Remind yourself of the impact: cost category '${item.costType}' with impact '${item.costValue}'.")
+                }
+            }
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = BrandViolet), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Text("Got It!")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GraphBottomSheet(
+    item: TrackWiseViewModel.BadHabitSpec,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Streak History & Analytics", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(item.name, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${item.avoidedCount}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    Text("Times Avoided", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${item.slippedCount}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                    Text("Relapses", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            Button(onClick = onDismiss, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Text("Close")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReflectionsBottomSheet(
+    item: TrackWiseViewModel.BadHabitSpec,
+    onDismiss: () -> Unit
+) {
+    var note by remember { mutableStateOf("") }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Journal Reflection", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("How do you feel avoiding '${item.name}' today?", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                placeholder = { Text("Write your thoughts...") },
+                modifier = Modifier.fillMaxWidth().height(100.dp),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = BrandGreen), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Text("Save Reflection")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MilestonesBottomSheet(
+    item: TrackWiseViewModel.BadHabitSpec,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("🎯 Milestones for ${item.name}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            val milestones = listOf("1 Day Clean" to true, "3 Days Clean" to true, "1 Week Clean" to false, "1 Month Clean" to false, "1 Year Clean" to false)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                milestones.forEach { (label, achieved) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, fontWeight = FontWeight.Medium)
+                        Text(if (achieved) "✅ Achieved" else "🔒 Locked", color = if (achieved) BrandGreen else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    }
+                }
+            }
+            Button(onClick = onDismiss, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Text("Close")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BreakGameBottomSheet(
+    item: TrackWiseViewModel.BadHabitSpec,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("🎮 Select Distraction Game", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Break the urge with a quick 30-second focus game.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            listOf("🧘 Deep Breathing Loop", "🧩 Memory Pattern Tap", "⚡ Speed Reflex Challenge").forEach { gameName ->
+                Surface(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(gameName, modifier = Modifier.padding(16.dp), fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IconPickerBottomSheet(
+    item: TrackWiseViewModel.BadHabitSpec,
+    onDismiss: () -> Unit,
+    onSelectIcon: (String) -> Unit
+) {
+    val iconsList = listOf(
+        "Block" to "🚫 Block",
+        "SmokeFree" to "🚭 Smoke Free",
+        "NoFood" to "🍱 Food",
+        "PhonelinkOff" to "📱 Phone",
+        "Warning" to "⚠️ Warning",
+        "PersonOff" to "👤 Person",
+        "EventBusy" to "📅 Event",
+        "Place" to "📍 Place",
+        "LocalBar" to "🍸 Drink",
+        "SentimentVeryDissatisfied" to "😔 Mood",
+        "HourglassDisabled" to "⏳ Time",
+        "Bedtime" to "🌙 Sleep",
+        "AttachMoney" to "💰 Money",
+        "Shield" to "🛡️ Shield",
+        "AutoAwesome" to "✨ Sparkle"
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("🎨 Choose Icon for ${item.name}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.height(220.dp)
+            ) {
+                items(iconsList) { (key, label) ->
+                    Surface(
+                        onClick = {
+                            onSelectIcon(key)
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (item.iconName == key) BrandRose else MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (item.iconName == key) Color.White else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
     }
 }

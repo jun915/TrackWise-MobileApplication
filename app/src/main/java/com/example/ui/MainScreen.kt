@@ -194,6 +194,7 @@ fun MainScreen(
     val showHabitCreationSheet by viewModel.showHabitCreationSheet.collectAsState()
     val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
     val taskToEdit by viewModel.taskToEdit.collectAsState()
+    val habitBreakerView by viewModel.habitBreakerViewState.collectAsState()
 
     var showImportOptionDialog by remember { mutableStateOf(false) }
     var pastedJsonText by remember { mutableStateOf("") }
@@ -256,7 +257,7 @@ fun MainScreen(
 
         Scaffold(
             topBar = {
-                if (activeDetailHabit == null) {
+                if (activeDetailHabit == null && (activeTab != "habit_breaker" || habitBreakerView == "list")) {
                     HeaderToolbar(
                         viewModel = viewModel,
                         activeTab = activeTab,
@@ -274,7 +275,7 @@ fun MainScreen(
                 }
             },
             bottomBar = {
-                if (activeDetailHabit == null) {
+                if (activeDetailHabit == null && (activeTab != "habit_breaker" || habitBreakerView == "list")) {
                     BottomNavigationBar(
                         activeTab = activeTab,
                         viewModel = viewModel,
@@ -786,84 +787,90 @@ fun MainScreen(
                         )
                     }
                 } else {
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (showMainSpeedDial) {
-                            val mainSpeedDialOptions = listOf(
-                                Triple("analytics", "Analytics Center", Icons.Default.BarChart),
-                                Triple("social", "Friends & Achievements", Icons.Default.EmojiEvents),
-                                Triple("settings", "Settings", Icons.Default.Settings),
-                                Triple("archive", "Completed & Archived Items", Icons.Default.Archive)
-                            )
+                    if (activeTab != "habit_breaker" || habitBreakerView == "list") {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (showMainSpeedDial && activeTab != "habit_breaker") {
+                                val mainSpeedDialOptions = listOf(
+                                    Triple("analytics", "Analytics Center", Icons.Default.BarChart),
+                                    Triple("social", "Friends & Achievements", Icons.Default.EmojiEvents),
+                                    Triple("settings", "Settings", Icons.Default.Settings),
+                                    Triple("archive", "Completed & Archived Items", Icons.Default.Archive)
+                                )
 
-                            mainSpeedDialOptions.forEach { (key, label, icon) ->
-                                val color = when (key) {
-                                    "analytics" -> BrandCyan
-                                    "social" -> BrandOrange
-                                    "settings" -> BrandViolet
-                                    "archive" -> BrandPink
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.clickable {
-                                        showMoreMenu = false
-                                        showMainSpeedDial = false
-                                        navigateTo(key)
+                                mainSpeedDialOptions.forEach { (key, label, icon) ->
+                                    val color = when (key) {
+                                        "analytics" -> BrandCyan
+                                        "social" -> BrandOrange
+                                        "settings" -> BrandViolet
+                                        "archive" -> BrandPink
+                                        else -> MaterialTheme.colorScheme.primary
                                     }
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = MaterialTheme.colorScheme.surface,
-                                        tonalElevation = 4.dp,
-                                        modifier = Modifier.padding(horizontal = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    FloatingActionButton(
-                                        onClick = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.clickable {
                                             showMoreMenu = false
                                             showMainSpeedDial = false
                                             navigateTo(key)
-                                        },
-                                        containerColor = color,
-                                        contentColor = Color.White,
-                                        modifier = Modifier.size(44.dp),
-                                        shape = CircleShape
+                                        }
                                     ) {
-                                        Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            tonalElevation = 4.dp,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        FloatingActionButton(
+                                            onClick = {
+                                                showMoreMenu = false
+                                                showMainSpeedDial = false
+                                                navigateTo(key)
+                                            },
+                                            containerColor = color,
+                                            contentColor = Color.White,
+                                            modifier = Modifier.size(44.dp),
+                                            shape = CircleShape
+                                        ) {
+                                            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        FloatingActionButton(
-                            onClick = {
-                                showMoreMenu = false
-                                showMainSpeedDial = !showMainSpeedDial
-                            },
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White,
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .size(56.dp)
-                                .offset(y = 8.dp)
-                                .testTag("floating_add_button")
-                        ) {
-                            Icon(
-                                imageVector = if (showMainSpeedDial) Icons.Default.Close else Icons.Default.Add,
-                                contentDescription = "Quick Add",
-                                modifier = Modifier.size(24.dp)
-                            )
+                            FloatingActionButton(
+                                onClick = {
+                                    if (activeTab == "habit_breaker") {
+                                        viewModel.setHabitBreakerViewState("gallery")
+                                    } else {
+                                        showMoreMenu = false
+                                        showMainSpeedDial = !showMainSpeedDial
+                                    }
+                                },
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.White,
+                                shape = CircleShape,
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .offset(y = 8.dp)
+                                    .testTag("floating_add_button")
+                            ) {
+                                Icon(
+                                    imageVector = if (showMainSpeedDial && activeTab != "habit_breaker") Icons.Default.Close else Icons.Default.Add,
+                                    contentDescription = "Quick Add",
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1244,7 +1251,7 @@ fun HeaderToolbar(
         "help" -> "How It Works"
         "archive" -> "Archive"
         "seerah" -> "Seerah"
-        "habit_breaker" -> "Avoid List (Habit Breaker)"
+        "habit_breaker" -> "Habit Breaker"
         else -> "TrackWise"
     }
 

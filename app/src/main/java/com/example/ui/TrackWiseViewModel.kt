@@ -304,11 +304,22 @@ class TrackWiseViewModel(
         val costType: String = "Money",
         val costValue: String = "",
         val iconName: String = "Block",
+        val avoidCount: Int = 0,
         val logs: List<String> = emptyList() // Timestamps of occurrences
-    )
+    ) {
+        val avoidedCount: Int get() = avoidCount
+        val slippedCount: Int get() = logs.size
+    }
 
     private val _badHabits = MutableStateFlow<List<BadHabitSpec>>(emptyList())
     val badHabits: StateFlow<List<BadHabitSpec>> = _badHabits.asStateFlow()
+
+    private val _habitBreakerViewState = MutableStateFlow("list") // "list", "gallery", "create"
+    val habitBreakerViewState: StateFlow<String> = _habitBreakerViewState.asStateFlow()
+
+    fun setHabitBreakerViewState(view: String) {
+        _habitBreakerViewState.value = view
+    }
 
     fun loadBadHabits() {
         val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
@@ -334,6 +345,7 @@ class TrackWiseViewModel(
                     val costType = obj.optString("costType", "Money")
                     val costValue = obj.optString("costValue", "")
                     val iconName = obj.optString("iconName", "Block")
+                    val avoidCount = obj.optInt("avoidCount", 0)
                     val logsList = mutableListOf<String>()
                     if (obj.has("logs")) {
                         val lArr = obj.getJSONArray("logs")
@@ -352,6 +364,7 @@ class TrackWiseViewModel(
                             costType = costType,
                             costValue = costValue,
                             iconName = iconName,
+                            avoidCount = avoidCount,
                             logs = logsList
                         )
                     )
@@ -407,6 +420,7 @@ class TrackWiseViewModel(
             obj.put("costType", item.costType)
             obj.put("costValue", item.costValue)
             obj.put("iconName", item.iconName)
+            obj.put("avoidCount", item.avoidCount)
             val logsArr = org.json.JSONArray()
             item.logs.forEach { l -> logsArr.put(l) }
             obj.put("logs", logsArr)
@@ -456,7 +470,7 @@ class TrackWiseViewModel(
         val current = _badHabits.value.map { item ->
             if (item.id == id) {
                 habitName = item.name
-                item
+                item.copy(avoidCount = item.avoidCount + 1)
             } else item
         }
         _badHabits.value = current
@@ -484,6 +498,16 @@ class TrackWiseViewModel(
         saveBadHabitsList(current)
         val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
         prefs.edit().remove("bad_habit_logs_$id").apply()
+    }
+
+    fun updateBadHabitIcon(id: String, newIconName: String) {
+        val current = _badHabits.value.map { item ->
+            if (item.id == id) {
+                item.copy(iconName = newIconName)
+            } else item
+        }
+        _badHabits.value = current
+        saveBadHabitsList(current)
     }
 
     fun deleteFolderPermanently(folder: String) {
