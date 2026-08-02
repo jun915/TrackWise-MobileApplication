@@ -338,38 +338,195 @@ fun DashboardScreen(
             }
         }
 
-        // --- 3 Stat Tiles (Grid) ---
+        // --- Level & XP Mastery Progress Card ---
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            val streakHistory by viewModel.streakHistory.collectAsState()
+            val totalXP = remember(streakHistory, todayScore) {
+                streakHistory.sumOf { it.score } + todayScore
+            }
+            val userLevel = (totalXP / 100) + 1
+            val currentLevelXP = totalXP % 100
+            val levelProgressFraction = (currentLevelXP / 100f).coerceIn(0f, 1f)
+            val levelTitle = when {
+                userLevel <= 1 -> "Novice Focused"
+                userLevel <= 3 -> "Rising Explorer"
+                userLevel <= 5 -> "Habit Architect"
+                userLevel <= 8 -> "Productivity Strategist"
+                userLevel <= 12 -> "Master Motivator"
+                else -> "Grandmaster Legend"
+            }
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        BrandViolet.copy(alpha = 0.5f),
+                        RoundedCornerShape(20.dp)
+                    )
             ) {
-                // Points Stat
-                StatTile(
-                    label = "POINTS",
-                    value = "$todayScore",
-                    color = BrandViolet,
-                    icon = Icons.Default.Stars,
-                    modifier = Modifier.weight(1f)
-                )
-                // Tasks Stat
-                val totalTasksCompleted = allTasks.count { it.completed }
-                StatTile(
-                    label = "TASKS",
-                    value = "$totalTasksCompleted",
-                    color = BrandPink,
-                    icon = Icons.Default.CheckCircle,
-                    modifier = Modifier.weight(1f)
-                )
-                // Streak Stat
-                val maxHabitStreak = allHabits.maxOfOrNull { it.streak } ?: 0
-                StatTile(
-                    label = "STREAK",
-                    value = "${maxHabitStreak}d",
-                    color = BrandCyan,
-                    icon = Icons.Default.LocalFireDepartment,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(BrandViolet, BrandPink)
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "$userLevel",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                            }
+
+                            Column {
+                                Text(
+                                    text = "LEVEL $userLevel",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = BrandViolet,
+                                    letterSpacing = 1.sp
+                                )
+                                Text(
+                                    text = levelTitle,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        Surface(
+                            color = BrandGreen.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    tint = BrandGreen,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "+$todayScore XP Today",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandGreen
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Level Progress: $currentLevelXP / 100 XP",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "${(levelProgressFraction * 100).roundToInt()}%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandViolet
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    LinearProgressIndicator(
+                        progress = { levelProgressFraction },
+                        color = BrandViolet,
+                        trackColor = BrandViolet.copy(alpha = 0.15f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                }
+            }
+        }
+
+        // --- 4 Stat Tiles Grid (XP Gained, Level, Streak, Tasks) ---
+        item {
+            val streakHistory by viewModel.streakHistory.collectAsState()
+            val totalXP = remember(streakHistory, todayScore) {
+                streakHistory.sumOf { it.score } + todayScore
+            }
+            val userLevel = (totalXP / 100) + 1
+            val totalTasksCompleted = allTasks.count { it.completed }
+            val maxHabitStreak = allHabits.maxOfOrNull { it.streak } ?: 0
+
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // XP Gained Stat
+                    StatTile(
+                        label = "XP GAINED",
+                        value = "+$todayScore",
+                        color = BrandViolet,
+                        icon = Icons.Default.Bolt,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // Level Stat
+                    StatTile(
+                        label = "LEVEL",
+                        value = "Lvl $userLevel",
+                        color = BrandOrange,
+                        icon = Icons.Default.MilitaryTech,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Streak Stat
+                    StatTile(
+                        label = "STREAK",
+                        value = "${maxHabitStreak}d",
+                        color = BrandCyan,
+                        icon = Icons.Default.LocalFireDepartment,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // Tasks Stat
+                    StatTile(
+                        label = "TASKS",
+                        value = "$totalTasksCompleted",
+                        color = BrandPink,
+                        icon = Icons.Default.CheckCircle,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 
@@ -526,7 +683,7 @@ fun DailyScoresOverviewWidget(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "DAILY SCORES OVERVIEW",
+                text = "DAILY XP OVERVIEW",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = BrandViolet,
@@ -538,7 +695,7 @@ fun DailyScoresOverviewWidget(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Daily Scores (Last 7 Days)",
+                        text = "Daily XP Gained (Last 7 Days)",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -577,7 +734,7 @@ fun DailyScoresOverviewWidget(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "${history.score} pts",
+                                text = "${history.score} XP",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = BrandPink
@@ -1065,7 +1222,7 @@ fun TodayItemsWidget(
 
                                         Spacer(modifier = Modifier.width(8.dp))
 
-                                        // Points capsule tag (Amanah style)
+                                        // XP capsule tag (Amanah style)
                                         Card(
                                             colors = CardDefaults.cardColors(
                                                 containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
@@ -1074,7 +1231,7 @@ fun TodayItemsWidget(
                                             shape = RoundedCornerShape(6.dp)
                                         ) {
                                             Text(
-                                                text = "+${task.points} PTS",
+                                                text = "+${task.points} XP",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (task.completed) BrandGreen else BrandCyan,
@@ -1315,7 +1472,7 @@ fun PriorityItemsWidget(
 
                                         Spacer(modifier = Modifier.width(8.dp))
 
-                                        // Points capsule tag
+                                        // XP capsule tag
                                         Card(
                                             colors = CardDefaults.cardColors(
                                                 containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
@@ -1324,7 +1481,7 @@ fun PriorityItemsWidget(
                                             shape = RoundedCornerShape(6.dp)
                                         ) {
                                             Text(
-                                                text = "+${task.points} PTS",
+                                                text = "+${task.points} XP",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (task.completed) BrandGreen else BrandRose,

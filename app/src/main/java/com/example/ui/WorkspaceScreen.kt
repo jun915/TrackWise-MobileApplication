@@ -67,7 +67,7 @@ fun WorkspaceScreen(
     modifier: Modifier = Modifier
 ) {
     val activeSubTab by viewModel.workspaceSubTab.collectAsState()
-    val subTabs = listOf("Tasks", "Habit", "Wishlist", "Countdown", "Timer & Stopwatch", "Grocery List")
+    val subTabs = listOf("Tasks", "Habit", "Wishlist", "Countdown", "Focus", "Grocery List")
     val focusManager = LocalFocusManager.current
     var subtaskTargetTask by remember { mutableStateOf<TaskEntity?>(null) }
 
@@ -1060,37 +1060,8 @@ fun HabitSection(
     val categories = listOf("Wellness", "Fitness", "Learning", "Productivity")
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Mode Selector: Good Habits vs. Bad Habits
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("📈 Good Habits", "📉 Bad Habits (To Remove)").forEachIndexed { index, title ->
-                val isSelected = habitModeTab == index
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) BrandOrange else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .clickable { habitModeTab = index }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
-                    )
-                }
-            }
-        }
-
-        if (habitModeTab == 0) {
-            // --- GOOD HABITS SECTION ---
-            if (showForm) {
+        // --- GOOD HABITS SECTION ---
+        if (showForm) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier
@@ -1417,136 +1388,6 @@ fun HabitSection(
                     viewModel = viewModel,
                     onHabitClick = { onHabitClick(habit) }
                 )
-            }
-        }
-        } else {
-            // --- BAD HABITS SECTION ---
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("MONITOR DESTRUCTIVE HABITS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
-                    Text("Identify bad behaviors you intend to completely eliminate from your life. Check in honestly each time they occur.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CompactOutlinedTextField(
-                            value = badHabitNameInput,
-                            onValueChange = { badHabitNameInput = it },
-                            label = "Enter bad habit to remove... (e.g. Lying)",
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandRose, focusedLabelColor = BrandRose),
-                            modifier = Modifier.weight(1f)
-                        )
-                        Button(
-                            onClick = {
-                                if (badHabitNameInput.isNotBlank()) {
-                                    viewModel.addBadHabit(badHabitNameInput)
-                                    badHabitNameInput = ""
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add")
-                        }
-                    }
-                }
-            }
-
-            if (badHabits.isEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(Icons.Default.SentimentVeryDissatisfied, contentDescription = null, tint = BrandRose, modifier = Modifier.size(36.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("No bad habits added yet", fontWeight = FontWeight.Bold)
-                        Text("Add habits above to monitor slip-ups.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                    }
-                }
-            } else {
-                val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                badHabits.forEach { badHabit ->
-                    val logsToday = badHabit.logs.filter { it.startsWith(todayStr) }
-                    val countToday = logsToday.size
-                    val countTotal = badHabit.logs.size
-
-                    val encouragement = when {
-                        countToday == 0 -> "Pristine record today! Keep it up! 🌟"
-                        countToday <= 2 -> "Stay strong. Reflect on what triggered this."
-                        else -> "Take a deep breath. Pause and reset your focus."
-                    }
-
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = badHabit.name,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Today: $countToday slip-ups · Total: $countTotal",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = BrandRose
-                                    )
-                                }
-                                IconButton(onClick = { viewModel.removeBadHabit(badHabit.id) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = BrandRose.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = encouragement,
-                                    fontSize = 12.sp,
-                                    color = if (countToday == 0) BrandGreen else BrandOrange,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Button(
-                                    onClick = { viewModel.logBadHabitOccurrence(badHabit.id) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandRose.copy(alpha = 0.9f)),
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                    modifier = Modifier.height(36.dp)
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Logged Slip-Up", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
     }

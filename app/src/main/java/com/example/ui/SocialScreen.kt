@@ -510,7 +510,7 @@ fun SocialScreen(
                                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                                                 )
                                                 Text(
-                                                    text = "${item.score} pts",
+                                                    text = "${item.score} XP",
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = BrandCyan

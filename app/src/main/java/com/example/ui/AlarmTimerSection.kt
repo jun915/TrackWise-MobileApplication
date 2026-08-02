@@ -48,7 +48,7 @@ fun AlarmTimerSection(
     modifier: Modifier = Modifier
 ) {
     var selectedUtilityTab by remember { mutableStateOf(0) } // 0 = Timer, 1 = Stopwatch
-    val utilityTabs = listOf("Timer ⏱️", "Stopwatch ⏳")
+    val utilityTabs = listOf("Focus Timer ⏱️", "Focus Stopwatch ⏳")
 
     Column(
         modifier = modifier

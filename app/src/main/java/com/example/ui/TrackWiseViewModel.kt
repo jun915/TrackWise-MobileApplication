@@ -295,6 +295,15 @@ class TrackWiseViewModel(
     data class BadHabitSpec(
         val id: String,
         val name: String,
+        val avoidType: String = "Habit",
+        val reminderTime: String = "",
+        val tags: List<String> = emptyList(),
+        val priority: String = "Medium",
+        val isRecurring: Boolean = true,
+        val eventDate: String = "",
+        val costType: String = "Money",
+        val costValue: String = "",
+        val iconName: String = "Block",
         val logs: List<String> = emptyList() // Timestamps of occurrences
     )
 
@@ -303,12 +312,64 @@ class TrackWiseViewModel(
 
     fun loadBadHabits() {
         val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        val jsonV2 = prefs.getString("bad_habits_json_v2", "") ?: ""
+        if (jsonV2.isNotBlank()) {
+            try {
+                val array = org.json.JSONArray(jsonV2)
+                val list = mutableListOf<BadHabitSpec>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val bhId = obj.getString("id")
+                    val bhName = obj.getString("name")
+                    val avoidType = obj.optString("avoidType", "Habit")
+                    val reminderTime = obj.optString("reminderTime", "")
+                    val tagsList = mutableListOf<String>()
+                    if (obj.has("tags")) {
+                        val tArr = obj.getJSONArray("tags")
+                        for (j in 0 until tArr.length()) tagsList.add(tArr.getString(j))
+                    }
+                    val priority = obj.optString("priority", "Medium")
+                    val isRecurring = obj.optBoolean("isRecurring", true)
+                    val eventDate = obj.optString("eventDate", "")
+                    val costType = obj.optString("costType", "Money")
+                    val costValue = obj.optString("costValue", "")
+                    val iconName = obj.optString("iconName", "Block")
+                    val logsList = mutableListOf<String>()
+                    if (obj.has("logs")) {
+                        val lArr = obj.getJSONArray("logs")
+                        for (j in 0 until lArr.length()) logsList.add(lArr.getString(j))
+                    }
+                    list.add(
+                        BadHabitSpec(
+                            id = bhId,
+                            name = bhName,
+                            avoidType = avoidType,
+                            reminderTime = reminderTime,
+                            tags = tagsList,
+                            priority = priority,
+                            isRecurring = isRecurring,
+                            eventDate = eventDate,
+                            costType = costType,
+                            costValue = costValue,
+                            iconName = iconName,
+                            logs = logsList
+                        )
+                    )
+                }
+                _badHabits.value = list
+                return
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Fallback to legacy string or default list
         val listStr = prefs.getString("bad_habits_list", "") ?: ""
         if (listStr.isBlank()) {
             val defaultList = listOf(
-                BadHabitSpec("lying", "Lying to others", emptyList()),
-                BadHabitSpec("procrastination", "Procrastinating", emptyList()),
-                BadHabitSpec("nail_biting", "Nail biting", emptyList())
+                BadHabitSpec("lying", "Lying to others", avoidType = "Habit", tags = listOf("Social"), priority = "High"),
+                BadHabitSpec("procrastination", "Procrastinating", avoidType = "Habit", tags = listOf("Productivity"), priority = "Medium"),
+                BadHabitSpec("nail_biting", "Nail biting", avoidType = "Habit", tags = listOf("Health"), priority = "Low")
             )
             saveBadHabitsList(defaultList)
             _badHabits.value = defaultList
@@ -320,31 +381,87 @@ class TrackWiseViewModel(
                     val name = parts[1]
                     val logsStr = prefs.getString("bad_habit_logs_$id", "") ?: ""
                     val logs = if (logsStr.isNotBlank()) logsStr.split(";") else emptyList()
-                    BadHabitSpec(id, name, logs)
+                    BadHabitSpec(id = id, name = name, logs = logs)
                 } else null
             }
             _badHabits.value = list
+            saveBadHabitsList(list)
         }
     }
 
     private fun saveBadHabitsList(list: List<BadHabitSpec>) {
         val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
-        val listStr = list.joinToString(",") { "${it.id}|${it.name}" }
-        prefs.edit().putString("bad_habits_list", listStr).apply()
-        list.forEach {
-            prefs.edit().putString("bad_habit_logs_${it.id}", it.logs.joinToString(";")).apply()
+        val array = org.json.JSONArray()
+        list.forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("name", item.name)
+            obj.put("avoidType", item.avoidType)
+            obj.put("reminderTime", item.reminderTime)
+            val tagsArr = org.json.JSONArray()
+            item.tags.forEach { t -> tagsArr.put(t) }
+            obj.put("tags", tagsArr)
+            obj.put("priority", item.priority)
+            obj.put("isRecurring", item.isRecurring)
+            obj.put("eventDate", item.eventDate)
+            obj.put("costType", item.costType)
+            obj.put("costValue", item.costValue)
+            obj.put("iconName", item.iconName)
+            val logsArr = org.json.JSONArray()
+            item.logs.forEach { l -> logsArr.put(l) }
+            obj.put("logs", logsArr)
+            array.put(obj)
         }
+        prefs.edit().putString("bad_habits_json_v2", array.toString()).apply()
     }
 
-    fun addBadHabit(name: String) {
+    fun addBadHabit(
+        name: String,
+        avoidType: String = "Habit",
+        reminderTime: String = "",
+        tags: List<String> = emptyList(),
+        priority: String = "Medium",
+        isRecurring: Boolean = true,
+        eventDate: String = "",
+        costType: String = "Money",
+        costValue: String = "",
+        iconName: String = "Block"
+    ) {
         val cleanName = name.trim()
         if (cleanName.isBlank()) return
         val id = "bad_habit_" + System.currentTimeMillis()
         val current = _badHabits.value.toMutableList()
-        val newItem = BadHabitSpec(id, cleanName, emptyList())
+        val newItem = BadHabitSpec(
+            id = id,
+            name = cleanName,
+            avoidType = avoidType,
+            reminderTime = reminderTime,
+            tags = tags,
+            priority = priority,
+            isRecurring = isRecurring,
+            eventDate = eventDate,
+            costType = costType,
+            costValue = costValue,
+            iconName = iconName,
+            logs = emptyList()
+        )
         current.add(newItem)
         _badHabits.value = current
         saveBadHabitsList(current)
+        addNotification("Item Added to Avoid List 🚫", "Now tracking '$cleanName'. Stay strong!")
+    }
+
+    fun logBadHabitAvoidance(id: String) {
+        var habitName = "Bad Habit"
+        val current = _badHabits.value.map { item ->
+            if (item.id == id) {
+                habitName = item.name
+                item
+            } else item
+        }
+        _badHabits.value = current
+        saveBadHabitsList(current)
+        addNotification("Successfully Avoided! ✨", "Maintained clean record for '$habitName'. Keep it up!")
     }
 
     fun logBadHabitOccurrence(id: String) {
@@ -2973,6 +3090,16 @@ class TrackWiseViewModel(
             val obj = org.json.JSONObject()
             obj.put("id", bh.id)
             obj.put("name", bh.name)
+            obj.put("avoidType", bh.avoidType)
+            obj.put("reminderTime", bh.reminderTime)
+            val tagsArr = org.json.JSONArray()
+            bh.tags.forEach { t -> tagsArr.put(t) }
+            obj.put("tags", tagsArr)
+            obj.put("priority", bh.priority)
+            obj.put("isRecurring", bh.isRecurring)
+            obj.put("eventDate", bh.eventDate)
+            obj.put("costType", bh.costType)
+            obj.put("costValue", bh.costValue)
             val logsArr = org.json.JSONArray()
             bh.logs.forEach { l -> logsArr.put(l) }
             obj.put("logs", logsArr)
@@ -3596,6 +3723,18 @@ class TrackWiseViewModel(
                         val obj = array.getJSONObject(i)
                         val bhId = obj.getString("id")
                         val bhName = obj.getString("name")
+                        val avoidType = obj.optString("avoidType", "Habit")
+                        val reminderTime = obj.optString("reminderTime", "")
+                        val tagsList = mutableListOf<String>()
+                        if (obj.has("tags")) {
+                            val tArr = obj.getJSONArray("tags")
+                            for (j in 0 until tArr.length()) tagsList.add(tArr.getString(j))
+                        }
+                        val priority = obj.optString("priority", "Medium")
+                        val isRecurring = obj.optBoolean("isRecurring", true)
+                        val eventDate = obj.optString("eventDate", "")
+                        val costType = obj.optString("costType", "Money")
+                        val costValue = obj.optString("costValue", "")
                         val bhLogs = mutableListOf<String>()
                         if (obj.has("logs")) {
                             val logsArr = obj.getJSONArray("logs")
@@ -3603,7 +3742,21 @@ class TrackWiseViewModel(
                                 bhLogs.add(logsArr.getString(j))
                             }
                         }
-                        restoredBadHabits.add(BadHabitSpec(bhId, bhName, bhLogs))
+                        restoredBadHabits.add(
+                            BadHabitSpec(
+                                id = bhId,
+                                name = bhName,
+                                avoidType = avoidType,
+                                reminderTime = reminderTime,
+                                tags = tagsList,
+                                priority = priority,
+                                isRecurring = isRecurring,
+                                eventDate = eventDate,
+                                costType = costType,
+                                costValue = costValue,
+                                logs = bhLogs
+                            )
+                        )
                     }
                     _badHabits.value = restoredBadHabits
                     saveBadHabitsList(restoredBadHabits)

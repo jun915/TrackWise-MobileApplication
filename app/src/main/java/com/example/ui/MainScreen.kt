@@ -357,6 +357,7 @@ fun MainScreen(
                     "help" -> HelpScreen(onBack = { navigateBack() })
                     "archive" -> ArchiveScreen(viewModel = viewModel, onBack = { navigateBack() })
                     "seerah" -> SeerahScreen(viewModel = viewModel, onBack = { navigateBack() })
+                    "habit_breaker" -> HabitBreakerScreen(viewModel = viewModel, onBack = { navigateBack() })
                 }
 
                 // Global Pull to Refresh circle indicator overlay
@@ -526,9 +527,10 @@ fun MainScreen(
                     }
 
                     val moreItems = listOf(
+                        MoreMenuItemSpec("Habit Breaker", Icons.Default.Block, BrandRose, "habit_breaker", -1),
                         MoreMenuItemSpec("Finance", Icons.Default.AttachMoney, BrandOrange, "finance", -1),
                         MoreMenuItemSpec("Wishlist", Icons.Default.Star, BrandPink, "workspace", 2),
-                        MoreMenuItemSpec("Timer & Stopwatch", Icons.Default.Timer, BrandIndigo, "workspace", 4),
+                        MoreMenuItemSpec("Focus", Icons.Default.Timer, BrandIndigo, "workspace", 4),
                         MoreMenuItemSpec("Grocery List", Icons.Default.ShoppingCart, BrandGreen, "workspace", 5)
                     )
 
@@ -1226,7 +1228,7 @@ fun HeaderToolbar(
                 1 -> "Habit"
                 2 -> "Wishlist"
                 3 -> "Countdown"
-                4 -> "Timer & Stopwatch"
+                4 -> "Focus"
                 5 -> "Grocery Checklist"
                 else -> "Workspace"
             }
@@ -1242,6 +1244,7 @@ fun HeaderToolbar(
         "help" -> "How It Works"
         "archive" -> "Archive"
         "seerah" -> "Seerah"
+        "habit_breaker" -> "Avoid List (Habit Breaker)"
         else -> "TrackWise"
     }
 
