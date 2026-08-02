@@ -75,6 +75,7 @@ fun DashboardScreen(
     val allTasks by viewModel.allTasks.collectAsState()
     val allHabits by viewModel.allHabits.collectAsState()
     val allWishlist by viewModel.allWishlist.collectAsState()
+    val badHabits by viewModel.badHabits.collectAsState()
 
     var activePostponeTask by remember { mutableStateOf<TaskEntity?>(null) }
 
@@ -578,6 +579,14 @@ fun DashboardScreen(
                 onToggleHabit = { viewModel.toggleHabitToday(it) },
                 onHabitClick = { viewModel.setActiveDetailHabit(it) },
                 onAddHabit = { viewModel.openHabitCreationSheet() }
+            )
+        }
+
+        // --- Habit Breaker Chart Widget ---
+        item {
+            DashboardHabitBreakerChartWidget(
+                badHabits = badHabits,
+                onNavigate = onNavigate
             )
         }
 
@@ -1151,15 +1160,6 @@ fun TodayItemsWidget(
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
-                    Button(
-                        onClick = onAddTask,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Add Your 1st Task", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1172,25 +1172,42 @@ fun TodayItemsWidget(
                             onPinTask = { onPinTask(task) },
                             onPostponeTask = { onPostponeTask(task) }
                         ) {
+                            val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                            val gradientBrush = if (task.completed) {
+                                Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
+                            } else {
+                                when (task.priority.lowercase()) {
+                                    "high" -> if (isDark) {
+                                        Brush.linearGradient(colors = listOf(Color(0xFF4C0519), Color(0xFF881337)))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color(0xFFFFF1F2), Color(0xFFFFD1D3)))
+                                    }
+                                    "medium" -> if (isDark) {
+                                        Brush.linearGradient(colors = listOf(Color(0xFF431407), Color(0xFF7C2D12)))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color(0xFFFFF7ED), Color(0xFFFFEDD5)))
+                                    }
+                                    "low" -> if (isDark) {
+                                        Brush.linearGradient(colors = listOf(Color(0xFF172554), Color(0xFF1E3A8A)))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color(0xFFEFF6FF), Color(0xFFDBEAFE)))
+                                    }
+                                    else -> if (isDark) {
+                                        Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color.White, Color(0xFFF9FAFB)))
+                                    }
+                                }
+                            }
                             Card(
                                 shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (task.completed) {
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    } else {
-                                        when (task.priority) {
-                                            "high" -> BrandRose.copy(alpha = 0.28f)
-                                            "medium" -> BrandOrange.copy(alpha = 0.28f)
-                                            "low" -> Color(0xFF1E40AF).copy(alpha = 0.22f)
-                                            else -> MaterialTheme.colorScheme.surface
-                                        }
-                                    }
-                                ),
+                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .background(gradientBrush, RoundedCornerShape(16.dp))
                                     .border(
                                         1.dp,
-                                        if (task.completed) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                        if (task.completed) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
                                         RoundedCornerShape(16.dp)
                                     )
                                     .clickable { onToggleTask(task) }
@@ -1405,27 +1422,44 @@ fun PriorityItemsWidget(
                             onPinTask = { onPinTask(task) },
                             onPostponeTask = { onPostponeTask(task) }
                         ) {
+                            val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                            val gradientBrush = if (task.completed) {
+                                Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
+                            } else {
+                                when (task.priority.lowercase()) {
+                                    "high" -> if (isDark) {
+                                        Brush.linearGradient(colors = listOf(Color(0xFF4C0519), Color(0xFF881337)))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color(0xFFFFF1F2), Color(0xFFFFD1D3)))
+                                    }
+                                    "medium" -> if (isDark) {
+                                        Brush.linearGradient(colors = listOf(Color(0xFF431407), Color(0xFF7C2D12)))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color(0xFFFFF7ED), Color(0xFFFFEDD5)))
+                                    }
+                                    "low" -> if (isDark) {
+                                        Brush.linearGradient(colors = listOf(Color(0xFF172554), Color(0xFF1E3A8A)))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color(0xFFEFF6FF), Color(0xFFDBEAFE)))
+                                    }
+                                    else -> if (isDark) {
+                                        Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color.White, Color(0xFFF9FAFB)))
+                                    }
+                                }
+                            }
                             Card(
                                 shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (task.completed) {
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    } else {
-                                        when (task.priority) {
-                                            "high" -> BrandRose.copy(alpha = 0.28f)
-                                            "medium" -> BrandOrange.copy(alpha = 0.28f)
-                                            "low" -> Color(0xFF1E40AF).copy(alpha = 0.22f)
-                                            else -> MaterialTheme.colorScheme.surface
-                                        }
-                                    }
-                                ),
+                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .background(gradientBrush, RoundedCornerShape(16.dp))
                                     .border(
                                         1.dp,
-                                        if (isOverdue) BrandRose.copy(alpha = 0.15f)
+                                        if (isOverdue) BrandRose.copy(alpha = 0.2f)
                                         else if (task.completed) Color.Transparent
-                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
                                         RoundedCornerShape(16.dp)
                                     )
                                     .clickable { onToggleTask(task) }
@@ -1646,15 +1680,6 @@ fun DailyHabitsWidget(
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
-                    Button(
-                        onClick = onAddHabit,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Add Your 1st Habit", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2442,4 +2467,277 @@ fun PostponeTaskDialog(
         },
         shape = RoundedCornerShape(24.dp)
     )
+}
+
+@Composable
+fun DashboardHabitBreakerChartWidget(
+    badHabits: List<TrackWiseViewModel.BadHabitSpec>,
+    onNavigate: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(BrandRose.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Block,
+                            contentDescription = null,
+                            tint = BrandRose,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "HABIT BREAKER INSIGHTS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandRose,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "Slip-ups & sobriety progress",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = { onNavigate("habit_breaker") },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("Details", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (badHabits.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(14.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "No bad habits added yet",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Add habits to track slip-ups and clean streaks",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                // Let's compute weekly slip-up statistics
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                val dayFormat = java.text.SimpleDateFormat("E", java.util.Locale.US)
+                val last7Days = remember(badHabits) {
+                    (0..6).map { i ->
+                        val cal = java.util.Calendar.getInstance()
+                        cal.add(java.util.Calendar.DAY_OF_YEAR, -i)
+                        val dateStr = sdf.format(cal.time)
+                        val dayLabel = dayFormat.format(cal.time).substring(0, 1)
+                        dateStr to dayLabel
+                    }.reversed()
+                }
+
+                val dailyCounts = remember(badHabits, last7Days) {
+                    last7Days.map { (dateStr, _) ->
+                        badHabits.sumOf { habit ->
+                            habit.logs.count { it.startsWith(dateStr) }
+                        }
+                    }
+                }
+
+                val maxCount = remember(dailyCounts) { (dailyCounts.maxOrNull() ?: 1).coerceAtLeast(1) }
+
+                // Slip-ups Trend Bar Chart
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    last7Days.forEachIndexed { idx, (dateStr, label) ->
+                        val count = dailyCounts[idx]
+                        val barHeightFactor = count.toFloat() / maxCount.toFloat()
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (count > 0) {
+                                Text(
+                                    text = count.toString(),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandRose
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight(0.7f)
+                                    .width(16.dp)
+                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .background(
+                                        if (count > 0) BrandRose.copy(alpha = 0.85f)
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                                    )
+                                    .fillMaxHeight(barHeightFactor.coerceAtLeast(0.08f))
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = label,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Breakdown list
+                Text(
+                    text = "ACTIVE BAD HABITS & SOBRIETY STATUS",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    letterSpacing = 0.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    badHabits.take(3).forEach { habit ->
+                        val lastSlipDateStr = habit.logs.map { it.take(10) }.maxOrNull()
+                        val cleanDays = remember(lastSlipDateStr) {
+                            if (lastSlipDateStr == null) {
+                                // No slip-ups ever
+                                "Clean"
+                            } else {
+                                try {
+                                    val lastDate = sdf.parse(lastSlipDateStr)
+                                    val todayDate = sdf.parse(sdf.format(java.util.Date()))
+                                    val diff = todayDate.time - lastDate.time
+                                    val days = (diff / (1000 * 60 * 60 * 24)).toInt()
+                                    if (days <= 0) "Slipped Today" else "$days d clean"
+                                } catch (e: Exception) {
+                                    "Active"
+                                }
+                            }
+                        }
+
+                        val isClean = cleanDays != "Slipped Today"
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = habit.name,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isClean) BrandGreen else BrandRose)
+                                    )
+                                    Text(
+                                        text = cleanDays,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isClean) BrandGreen else BrandRose
+                                    )
+                                }
+                            }
+
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = BrandRose.copy(alpha = 0.08f)
+                                )
+                            ) {
+                                Text(
+                                    text = "${habit.logs.size} slip-up${if (habit.logs.size == 1) "" else "s"}",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = BrandRose,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (badHabits.size > 3) {
+                        Text(
+                            text = "+ ${badHabits.size - 3} more bad habit trackers...",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = BrandRose,
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .clickable { onNavigate("habit_breaker") }
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

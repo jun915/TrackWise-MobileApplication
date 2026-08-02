@@ -15,6 +15,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 
 fun createTypography(fontSize: String, fontStyle: String): Typography {
     val multiplier = when (fontSize) {
@@ -428,5 +429,18 @@ fun MyApplicationTheme(
       else -> activeLightScheme
     }
 
-  MaterialTheme(colorScheme = colorScheme, typography = createTypography(fontSize, fontStyle), content = content)
+  val TrackWiseShapes = androidx.compose.material3.Shapes(
+      extraSmall = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+      small = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+      medium = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+      large = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+      extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+  )
+
+  MaterialTheme(
+      colorScheme = colorScheme,
+      typography = createTypography(fontSize, fontStyle),
+      shapes = TrackWiseShapes,
+      content = content
+  )
 }

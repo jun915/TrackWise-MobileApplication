@@ -465,6 +465,42 @@ class TrackWiseViewModel(
         addNotification("Item Added to Avoid List 🚫", "Now tracking '$cleanName'. Stay strong!")
     }
 
+    fun updateBadHabit(
+        id: String,
+        name: String,
+        avoidType: String = "Habit",
+        reminderTime: String = "",
+        tags: List<String> = emptyList(),
+        priority: String = "Medium",
+        isRecurring: Boolean = true,
+        eventDate: String = "",
+        costType: String = "Money",
+        costValue: String = "",
+        iconName: String = "Block"
+    ) {
+        val cleanName = name.trim()
+        if (cleanName.isBlank()) return
+        val current = _badHabits.value.map { item ->
+            if (item.id == id) {
+                item.copy(
+                    name = cleanName,
+                    avoidType = avoidType,
+                    reminderTime = reminderTime,
+                    tags = tags,
+                    priority = priority,
+                    isRecurring = isRecurring,
+                    eventDate = eventDate,
+                    costType = costType,
+                    costValue = costValue,
+                    iconName = iconName
+                )
+            } else item
+        }
+        _badHabits.value = current
+        saveBadHabitsList(current)
+        addNotification("Item Updated ✏️", "Updated '$cleanName' successfully.")
+    }
+
     fun logBadHabitAvoidance(id: String) {
         var habitName = "Bad Habit"
         val current = _badHabits.value.map { item ->
@@ -508,6 +544,55 @@ class TrackWiseViewModel(
         }
         _badHabits.value = current
         saveBadHabitsList(current)
+    }
+
+    private fun getSharedPrefs(): android.content.SharedPreferences {
+        return getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+    }
+
+    private val _bottomBarTabIds = MutableStateFlow<List<String>>(loadBottomBarTabs())
+    val bottomBarTabIds: StateFlow<List<String>> = _bottomBarTabIds.asStateFlow()
+
+    private fun loadBottomBarTabs(): List<String> {
+        val prefs = getSharedPrefs()
+        val saved = prefs.getString("bottom_bar_tab_ids_v1", null)
+        if (!saved.isNullOrBlank()) {
+            val list = saved.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            if (list.size in 2..5) return list
+        }
+        return listOf("dashboard", "tasks", "habits", "countdown")
+    }
+
+    fun setBottomBarTabs(tabs: List<String>) {
+        if (tabs.size in 2..5) {
+            _bottomBarTabIds.value = tabs
+            getSharedPrefs().edit().putString("bottom_bar_tab_ids_v1", tabs.joinToString(",")).apply()
+        }
+    }
+
+    fun addTabToBottomBar(tabId: String) {
+        val current = _bottomBarTabIds.value.toMutableList()
+        if (!current.contains(tabId) && current.size < 5) {
+            current.add(tabId)
+            setBottomBarTabs(current)
+        }
+    }
+
+    fun removeTabFromBottomBar(tabId: String) {
+        val current = _bottomBarTabIds.value.toMutableList()
+        if (current.contains(tabId) && current.size > 2) {
+            current.remove(tabId)
+            setBottomBarTabs(current)
+        }
+    }
+
+    fun moveTabInBottomBar(fromIndex: Int, toIndex: Int) {
+        val current = _bottomBarTabIds.value.toMutableList()
+        if (fromIndex in current.indices && toIndex in current.indices && fromIndex != toIndex) {
+            val item = current.removeAt(fromIndex)
+            current.add(toIndex, item)
+            setBottomBarTabs(current)
+        }
     }
 
     fun deleteFolderPermanently(folder: String) {
@@ -1145,6 +1230,17 @@ class TrackWiseViewModel(
 
     private val _showHabitCreationSheet = MutableStateFlow(false)
     val showHabitCreationSheet: StateFlow<Boolean> = _showHabitCreationSheet.asStateFlow()
+
+    private val _showAddFinanceSheet = MutableStateFlow(false)
+    val showAddFinanceSheet: StateFlow<Boolean> = _showAddFinanceSheet.asStateFlow()
+
+    fun openAddFinanceSheet() {
+        _showAddFinanceSheet.value = true
+    }
+
+    fun closeAddFinanceSheet() {
+        _showAddFinanceSheet.value = false
+    }
 
     fun openHabitCreationSheet() {
         _habitToEdit.value = null
@@ -2033,6 +2129,10 @@ class TrackWiseViewModel(
 
     fun populateDefaultNetWorthItemsIfEmpty() {
         val user = _sessionUser.value ?: return
+        val prefs = getSharedPrefs()
+        if (prefs.getBoolean("net_worth_defaults_populated", false)) {
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val existingList = repository.getNetWorthItems(user.id)
             if (existingList.isEmpty()) {
@@ -2051,6 +2151,7 @@ class TrackWiseViewModel(
                     NetWorthItemEntity("nw-def-cc", user.id, "Credit Card Outstanding", "liability", 5000.0)
                 )
                 defaults.forEach { repository.insertNetWorthItem(it) }
+                prefs.edit().putBoolean("net_worth_defaults_populated", true).apply()
                 triggerFakeSync()
             }
         }
@@ -2570,21 +2671,29 @@ class TrackWiseViewModel(
         // Reset in-memory state
         _customFolders.value = emptyList()
         _customTags.value = emptyList()
+        _deletedFolders.value = emptyList()
         _selectedTaskFolder.value = null
         _selectedTaskTag.value = null
+        _badHabits.value = emptyList()
+        saveBadHabitsList(emptyList())
+        _notifications.value = emptyList()
 
         // Clear preferences
-        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", Context.MODE_PRIVATE)
+        val prefs = getSharedPrefs()
         prefs.edit()
             .remove("custom_folders_list")
             .remove("custom_tags_list")
+            .remove("deleted_folders_set")
+            .remove("bad_habits_list_v1")
+            .remove("bottom_bar_tab_ids_v1")
+            .putBoolean("net_worth_defaults_populated", true)
             .apply()
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 repository.clearUserData(user.id)
                 viewModelScope.launch(Dispatchers.Main) {
-                    _successMessage.value = "All data, finance logs, habit runways, and detailed records cleared! Account remains active."
+                    _successMessage.value = "All data, net worth logs, finance logs, habit runways, and detailed records cleared! Account remains active."
                 }
                 updateAppWidget()
             } catch (e: Exception) {
@@ -2732,6 +2841,8 @@ class TrackWiseViewModel(
         prefsJson.put("auto_backup_frequency", _autoBackupFrequency.value)
         prefsJson.put("custom_folders_list", _customFolders.value.joinToString(","))
         prefsJson.put("custom_tags_list", _customTags.value.joinToString(","))
+        prefsJson.put("bottom_bar_tab_ids", _bottomBarTabIds.value.joinToString(","))
+        prefsJson.put("deleted_folders_set", _deletedFolders.value.joinToString(","))
         rootJson.put("appPreferences", prefsJson)
 
         // User info
@@ -3785,6 +3896,8 @@ class TrackWiseViewModel(
                     _badHabits.value = restoredBadHabits
                     saveBadHabitsList(restoredBadHabits)
                 }
+
+                getSharedPrefs().edit().putBoolean("net_worth_defaults_populated", true).apply()
 
                 _isSyncing.value = false
                 _successMessage.value = "Backup successfully restored! All data has been filled."

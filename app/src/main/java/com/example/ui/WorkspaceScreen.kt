@@ -1,5 +1,11 @@
 package com.example.ui
 
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -70,49 +76,101 @@ fun WorkspaceScreen(
     val subTabs = listOf("Tasks", "Habit", "Wishlist", "Countdown", "Focus", "Grocery List")
     val focusManager = LocalFocusManager.current
     var subtaskTargetTask by remember { mutableStateOf<TaskEntity?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    val pagerState = rememberPagerState(initialPage = activeSubTab, pageCount = { 6 })
+
+    // Sync from ViewModel state to PagerState
+    LaunchedEffect(activeSubTab) {
+        if (pagerState.currentPage != activeSubTab) {
+            pagerState.animateScrollToPage(activeSubTab)
+        }
+    }
+
+    // Sync from PagerState to ViewModel state
+    LaunchedEffect(pagerState.currentPage) {
+        if (activeSubTab != pagerState.currentPage) {
+            viewModel.setWorkspaceSubTab(pagerState.currentPage)
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            key(page) {
+                var visible by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    visible = true
+                }
+                val alpha by animateFloatAsState(
+                    targetValue = if (visible) 1f else 0f,
+                    animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing)
+                )
+                val scale by animateFloatAsState(
+                    targetValue = if (visible) 1f else 0.96f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+                val translationY by animateFloatAsState(
+                    targetValue = if (visible) 0f else 24f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            this.alpha = alpha
+                            this.scaleX = scale
+                            this.scaleY = scale
+                            this.translationY = translationY
+                        }
                 ) {
-                    focusManager.clearFocus()
-                }
-                .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-
-
-
-
-            // --- Sub-Tab Content Rendering ---
-            when (activeSubTab) {
-                0 -> { // Tasks Sub-Tab
-                    item { TaskSection(viewModel = viewModel, onAddSubtaskClick = { subtaskTargetTask = it }) }
-                }
-                1 -> { // Habit Sub-Tab
-                    item {
-                        HabitSection(
-                            viewModel = viewModel,
-                            onHabitClick = { viewModel.setActiveDetailHabit(it) }
-                        )
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                focusManager.clearFocus()
+                            }
+                            .padding(horizontal = 16.dp),
+                        contentPadding = PaddingValues(bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        when (page) {
+                            0 -> { // Tasks Sub-Tab
+                                item { TaskSection(viewModel = viewModel, onAddSubtaskClick = { subtaskTargetTask = it }) }
+                            }
+                            1 -> { // Habit Sub-Tab
+                                item {
+                                    HabitSection(
+                                        viewModel = viewModel,
+                                        onHabitClick = { viewModel.setActiveDetailHabit(it) }
+                                    )
+                                }
+                            }
+                            2 -> { // Wishlist Sub-Tab
+                                item { WishlistSection(viewModel = viewModel) }
+                            }
+                            3 -> { // Birthdays Sub-Tab
+                                item { BirthdaySection(viewModel = viewModel) }
+                            }
+                            4 -> { // Alarms & Clocks Sub-Tab
+                                item { AlarmTimerSection(viewModel = viewModel) }
+                            }
+                            5 -> { // Grocery List Sub-Tab
+                                item { GrocerySection(viewModel = viewModel) }
+                            }
+                        }
                     }
-                }
-                2 -> { // Wishlist Sub-Tab
-                    item { WishlistSection(viewModel = viewModel) }
-                }
-                3 -> { // Birthdays Sub-Tab
-                    item { BirthdaySection(viewModel = viewModel) }
-                }
-                4 -> { // Alarms & Clocks Sub-Tab
-                    item { AlarmTimerSection(viewModel = viewModel) }
-                }
-                5 -> { // Grocery List Sub-Tab
-                    item { GrocerySection(viewModel = viewModel) }
                 }
             }
         }
@@ -598,18 +656,23 @@ fun TaskSection(
 
         if (filteredTasks.isEmpty()) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp, horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = if (selectedFolder != null || selectedTag != null) "No tasks match this filter." else "No tasks added yet. Click below or fill out the quick form to get started!",
+                    text = if (selectedFolder != null || selectedTag != null) "No tasks match this filter." else "No tasks added yet. Create one to get started!",
                     fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
                 Button(
                     onClick = { viewModel.openAddTaskSheet() },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    shape = RoundedCornerShape(12.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.background(Brush.linearGradient(colors = listOf(BrandViolet, BrandCyan)), RoundedCornerShape(12.dp))
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
@@ -691,22 +754,40 @@ fun TaskCard(
     }
 
     val tileTextColor = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
-    val cardBgColor = if (task.completed) {
-        MaterialTheme.colorScheme.surfaceVariant
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val gradientBrush = if (task.completed) {
+        Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
     } else {
-        when (task.priority) {
-            "high" -> BrandRose.copy(alpha = 0.28f)
-            "medium" -> BrandOrange.copy(alpha = 0.28f)
-            "low" -> Color(0xFF1E40AF).copy(alpha = 0.22f)
-            else -> MaterialTheme.colorScheme.surface
+        when (task.priority.lowercase()) {
+            "high" -> if (isDark) {
+                Brush.linearGradient(colors = listOf(Color(0xFF4C0519), Color(0xFF881337)))
+            } else {
+                Brush.linearGradient(colors = listOf(Color(0xFFFFF1F2), Color(0xFFFFD1D3)))
+            }
+            "medium" -> if (isDark) {
+                Brush.linearGradient(colors = listOf(Color(0xFF431407), Color(0xFF7C2D12)))
+            } else {
+                Brush.linearGradient(colors = listOf(Color(0xFFFFF7ED), Color(0xFFFFEDD5)))
+            }
+            "low" -> if (isDark) {
+                Brush.linearGradient(colors = listOf(Color(0xFF172554), Color(0xFF1E3A8A)))
+            } else {
+                Brush.linearGradient(colors = listOf(Color(0xFFEFF6FF), Color(0xFFDBEAFE)))
+            }
+            else -> if (isDark) {
+                Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
+            } else {
+                Brush.linearGradient(colors = listOf(Color.White, Color(0xFFF9FAFB)))
+            }
         }
     }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = cardBgColor),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .background(gradientBrush, RoundedCornerShape(16.dp))
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
             .combinedClickable(
                 onClick = { viewModel.openEditTaskSheet(task) },
@@ -1363,12 +1444,16 @@ fun HabitSection(
         // Display filtered habits in Workspace so they are always visible, manageable, editable, and deletable
         if (filteredHabits.isEmpty()) {
             Column(
-                modifier = Modifier.padding(vertical = 12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp, horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = if (selectedFolder == null) "No habit runways configured yet. Create one above or click below!" else "No habits assigned to folder \"$selectedFolder\" yet.",
                     fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
                 Button(
@@ -1745,12 +1830,20 @@ fun HabitCard(
         )
     }
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val gradientBrush = if (isDark) {
+        Brush.linearGradient(colors = listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
+    } else {
+        Brush.linearGradient(colors = listOf(Color.White, Color(0xFFF8FAFC)))
+    }
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+            .background(gradientBrush, RoundedCornerShape(16.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
             .combinedClickable(
                 onClick = { onHabitClick(habit) },
                 onLongClick = { showLongPressMenu = true }
@@ -4081,13 +4174,13 @@ fun CompactTextField(
                 .fillMaxWidth()
                 .height(44.dp)
                 .background(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.05f),
-                    shape = RoundedCornerShape(10.dp)
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(12.dp)
                 )
                 .border(
                     width = 1.dp,
-                    color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(10.dp)
+                    color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(12.dp)
                 ),
             decorationBox = { innerTextField ->
                 Row(
@@ -5308,7 +5401,12 @@ fun CompactOutlinedTextField(
     isError: Boolean = false,
     trailingIcon: @Composable (() -> Unit)? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    colors: TextFieldColors = OutlinedTextFieldDefaults.colors()
+    colors: TextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+    )
 ) {
     OutlinedTextField(
         value = value,

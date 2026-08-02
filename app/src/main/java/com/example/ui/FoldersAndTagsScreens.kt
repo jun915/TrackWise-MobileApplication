@@ -2,6 +2,11 @@
 
 package com.example.ui
 
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -1038,7 +1043,20 @@ fun HashtagDetailView(
         }
     }
 
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Tasks, 1: Habits
+
+    LaunchedEffect(selectedTab) {
+        if (pagerState.currentPage != selectedTab) {
+            pagerState.animateScrollToPage(selectedTab)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (selectedTab != pagerState.currentPage) {
+            selectedTab = pagerState.currentPage
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -1105,170 +1123,177 @@ fun HashtagDetailView(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (selectedTab == 0) {
-                // TASKS TAB CONTENT
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp)
-                ) {
-                    if (tagTasks.isEmpty()) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(Icons.Default.Task, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(36.dp))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("No tasks tagged with $tagWithHash yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                                    Text("Assign tasks to this tag using the Assign button!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                                }
-                            }
-                        }
-                    } else {
-                        items(tagTasks) { task ->
-                            Card(
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        modifier = Modifier.weight(1f)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) { page ->
+                ModernLoadingTilesEffect(key = page) {
+                    if (page == 0) {
+                        // TASKS TAB CONTENT
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            if (tagTasks.isEmpty()) {
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
                                     ) {
-                                        Checkbox(
-                                            checked = task.completed,
-                                            onCheckedChange = { viewModel.toggleTaskCompletion(task) },
-                                            colors = CheckboxDefaults.colors(checkedColor = BrandViolet)
-                                        )
-                                        Column {
-                                            Text(
-                                                text = task.title,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp,
-                                                color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
-                                            )
-                                            if (task.priority.isNotBlank()) {
-                                                Text(
-                                                    text = "Priority: ${task.priority.uppercase()}",
-                                                    fontSize = 11.sp,
-                                                    color = BrandOrange,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    IconButton(onClick = { viewModel.deleteTask(task.id) }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = BrandRose, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                // HABITS TAB CONTENT
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp)
-                ) {
-                    if (tagHabits.isEmpty()) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(Icons.Default.Favorite, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(36.dp))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("No habits tagged with $tagWithHash yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                                    Text("Assign habits to this tag using the Assign button!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                                }
-                            }
-                        }
-                    } else {
-                        items(tagHabits) { habit ->
-                            val todayStr = TrackWiseUtils.getTodayString()
-                            val daysCompleted = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
-                            val isCompletedToday = daysCompleted.contains(todayStr)
-
-                            Card(
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                                    .clickable { onHabitClick(habit) }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clickable { viewModel.toggleHabitToday(habit) },
-                                            contentAlignment = Alignment.Center
+                                        Column(
+                                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                            horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
-                                            if (isCompletedToday) {
-                                                Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(22.dp))
-                                            } else {
-                                                HabitIconView(icon = habit.icon, tint = BrandOrange, size = 22.dp)
+                                            Icon(Icons.Default.Task, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(36.dp))
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("No tasks tagged with $tagWithHash yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                            Text("Assign tasks to this tag using the Assign button!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(tagTasks) { task ->
+                                    Card(
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Checkbox(
+                                                    checked = task.completed,
+                                                    onCheckedChange = { viewModel.toggleTaskCompletion(task) },
+                                                    colors = CheckboxDefaults.colors(checkedColor = BrandViolet)
+                                                )
+                                                Column {
+                                                    Text(
+                                                        text = task.title,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 15.sp,
+                                                        color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
+                                                    )
+                                                    if (task.priority.isNotBlank()) {
+                                                        Text(
+                                                            text = "Priority: ${task.priority.uppercase()}",
+                                                            fontSize = 11.sp,
+                                                            color = BrandOrange,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            IconButton(onClick = { viewModel.deleteTask(task.id) }) {
+                                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = BrandRose, modifier = Modifier.size(18.dp))
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // HABITS TAB CONTENT
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            if (tagHabits.isEmpty()) {
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(Icons.Default.Favorite, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(36.dp))
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("No habits tagged with $tagWithHash yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                            Text("Assign habits to this tag using the Assign button!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(tagHabits) { habit ->
+                                    val todayStr = TrackWiseUtils.getTodayString()
+                                    val daysCompleted = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                                    val isCompletedToday = daysCompleted.contains(todayStr)
 
-                                        Column {
-                                            Text(
-                                                text = habit.name,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp,
-                                                color = MaterialTheme.colorScheme.onBackground
-                                            )
-                                            Text(
-                                                text = "Streak: ${habit.streak}d · ${habit.category}",
-                                                fontSize = 12.sp,
-                                                color = BrandOrange,
-                                                fontWeight = FontWeight.SemiBold
+                                    Card(
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                            .clickable { onHabitClick(habit) }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clickable { viewModel.toggleHabitToday(habit) },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (isCompletedToday) {
+                                                        Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(22.dp))
+                                                    } else {
+                                                        HabitIconView(icon = habit.icon, tint = BrandOrange, size = 22.dp)
+                                                    }
+                                                }
+
+                                                Column {
+                                                    Text(
+                                                        text = habit.name,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 15.sp,
+                                                        color = MaterialTheme.colorScheme.onBackground
+                                                    )
+                                                    Text(
+                                                        text = "Streak: ${habit.streak}d · ${habit.category}",
+                                                        fontSize = 12.sp,
+                                                        color = BrandOrange,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                            }
+
+                                            Icon(
+                                                imageVector = Icons.Default.ChevronRight,
+                                                contentDescription = "Open detail",
+                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
                                             )
                                         }
                                     }
-
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronRight,
-                                        contentDescription = "Open detail",
-                                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                                    )
                                 }
                             }
                         }
@@ -1299,8 +1324,21 @@ fun FolderDetailView(
         }
     }
 
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Tasks, 1: Habits
     var showAddTaskDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedTab) {
+        if (pagerState.currentPage != selectedTab) {
+            pagerState.animateScrollToPage(selectedTab)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (selectedTab != pagerState.currentPage) {
+            selectedTab = pagerState.currentPage
+        }
+    }
     var newTaskTitle by remember { mutableStateOf("") }
 
     Scaffold(
@@ -1368,174 +1406,181 @@ fun FolderDetailView(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (selectedTab == 0) {
-                // TASKS TAB CONTENT (READ-ONLY)
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp)
-                ) {
-                    if (folderTasks.isEmpty()) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(Icons.Default.Task, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(36.dp))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("No tasks in this folder yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                                    Text("Assign tasks to this folder using the Assign button on the Folders page!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                                }
-                            }
-                        }
-                    } else {
-                        items(folderTasks) { task ->
-                            Card(
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        modifier = Modifier.weight(1f)
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) { page ->
+                ModernLoadingTilesEffect(key = page) {
+                    if (page == 0) {
+                        // TASKS TAB CONTENT (READ-ONLY)
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            if (folderTasks.isEmpty()) {
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
                                     ) {
-                                        if (task.completed) {
-                                            Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = "Completed",
-                                                tint = BrandViolet,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        } else {
-                                            Icon(
-                                                imageVector = Icons.Default.RadioButtonUnchecked,
-                                                contentDescription = "Active",
-                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                        Column {
-                                            Text(
-                                                text = task.title,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp,
-                                                color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
-                                            )
-                                            if (task.priority.isNotBlank()) {
-                                                Text(
-                                                    text = "Priority: ${task.priority.uppercase()}",
-                                                    fontSize = 11.sp,
-                                                    color = BrandOrange,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                // HABITS TAB CONTENT (READ-ONLY)
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 24.dp)
-                ) {
-                    if (folderHabits.isEmpty()) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(Icons.Default.Favorite, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(36.dp))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("No habits in this folder yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                                    Text("Assign habits to this folder using the Assign button on the Folders page!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
-                                }
-                            }
-                        }
-                    } else {
-                        items(folderHabits) { habit ->
-                            val todayStr = TrackWiseUtils.getTodayString()
-                            val daysCompleted = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
-                            val isCompletedToday = daysCompleted.contains(todayStr)
-
-                            Card(
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                                    .clickable { onHabitClick(habit) }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.size(28.dp),
-                                            contentAlignment = Alignment.Center
+                                        Column(
+                                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                            horizontalAlignment = Alignment.CenterHorizontally
                                         ) {
-                                            if (isCompletedToday) {
-                                                Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(22.dp))
-                                            } else {
-                                                HabitIconView(icon = habit.icon, tint = BrandOrange, size = 22.dp)
+                                            Icon(Icons.Default.Task, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(36.dp))
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("No tasks in this folder yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                            Text("Assign tasks to this folder using the Assign button on the Folders page!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(folderTasks) { task ->
+                                    Card(
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                if (task.completed) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.CheckCircle,
+                                                        contentDescription = "Completed",
+                                                        tint = BrandViolet,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Default.RadioButtonUnchecked,
+                                                        contentDescription = "Active",
+                                                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                }
+                                                Column {
+                                                    Text(
+                                                        text = task.title,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 15.sp,
+                                                        color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
+                                                    )
+                                                    if (task.priority.isNotBlank()) {
+                                                        Text(
+                                                            text = "Priority: ${task.priority.uppercase()}",
+                                                            fontSize = 11.sp,
+                                                            color = BrandOrange,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // HABITS TAB CONTENT (READ-ONLY)
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            if (folderHabits.isEmpty()) {
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(Icons.Default.Favorite, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(36.dp))
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text("No habits in this folder yet", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                            Text("Assign habits to this folder using the Assign button on the Folders page!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(folderHabits) { habit ->
+                                    val todayStr = TrackWiseUtils.getTodayString()
+                                    val daysCompleted = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                                    val isCompletedToday = daysCompleted.contains(todayStr)
 
-                                        Column {
-                                            Text(
-                                                text = habit.name,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 15.sp,
-                                                color = MaterialTheme.colorScheme.onBackground
-                                            )
-                                            Text(
-                                                text = "Streak: ${habit.streak}d · ${habit.category}",
-                                                fontSize = 12.sp,
-                                                color = BrandOrange,
-                                                fontWeight = FontWeight.SemiBold
+                                    Card(
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                            .clickable { onHabitClick(habit) }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.size(28.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (isCompletedToday) {
+                                                        Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(22.dp))
+                                                    } else {
+                                                        HabitIconView(icon = habit.icon, tint = BrandOrange, size = 22.dp)
+                                                    }
+                                                }
+
+                                                Column {
+                                                    Text(
+                                                        text = habit.name,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 15.sp,
+                                                        color = MaterialTheme.colorScheme.onBackground
+                                                    )
+                                                    Text(
+                                                        text = "Streak: ${habit.streak}d · ${habit.category}",
+                                                        fontSize = 12.sp,
+                                                        color = BrandOrange,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                            }
+
+                                            Icon(
+                                                imageVector = Icons.Default.ChevronRight,
+                                                contentDescription = "Open detail",
+                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
                                             )
                                         }
                                     }
-
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronRight,
-                                        contentDescription = "Open detail",
-                                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                                    )
                                 }
                             }
                         }

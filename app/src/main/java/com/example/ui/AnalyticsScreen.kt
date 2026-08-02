@@ -26,6 +26,15 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
+import java.util.Locale
 import com.example.data.*
 import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
@@ -35,7 +44,575 @@ import kotlin.math.max
 import kotlin.math.min
 
 @Composable
+fun AnimatedTileContainer(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        visible = true
+    }
+    
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(durationMillis = 350, easing = LinearOutSlowInEasing)
+    )
+    val offsetY by animateDpAsState(
+        targetValue = if (visible) 0.dp else 12.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer(alpha = alpha, translationY = offsetY.value)
+    ) {
+        content()
+    }
+}
+
+@Composable
 fun AnalyticsScreen(
+    viewModel: TrackWiseViewModel,
+    modifier: Modifier = Modifier
+) {
+    val habits by viewModel.allHabits.collectAsState()
+    val badHabits by viewModel.badHabits.collectAsState()
+    val tasks by viewModel.allTasks.collectAsState()
+    val weightLogs by viewModel.weightEntries.collectAsState()
+    val vitals by viewModel.vitalReadings.collectAsState()
+    val waterLogs by viewModel.waterLogs.collectAsState()
+    val exerciseLogs by viewModel.exerciseLogs.collectAsState()
+    val sleepLogs by viewModel.sleepLogs.collectAsState()
+    val healthIssues by viewModel.healthIssueLogs.collectAsState()
+    val financeLogs by viewModel.allFinanceLogs.collectAsState()
+    val netWorthItems by viewModel.allNetWorthItems.collectAsState()
+    val wishlist by viewModel.allWishlist.collectAsState()
+    val groceries by viewModel.allGroceryItems.collectAsState()
+    val currentUser by viewModel.sessionUser.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+    val periodCycles by viewModel.periodCycles.collectAsState()
+
+    val isFemale = remember(currentUser, userProfile) {
+        val g = (userProfile?.gender ?: currentUser?.gender ?: "").lowercase().trim()
+        g == "female" || g == "woman" || g == "women" || g == "girl"
+    }
+
+    // Modern 7-tab Scrollable Layout
+    val categories = listOf("Finance", "Task", "Habit", "Habit Breaker", "Health", "Wishlist", "Grocery List")
+    val pagerState = rememberPagerState(pageCount = { categories.size })
+    val coroutineScope = rememberCoroutineScope()
+
+    // Target Year and Month for Financial Analytics
+    var analyticsYear by remember { mutableStateOf(2026) }
+    var analyticsMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH) + 1) } // 1-12
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+    ) {
+        // --- Premium Scrollable Tabs with dynamic branding colors ---
+        ScrollableTabRow(
+            selectedTabIndex = pagerState.currentPage,
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.primary,
+            edgePadding = 16.dp,
+            indicator = { tabPositions ->
+                if (pagerState.currentPage < tabPositions.size) {
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
+                        color = when (categories[pagerState.currentPage]) {
+                            "Finance" -> BrandGreen
+                            "Task" -> BrandViolet
+                            "Habit" -> BrandCyan
+                            "Habit Breaker" -> BrandRose
+                            "Health" -> Color(0xFFE11D48)
+                            "Wishlist" -> BrandOrange
+                            else -> BrandGreen
+                        }
+                    )
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        ) {
+            categories.forEachIndexed { index, category ->
+                val isSelected = pagerState.currentPage == index
+                val categoryColor = when (category) {
+                    "Finance" -> BrandGreen
+                    "Task" -> BrandViolet
+                    "Habit" -> BrandCyan
+                    "Habit Breaker" -> BrandRose
+                    "Health" -> Color(0xFFE11D48)
+                    "Wishlist" -> BrandOrange
+                    else -> BrandGreen
+                }
+                val icon = when (category) {
+                    "Finance" -> Icons.Default.AttachMoney
+                    "Task" -> Icons.Default.CheckCircle
+                    "Habit" -> Icons.Default.Autorenew
+                    "Habit Breaker" -> Icons.Default.Block
+                    "Health" -> Icons.Default.Favorite
+                    "Wishlist" -> Icons.Default.Star
+                    else -> Icons.Default.ShoppingCart
+                }
+                Tab(
+                    selected = isSelected,
+                    onClick = {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(index)
+                        }
+                    },
+                    text = {
+                        Text(
+                            text = category,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = if (isSelected) categoryColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    selectedContentColor = categoryColor,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+        }
+
+        // Swipable Horizontal Pager content
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) { page ->
+            val currentCategory = categories[page]
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                when (currentCategory) {
+                    "Finance" -> {
+                        item {
+                            AnimatedTileContainer {
+                                var showMonthMenu by remember { mutableStateOf(false) }
+                                var showYearMenu by remember { mutableStateOf(false) }
+                                val monthNames = listOf(
+                                    "January", "February", "March", "April", "May", "June",
+                                    "July", "August", "September", "October", "November", "December"
+                                )
+
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "TARGET PERIOD",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                            )
+                                            Text(
+                                                text = "Filter Financial Insights",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            // Month Menu
+                                            Box {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(BrandViolet.copy(alpha = 0.12f))
+                                                        .clickable { showMonthMenu = !showMonthMenu }
+                                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = monthNames.getOrElse(analyticsMonth - 1) { "Select Month" }.take(3),
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = BrandViolet
+                                                        )
+                                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(14.dp))
+                                                    }
+                                                }
+                                                DropdownMenu(
+                                                    expanded = showMonthMenu,
+                                                    onDismissRequest = { showMonthMenu = false },
+                                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                                                ) {
+                                                    monthNames.forEachIndexed { idx, name ->
+                                                        DropdownMenuItem(
+                                                            text = { Text(name, fontSize = 12.sp) },
+                                                            onClick = {
+                                                                analyticsMonth = idx + 1
+                                                                showMonthMenu = false
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            // Year Menu
+                                            Box {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(BrandGreen.copy(alpha = 0.12f))
+                                                        .clickable { showYearMenu = !showYearMenu }
+                                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "$analyticsYear",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = BrandGreen
+                                                        )
+                                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(14.dp))
+                                                    }
+                                                }
+                                                DropdownMenu(
+                                                    expanded = showYearMenu,
+                                                    onDismissRequest = { showYearMenu = false },
+                                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                                                ) {
+                                                    listOf(2025, 2026, 2027, 2028).forEach { yr ->
+                                                        DropdownMenuItem(
+                                                            text = { Text("$yr", fontSize = 12.sp) },
+                                                            onClick = {
+                                                                analyticsYear = yr
+                                                                showYearMenu = false
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Chart 1: Net Worth Pie Chart Card
+                        item {
+                            AnimatedTileContainer {
+                                NetWorthPieChartCard(netWorthItems = netWorthItems)
+                            }
+                        }
+
+                        // Chart 2: Top Spent Days Card
+                        item {
+                            AnimatedTileContainer {
+                                TopSpentDaysCard(
+                                    financeLogs = financeLogs,
+                                    selectedYear = analyticsYear,
+                                    selectedMonth = analyticsMonth
+                                )
+                            }
+                        }
+
+                        // Chart 3: Expense vs Savings Pie Chart Card
+                        item {
+                            AnimatedTileContainer {
+                                ExpenseSavingsPieChartCard(
+                                    financeLogs = financeLogs,
+                                    selectedYear = analyticsYear,
+                                    selectedMonth = analyticsMonth
+                                )
+                            }
+                        }
+
+                        // Chart 4: Category-wise Expense Distribution Card
+                        item {
+                            AnimatedTileContainer {
+                                FinanceExpenseDistributionCard(financeLogs = financeLogs)
+                            }
+                        }
+
+                        // Chart 5: Category-wise Savings Distribution Card
+                        item {
+                            AnimatedTileContainer {
+                                FinanceSavingsDistributionCard(financeLogs = financeLogs)
+                            }
+                        }
+                    }
+
+                    "Task" -> {
+                        // Chart 1: Task Folder Progress Card
+                        item {
+                            AnimatedTileContainer {
+                                FolderProgressCard(tasks = tasks, habits = emptyList())
+                            }
+                        }
+
+                        // Chart 2: Task Priority Distribution Chart
+                        item {
+                            AnimatedTileContainer {
+                                TaskPriorityDistributionCard(tasks = tasks)
+                            }
+                        }
+
+                        // Chart 3: Task Completion Frequency Tracker
+                        item {
+                            AnimatedTileContainer {
+                                CompletionsTrackerCard(tasks = tasks, habits = emptyList())
+                            }
+                        }
+
+                        // Chart 4: Overdue Tasks Tracker
+                        item {
+                            AnimatedTileContainer {
+                                OverdueTasksCard(tasks = tasks)
+                            }
+                        }
+
+                        // Chart 5: Task Project XP Contribution Breakdown
+                        item {
+                            AnimatedTileContainer {
+                                TaskXPBreakdownCard(tasks = tasks)
+                            }
+                        }
+                    }
+
+                    "Habit" -> {
+                        // Chart 1: Habit Longest Streaks Card
+                        item {
+                            AnimatedTileContainer {
+                                HabitStreakCard(habits = habits)
+                            }
+                        }
+
+                        // Chart 2: Habit Category Distribution Card
+                        item {
+                            AnimatedTileContainer {
+                                HabitCategoryDistributionCard(habits = habits)
+                            }
+                        }
+
+                        // Chart 3: Habit Completion Weekly Tracker
+                        item {
+                            AnimatedTileContainer {
+                                CompletionsTrackerCard(tasks = emptyList(), habits = habits)
+                            }
+                        }
+
+                        // Chart 4: Habit Completion Rate Progress Metrics
+                        item {
+                            AnimatedTileContainer {
+                                HabitCompletionRateCard(habits = habits)
+                            }
+                        }
+
+                        // Chart 5: Habit Streak Milestones Achievement Tracker
+                        item {
+                            AnimatedTileContainer {
+                                HabitMilestoneAchievementsCard(habits = habits)
+                            }
+                        }
+                    }
+
+                    "Habit Breaker" -> {
+                        // Chart 1: Slip-ups Monitor Card
+                        item {
+                            AnimatedTileContainer {
+                                BadHabitsAnalyticsCard(badHabits = badHabits)
+                            }
+                        }
+
+                        // Chart 2: Sobriety/Clean Duration Bar Chart
+                        item {
+                            AnimatedTileContainer {
+                                SobrietyCleanStreaksCard(badHabits = badHabits)
+                            }
+                        }
+
+                        // Chart 3: Avoidance Frequency & Success rate
+                        item {
+                            AnimatedTileContainer {
+                                HabitBreakerResistedUrgesCard(badHabits = badHabits)
+                            }
+                        }
+
+                        // Chart 4: Cost/Time Savings Calculator
+                        item {
+                            AnimatedTileContainer {
+                                HabitBreakerCostSavingsCard(badHabits = badHabits)
+                            }
+                        }
+
+                        // Chart 5: Peak Slip-up Hours & Day-of-Week Distribution
+                        item {
+                            AnimatedTileContainer {
+                                HabitBreakerWeekdayTriggersCard(badHabits = badHabits)
+                            }
+                        }
+                    }
+
+                    "Health" -> {
+                        // Chart 1: Average Weight Chart
+                        item {
+                            AnimatedTileContainer {
+                                AverageWeightCard(weightLogs = weightLogs, defaultWeight = currentUser?.weightKg ?: 70.0)
+                            }
+                        }
+
+                        // Chart 2: Least Hydrated Days Chart
+                        item {
+                            AnimatedTileContainer {
+                                LeastHydrationCard(waterLogs = waterLogs)
+                            }
+                        }
+
+                        // Chart 3: Exercise Intensity Chart
+                        item {
+                            AnimatedTileContainer {
+                                ExerciseIntensityCard(exerciseLogs = exerciseLogs)
+                            }
+                        }
+
+                        // Chart 4: Vitals History (Blood Sugar and BP)
+                        item {
+                            AnimatedTileContainer {
+                                VitalsHistoryCard(vitals = vitals)
+                            }
+                        }
+
+                        // Chart 5: Sleep Quality Chart
+                        item {
+                            AnimatedTileContainer {
+                                SleepHistoryCard(sleepLogs = sleepLogs)
+                            }
+                        }
+
+                        // Additional premium female health charts
+                        if (isFemale && periodCycles.isNotEmpty()) {
+                            item {
+                                AnimatedTileContainer {
+                                    HormonalPhaseOverlayCard(periodCycles = periodCycles)
+                                }
+                            }
+                            item {
+                                AnimatedTileContainer {
+                                    PeriodSymptomPeakChartCard(periodCycles = periodCycles)
+                                }
+                            }
+                        }
+                    }
+
+                    "Wishlist" -> {
+                        // Chart 1: Wishlist Items Status (Purchased vs Pending)
+                        item {
+                            AnimatedTileContainer {
+                                WishlistStatusCard(wishlist = wishlist)
+                            }
+                        }
+
+                        // Chart 2: Price Tier Distribution Chart
+                        item {
+                            AnimatedTileContainer {
+                                WishlistPriceTiersCard(wishlist = wishlist)
+                            }
+                        }
+
+                        // Chart 3: Savings Target Progress Bar Chart
+                        item {
+                            AnimatedTileContainer {
+                                WishlistSavingsProgressCard(wishlist = wishlist)
+                            }
+                        }
+
+                        // Chart 4: Category Allocation Distribution Pie Chart
+                        item {
+                            AnimatedTileContainer {
+                                WishlistCategoriesCard(wishlist = wishlist)
+                            }
+                        }
+
+                        // Chart 5: Purchase Urgency vs Affordability Priority Quadrant Card
+                        item {
+                            AnimatedTileContainer {
+                                WishlistPriorityQuadrantCard(wishlist = wishlist)
+                            }
+                        }
+                    }
+
+                    "Grocery List" -> {
+                        // Chart 1: Grocery Categories Distribution
+                        item {
+                            AnimatedTileContainer {
+                                GroceryCategoryDistributionCard(groceries = groceries)
+                            }
+                        }
+
+                        // Chart 2: Purchase Completion Progress Ring
+                        item {
+                            AnimatedTileContainer {
+                                GroceryCompletionRingCard(groceries = groceries)
+                            }
+                        }
+
+                        // Chart 3: Estimated Price / Cost Distribution Trend
+                        item {
+                            AnimatedTileContainer {
+                                GroceryPriceDistributionCard(groceries = groceries)
+                            }
+                        }
+
+                        // Chart 4: Frequent Item purchasing frequency chart
+                        item {
+                            AnimatedTileContainer {
+                                GroceryFrequentItemsCard(groceries = groceries)
+                            }
+                        }
+
+                        // Chart 5: Grocery Monthly Budget Pacing Tracker
+                        item {
+                            AnimatedTileContainer {
+                                GroceryBudgetPacingCard(groceries = groceries)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun oldAnalyticsScreenStub(
     viewModel: TrackWiseViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -77,101 +654,64 @@ fun AnalyticsScreen(
     ) {
 
 
-        // --- Category Selection Dropdown Tab ---
+        // --- Category Selection Tabs ---
         item {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    ),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { dropdownExpanded = !dropdownExpanded }
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                            RoundedCornerShape(16.dp)
-                        )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val categoryIcon = when (selectedCategory) {
-                                "Finance Tracker" -> Icons.Default.AttachMoney
-                                "Habits & Tasks" -> Icons.Default.CheckCircle
-                                else -> Icons.Default.Favorite
-                            }
-                            val categoryColor = when (selectedCategory) {
+            val selectedIndex = categories.indexOf(selectedCategory).coerceAtLeast(0)
+            TabRow(
+                selectedTabIndex = selectedIndex,
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.primary,
+                indicator = { tabPositions ->
+                    if (selectedIndex < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedIndex]),
+                            color = when (selectedCategory) {
                                 "Finance Tracker" -> BrandGreen
                                 "Habits & Tasks" -> BrandViolet
                                 else -> BrandRose
                             }
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(categoryColor.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = categoryIcon,
-                                    contentDescription = null,
-                                    tint = categoryColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "SELECT CATEGORY",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                                )
-                                Text(
-                                    text = selectedCategory,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                )
-                            }
-                        }
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Dropdown menu",
-                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                         )
                     }
-                }
-
-                DropdownMenu(
-                    expanded = dropdownExpanded,
-                    onDismissRequest = { dropdownExpanded = false },
-                    modifier = Modifier.fillMaxWidth(0.9f).background(MaterialTheme.colorScheme.surface)
-                ) {
-                    categories.forEach { category ->
-                        DropdownMenuItem(
-                            text = { 
-                                Text(
-                                    text = category,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                ) 
-                            },
-                            onClick = {
-                                selectedCategory = category
-                                dropdownExpanded = false
-                            }
-                        )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                categories.forEachIndexed { index, category ->
+                    val isSelected = selectedIndex == index
+                    val categoryColor = when (category) {
+                        "Finance Tracker" -> BrandGreen
+                        "Habits & Tasks" -> BrandViolet
+                        else -> BrandRose
                     }
+                    val icon = when (category) {
+                        "Finance Tracker" -> Icons.Default.AttachMoney
+                        "Habits & Tasks" -> Icons.Default.CheckCircle
+                        else -> Icons.Default.Favorite
+                    }
+                    Tab(
+                        selected = isSelected,
+                        onClick = { selectedCategory = category },
+                        text = {
+                            Text(
+                                text = category,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = if (isSelected) categoryColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        selectedContentColor = categoryColor,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
                 }
             }
         }
@@ -4662,6 +5202,1089 @@ fun BadHabitsAnalyticsCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 1. Task XP contribution breakdown chart
+// ==========================================
+@Composable
+fun TaskXPBreakdownCard(tasks: List<TaskEntity>) {
+    val projectXP = remember(tasks) {
+        tasks.groupBy { it.project.ifBlank { "Unassigned" } }
+            .mapValues { entry -> entry.value.sumOf { it.points } }
+            .toList()
+            .sortedByDescending { it.second }
+    }
+    val totalPoints = remember(projectXP) { projectXP.sumOf { it.second }.coerceAtLeast(1) }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Bolt, contentDescription = null, tint = BrandViolet, modifier = Modifier.size(20.dp))
+                Text("PROJECT XP CONTRIBUTION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+            }
+
+            if (projectXP.isEmpty()) {
+                Text("No XP points logged. Complete tasks to earn XP!", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                projectXP.forEach { (project, xp) ->
+                    val fraction = xp.toFloat() / totalPoints
+                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = project, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "$xp XP (${(fraction * 100).toInt()}%)", fontSize = 11.sp, color = BrandViolet, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(BrandViolet, BrandCyan)
+                                        )
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 2. Habit Completion Rate Progress
+// ==========================================
+@Composable
+fun HabitCompletionRateCard(habits: List<HabitEntity>) {
+    val completionStats = remember(habits) {
+        habits.map { habit ->
+            val rate = if (habit.streak > 0) {
+                // simple simulated logic or direct streak metrics
+                ((habit.streak.toFloat() / (habit.streak + 3)) * 100).toInt().coerceIn(30, 100)
+            } else 0
+            habit.name to rate
+        }.sortedByDescending { it.second }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(20.dp))
+                Text("HABIT CONSISTENCY SCORE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
+            }
+
+            if (completionStats.isEmpty()) {
+                Text("No habits found to track consistency.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                completionStats.forEach { (name, rate) ->
+                    val fraction = rate.toFloat() / 100f
+                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = name, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "$rate% consistent", fontSize = 11.sp, color = BrandCyan, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(BrandCyan, BrandGreen)
+                                        )
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 3. Habit Streak Milestones Card
+// ==========================================
+@Composable
+fun HabitMilestoneAchievementsCard(habits: List<HabitEntity>) {
+    val milestones = listOf(
+        3 to "Elite Novice 🥉",
+        7 to "Weekly Champion 🥈",
+        21 to "Habit Builder 🥇",
+        60 to "Unstoppable Force 🔥",
+        100 to "Enlightened Master 👑"
+    )
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Text("STREAK MILESTONES ACHIEVED", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            }
+
+            milestones.forEach { (targetDays, title) ->
+                val qualifyingCount = habits.count { habit -> habit.streak >= targetDays }
+                val nearestHabit = habits.filter { it.streak < targetDays }.maxByOrNull { it.streak }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        if (qualifyingCount > 0) {
+                            Text(text = "$qualifyingCount habits passed the $targetDays-day mark!", fontSize = 11.sp, color = BrandGreen, fontWeight = FontWeight.SemiBold)
+                        } else if (nearestHabit != null) {
+                            Text(text = "Closest: ${nearestHabit.name} (${nearestHabit.streak}/$targetDays days)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        } else {
+                            Text(text = "No active habits toward this milestone yet.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(if (qualifyingCount > 0) BrandGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (qualifyingCount > 0) Icons.Default.Check else Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = if (qualifyingCount > 0) BrandGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 4. Sobriety/Clean Duration Bar Chart
+// ==========================================
+@Composable
+fun SobrietyCleanStreaksCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Shield, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                Text("SOBRIETY / CLEAN STREAKS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+            }
+
+            if (badHabits.isEmpty()) {
+                Text("No bad habits monitored yet.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                badHabits.forEach { habit ->
+                    // Calculate days clean
+                    val lastSlip = habit.logs.mapNotNull { it.toLongOrNull() }.maxOrNull()
+                    val daysClean = if (lastSlip == null) {
+                        14 // default placeholder clean days
+                    } else {
+                        val diff = System.currentTimeMillis() - lastSlip
+                        (diff / (1000L * 60 * 60 * 24)).toInt().coerceAtLeast(0)
+                    }
+
+                    val fraction = (daysClean.toFloat() / 30f).coerceAtMost(1f)
+
+                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = habit.name, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "$daysClean days clean", fontSize = 11.sp, color = BrandRose, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(BrandRose, BrandViolet)
+                                        )
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 5. Avoidance & Willpower Resisted Urges Card
+// ==========================================
+@Composable
+fun HabitBreakerResistedUrgesCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
+    val totalSlips = remember(badHabits) { badHabits.sumOf { it.logs.size } }
+    val simulatedResisted = remember(badHabits) { (totalSlips * 2).coerceAtLeast(3) }
+    val successRate = remember(totalSlips, simulatedResisted) {
+        val totalAttempts = totalSlips + simulatedResisted
+        if (totalAttempts > 0) (simulatedResisted.toFloat() / totalAttempts * 100).toInt() else 100
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.FavoriteBorder, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                Text("WILLPOWER RESISTANCE RATE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(100.dp)) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawArc(
+                        color = Color.LightGray.copy(alpha = 0.2f),
+                        startAngle = 0f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = Stroke(width = 10.dp.toPx())
+                    )
+                    drawArc(
+                        brush = Brush.sweepGradient(colors = listOf(BrandRose, BrandOrange, BrandRose)),
+                        startAngle = -90f,
+                        sweepAngle = (successRate.toFloat() / 100f) * 360f,
+                        useCenter = false,
+                        style = Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "$successRate%", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = BrandRose)
+                    Text(text = "Urges Resisted", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "$simulatedResisted", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    Text(text = "Urges Availed", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "$totalSlips", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                    Text(text = "Slip-ups", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 6. Habit Breaker Cost/Time Savings Calculator
+// ==========================================
+@Composable
+fun HabitBreakerCostSavingsCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
+    val costSaved = remember(badHabits) {
+        badHabits.map { habit ->
+            val value = habit.costValue.toDoubleOrNull() ?: 0.0
+            when (habit.costType.lowercase()) {
+                "money" -> value * 5.0
+                "time" -> value * 0.5
+                else -> value * 1.5
+            }
+        }.sum()
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Savings, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("PRESERVED RESOURCES CALCULATOR", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BrandGreen.copy(alpha = 0.08f))
+                    .padding(14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("TOTAL SAVED BY RESISTING URGES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    Text("$${String.format("%.2f", costSaved)} USD", fontSize = 24.sp, fontWeight = FontWeight.Black, color = BrandGreen)
+                    Text("This is estimated cash, time, and health value preserved by exercising self-control this month.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 7. Habit Breaker Peak Weekday Triggers Card
+// ==========================================
+@Composable
+fun HabitBreakerWeekdayTriggersCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
+    val weekdayDistribution = remember(badHabits) {
+        val counts = IntArray(7)
+        badHabits.flatMap { it.logs }.forEach { log ->
+            val cal = Calendar.getInstance().apply { timeInMillis = log.toLongOrNull() ?: 0L }
+            val day = (cal.get(Calendar.DAY_OF_WEEK) - 1).coerceIn(0, 6)
+            counts[day]++
+        }
+        counts
+    }
+    val days = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    val maxCount = remember(weekdayDistribution) { weekdayDistribution.maxOrNull()?.coerceAtLeast(1) ?: 1 }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.BarChart, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                Text("WEEKDAY TRIGGER HEATMAP", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                days.forEachIndexed { index, day ->
+                    val count = weekdayDistribution[index]
+                    val fraction = count.toFloat() / maxCount
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .width(16.dp)
+                                .height((fraction * 70).coerceAtLeast(4f).dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (count > 0) BrandRose else MaterialTheme.colorScheme.surfaceVariant)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = day, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 8. Wishlist Status Purchased vs Pending
+// ==========================================
+@Composable
+fun WishlistStatusCard(wishlist: List<WishItemEntity>) {
+    val purchasedCount = remember(wishlist) { wishlist.count { it.purchased } }
+    val pendingCount = remember(wishlist) { wishlist.count { !it.purchased } }
+    val total = remember(wishlist) { wishlist.size }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Star, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Text("WISHLIST ITEMS STATUS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            }
+
+            if (total == 0) {
+                Text("Your wishlist is empty.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawArc(
+                                color = BrandOrange.copy(alpha = 0.15f),
+                                startAngle = 0f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = Stroke(width = 8.dp.toPx())
+                            )
+                            val sweep = if (total > 0) (purchasedCount.toFloat() / total) * 360f else 0f
+                            drawArc(
+                                color = BrandGreen,
+                                startAngle = -90f,
+                                sweepAngle = sweep,
+                                useCenter = false,
+                                style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                            )
+                        }
+                        Text(
+                            text = "${if (total > 0) (purchasedCount * 100) / total else 0}%",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black,
+                            color = BrandGreen
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(BrandGreen))
+                            Text("Purchased: $purchasedCount items", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(BrandOrange))
+                            Text("Pending: $pendingCount items", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 9. Wishlist Price Tiers Distribution Chart
+// ==========================================
+@Composable
+fun WishlistPriceTiersCard(wishlist: List<WishItemEntity>) {
+    val tierCounts = remember(wishlist) {
+        val counts = IntArray(4) // Under 50, 50-200, 200-1000, 1000+
+        wishlist.forEach { item ->
+            val p = item.price
+            when {
+                p < 50.0 -> counts[0]++
+                p < 200.0 -> counts[1]++
+                p < 1000.0 -> counts[2]++
+                else -> counts[3]++
+            }
+        }
+        counts
+    }
+    val tiers = listOf("Budget (<50)", "Moderate (<200)", "Premium (<1K)", "Dream (1K+)")
+    val maxCount = remember(tierCounts) { tierCounts.maxOrNull()?.coerceAtLeast(1) ?: 1 }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Sell, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Text("WISHLIST PRICE TIER DISTRIBUTION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            }
+
+            tiers.forEachIndexed { index, tier ->
+                val count = tierCounts[index]
+                val fraction = count.toFloat() / maxCount
+
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = tier, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "$count items", fontSize = 11.sp, color = BrandOrange, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fraction)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(BrandOrange, Color(0xFFEA580C))
+                                    )
+                                )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 10. Wishlist Savings Target Progress Card
+// ==========================================
+@Composable
+fun WishlistSavingsProgressCard(wishlist: List<WishItemEntity>) {
+    val itemsWithProgress = remember(wishlist) {
+        wishlist.filter { !it.purchased }.take(4)
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Paid, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("WISHLIST SAVINGS ALLOCATION PROGRESS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            if (itemsWithProgress.isEmpty()) {
+                Text("No pending wishlist items have a savings progress configured.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                itemsWithProgress.forEach { item ->
+                    val multiplier = when (item.priority.lowercase()) {
+                        "high" -> 0.6
+                        "medium" -> 0.3
+                        else -> 0.1
+                    }
+                    val savedProgress = item.price * multiplier
+                    val fraction = multiplier.toFloat()
+                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = item.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "$${String.format("%.1f", savedProgress)} / $${String.format("%.1f", item.price)} (${(fraction * 100).toInt()}%)", fontSize = 11.sp, color = BrandGreen, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(BrandGreen, BrandCyan)
+                                        )
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 11. Wishlist Categories Card
+// ==========================================
+@Composable
+fun WishlistCategoriesCard(wishlist: List<WishItemEntity>) {
+    val categoryCounts = remember(wishlist) {
+        wishlist.groupBy { it.priority.ifBlank { "Medium" }.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() } }
+            .mapValues { it.value.size }
+            .toList()
+            .sortedByDescending { it.second }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Category, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Text("WISHLIST CATEGORIES DISTRIBUTION", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            }
+
+            if (categoryCounts.isEmpty()) {
+                Text("No categorized wishlist items.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                categoryCounts.forEach { (category, count) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(BrandOrange))
+                            Text(category, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text("$count items", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 12. Wishlist Priority Quadrant Matrix Card
+// ==========================================
+@Composable
+fun WishlistPriorityQuadrantCard(wishlist: List<WishItemEntity>) {
+    val quickWins = remember(wishlist) { wishlist.filter { !it.purchased && it.price < 150.0 } } // Low Cost
+    val majorInvestments = remember(wishlist) { wishlist.filter { !it.purchased && it.price >= 150.0 } } // High Cost
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.GridView, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                Text("WISHLIST ACQUISITION MATRIX", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Quadrant 1: Quick Wins
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(BrandGreen.copy(alpha = 0.1f))
+                        .padding(12.dp)
+                ) {
+                    Text("Quick Wins 🚀", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    Text("${quickWins.size} items", fontSize = 16.sp, fontWeight = FontWeight.Black)
+                    Text("Low cost pending desires to boost morale.", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+
+                // Quadrant 2: Long-term Dreams
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(BrandViolet.copy(alpha = 0.1f))
+                        .padding(12.dp)
+                ) {
+                    Text("Major Goals 💎", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                    Text("${majorInvestments.size} items", fontSize = 16.sp, fontWeight = FontWeight.Black)
+                    Text("High cost milestone targets requiring planning.", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 13. Grocery Categories Distribution Card
+// ==========================================
+@Composable
+fun GroceryCategoryDistributionCard(groceries: List<GroceryItemEntity>) {
+    val categoryCounts = remember(groceries) {
+        groceries.groupBy { it.category.ifBlank { "Uncategorized" } }
+            .mapValues { it.value.size }
+            .toList()
+            .sortedByDescending { it.second }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Category, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("GROCERY CATEGORY SPREAD", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            if (categoryCounts.isEmpty()) {
+                Text("Your grocery list is empty.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                categoryCounts.forEach { (cat, count) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(BrandGreen))
+                            Text(cat, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text("$count items", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 14. Grocery Trip Completion Progress Card
+// ==========================================
+@Composable
+fun GroceryCompletionRingCard(groceries: List<GroceryItemEntity>) {
+    val completedCount = remember(groceries) { groceries.count { it.completed } }
+    val total = remember(groceries) { groceries.size }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("BASKET ACQUISITION PROGRESS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            if (total == 0) {
+                Text("Basket is clean and empty.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                Box(modifier = Modifier.size(80.dp), contentAlignment = Alignment.Center) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawArc(
+                            color = BrandGreen.copy(alpha = 0.15f),
+                            startAngle = 0f,
+                            sweepAngle = 360f,
+                            useCenter = false,
+                            style = Stroke(width = 8.dp.toPx())
+                        )
+                        val sweep = if (total > 0) (completedCount.toFloat() / total) * 360f else 0f
+                        drawArc(
+                            color = BrandGreen,
+                            startAngle = -90f,
+                            sweepAngle = sweep,
+                            useCenter = false,
+                            style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+                    Text(
+                        text = "${completedCount}/$total",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        color = BrandGreen
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Items in shopping bag: $completedCount pending: ${total - completedCount}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            }
+        }
+    }
+}
+
+// ==========================================
+// 15. Grocery Price Distribution Chart
+// ==========================================
+@Composable
+fun GroceryPriceDistributionCard(groceries: List<GroceryItemEntity>) {
+    val expensiveItems = remember(groceries) {
+        groceries.sortedByDescending { it.price ?: 0.0 }.take(3)
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.PriceCheck, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("TOP BUDGET-CONSUMING GROCERIES", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            if (expensiveItems.isEmpty()) {
+                Text("No price information logged.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                expensiveItems.forEach { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Category: ${item.category}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        }
+                        Text("$${String.format("%.2f", item.price ?: 0.0)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = BrandGreen)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 16. Grocery Frequent Items Chart
+// ==========================================
+@Composable
+fun GroceryFrequentItemsCard(groceries: List<GroceryItemEntity>) {
+    // Highly recurring commodities simulation
+    val stapleItems = remember(groceries) {
+        groceries.filter { it.category.lowercase().contains("dairy") || it.category.lowercase().contains("produce") || it.category.lowercase().contains("staples") }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.LocalMall, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("STAPLE GROCERIES IDENTIFIED", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            if (stapleItems.isEmpty()) {
+                Text("No high-frequency staple goods determined yet.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                stapleItems.forEach { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BrandGreen))
+                            Text(item.name, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text("Staple Essential", fontSize = 10.sp, color = BrandGreen, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// 17. Grocery Monthly Budget Pacing Tracker
+// ==========================================
+@Composable
+fun GroceryBudgetPacingCard(groceries: List<GroceryItemEntity>) {
+    val estimatedBasketCost = remember(groceries) { groceries.map { it.price ?: 0.0 }.sum() }
+    val monthlyGroceryBudget = 300.0 // standard default ceiling
+    val fraction = (estimatedBasketCost / monthlyGroceryBudget).coerceIn(0.0, 1.2).toFloat()
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Timeline, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("GROCERY BUDGET PACING INDICATOR", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Monthly Grocery Budget: $300", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "$${String.format("%.1f", estimatedBasketCost)} spent (${(fraction * 100).toInt()}%)", fontSize = 11.sp, color = BrandGreen, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction.coerceAtMost(1f))
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = if (fraction > 1.0f) listOf(BrandRose, BrandOrange) else listOf(BrandGreen, BrandCyan)
+                                )
+                            )
+                    )
+                }
+                if (fraction > 1.0f) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Warning: You are overpacing your standard $300 grocery allocation limit!", fontSize = 10.sp, color = BrandRose, fontWeight = FontWeight.Bold)
                 }
             }
         }

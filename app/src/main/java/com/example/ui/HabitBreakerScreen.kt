@@ -68,14 +68,16 @@ fun HabitBreakerScreen(
     var prefilledType by remember { mutableStateOf("Habit") }
     var prefilledTag by remember { mutableStateOf("Health") }
     var prefilledPriority by remember { mutableStateOf("Medium") }
+    var prefilledReminderTime by remember { mutableStateOf("") }
+    var prefilledIsRecurring by remember { mutableStateOf(true) }
+    var prefilledEventDate by remember { mutableStateOf("") }
+    var prefilledCostType by remember { mutableStateOf("Time") }
+    var prefilledCostValue by remember { mutableStateOf("6.0") }
+    var prefilledIconName by remember { mutableStateOf("Block") }
+    var editingItemId by remember { mutableStateOf<String?>(null) }
 
     var selectedItemForOptions by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
     var selectedItemForLogUpdate by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
-    var selectedItemForAI by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
-    var selectedItemForGraph by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
-    var selectedItemForReflections by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
-    var selectedItemForMilestones by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
-    var selectedItemForGames by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
     var selectedItemForIconPicker by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
 
     when (currentView) {
@@ -187,19 +189,21 @@ fun HabitBreakerScreen(
                     cleanTimerText = cleanTimerText,
                     onDismiss = { selectedItemForOptions = null },
                     onLogNow = { selectedItemForLogUpdate = item },
-                    onAISupport = { selectedItemForAI = item },
                     onEdit = {
+                        editingItemId = item.id
                         prefilledName = item.name
                         prefilledType = item.avoidType
                         prefilledTag = item.tags.firstOrNull() ?: "Health"
                         prefilledPriority = item.priority
+                        prefilledReminderTime = item.reminderTime
+                        prefilledIsRecurring = item.isRecurring
+                        prefilledEventDate = item.eventDate
+                        prefilledCostType = item.costType
+                        prefilledCostValue = item.costValue
+                        prefilledIconName = item.iconName
                         viewModel.setHabitBreakerViewState("create")
                     },
                     onChangeIcon = { selectedItemForIconPicker = item },
-                    onSelectGame = { selectedItemForGames = item },
-                    onGraph = { selectedItemForGraph = item },
-                    onReflections = { selectedItemForReflections = item },
-                    onMilestones = { selectedItemForMilestones = item },
                     onRemove = { viewModel.removeBadHabit(item.id) }
                 )
             }
@@ -211,46 +215,6 @@ fun HabitBreakerScreen(
                     onDismiss = { selectedItemForLogUpdate = null },
                     onAvoided = { viewModel.logBadHabitAvoidance(item.id) },
                     onSlipped = { viewModel.logBadHabitOccurrence(item.id) }
-                )
-            }
-
-            if (selectedItemForAI != null) {
-                val item = selectedItemForAI!!
-                AISupportBottomSheet(
-                    item = item,
-                    onDismiss = { selectedItemForAI = null }
-                )
-            }
-
-            if (selectedItemForGraph != null) {
-                val item = selectedItemForGraph!!
-                GraphBottomSheet(
-                    item = item,
-                    onDismiss = { selectedItemForGraph = null }
-                )
-            }
-
-            if (selectedItemForReflections != null) {
-                val item = selectedItemForReflections!!
-                ReflectionsBottomSheet(
-                    item = item,
-                    onDismiss = { selectedItemForReflections = null }
-                )
-            }
-
-            if (selectedItemForMilestones != null) {
-                val item = selectedItemForMilestones!!
-                MilestonesBottomSheet(
-                    item = item,
-                    onDismiss = { selectedItemForMilestones = null }
-                )
-            }
-
-            if (selectedItemForGames != null) {
-                val item = selectedItemForGames!!
-                BreakGameBottomSheet(
-                    item = item,
-                    onDismiss = { selectedItemForGames = null }
                 )
             }
 
@@ -294,20 +258,46 @@ fun HabitBreakerScreen(
                 initialType = prefilledType,
                 initialTag = prefilledTag,
                 initialPriority = prefilledPriority,
-                onBack = { viewModel.setHabitBreakerViewState("gallery") },
+                initialReminderTime = prefilledReminderTime,
+                initialIsRecurring = prefilledIsRecurring,
+                initialEventDate = prefilledEventDate,
+                initialCostType = prefilledCostType,
+                initialCostValue = prefilledCostValue,
+                initialIconName = prefilledIconName,
+                onBack = {
+                    editingItemId = null
+                    viewModel.setHabitBreakerViewState("gallery")
+                },
                 onSave = { name, avoidType, reminderTime, tags, priority, isRecurring, eventDate, costType, costValue, iconName ->
-                    viewModel.addBadHabit(
-                        name = name,
-                        avoidType = avoidType,
-                        reminderTime = reminderTime,
-                        tags = tags,
-                        priority = priority,
-                        isRecurring = isRecurring,
-                        eventDate = eventDate,
-                        costType = costType,
-                        costValue = costValue,
-                        iconName = iconName
-                    )
+                    if (editingItemId != null) {
+                        viewModel.updateBadHabit(
+                            id = editingItemId!!,
+                            name = name,
+                            avoidType = avoidType,
+                            reminderTime = reminderTime,
+                            tags = tags,
+                            priority = priority,
+                            isRecurring = isRecurring,
+                            eventDate = eventDate,
+                            costType = costType,
+                            costValue = costValue,
+                            iconName = iconName
+                        )
+                    } else {
+                        viewModel.addBadHabit(
+                            name = name,
+                            avoidType = avoidType,
+                            reminderTime = reminderTime,
+                            tags = tags,
+                            priority = priority,
+                            isRecurring = isRecurring,
+                            eventDate = eventDate,
+                            costType = costType,
+                            costValue = costValue,
+                            iconName = iconName
+                        )
+                    }
+                    editingItemId = null
                     viewModel.setHabitBreakerViewState("list")
                 }
             )
@@ -449,149 +439,198 @@ fun AvoidItemCard(
             )
             .testTag("avoid_card_${item.id}")
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .padding(12.dp)
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // First Line: Icon + Title (Left) & Timer (Right)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            val icon = getHabitBreakerIcon(item.iconName, item.avoidType)
+            val typeColor = when (item.avoidType.lowercase()) {
+                "person" -> BrandIndigo
+                "event" -> BrandOrange
+                "place" -> BrandGreen
+                "trigger" -> BrandViolet
+                else -> BrandRose
+            }
+
+            // Left Icon Box
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(typeColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    val icon = getHabitBreakerIcon(item.iconName, item.avoidType)
-                    val typeColor = when (item.avoidType.lowercase()) {
-                        "person" -> BrandIndigo
-                        "event" -> BrandOrange
-                        "place" -> BrandGreen
-                        "trigger" -> BrandViolet
-                        else -> BrandRose
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(typeColor.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = typeColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    Text(
-                        text = item.name,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Timer at the right side
-                Text(
-                    text = cleanTimerText,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Black,
-                    color = BrandGreen,
-                    modifier = Modifier.padding(start = 8.dp)
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = typeColor,
+                    modifier = Modifier.size(18.dp)
                 )
             }
 
-            // Second Line: Priority, Tags, Avoided stats, Slipped stats
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Middle Column: Title + Row under title (Flag, Hashtag, Cost Score)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Priority flag badge
-                val prioColor = when (item.priority.lowercase()) {
-                    "high" -> BrandRose
-                    "low" -> BrandGreen
-                    else -> BrandOrange
-                }
-                Surface(
-                    color = prioColor.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        text = item.priority,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = prioColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
+                Text(
+                    text = item.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
 
-                // Tags
-                item.tags.forEach { tag ->
+                // Row beneath title (starts below title, not icon)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Priority Flag (Red = High, Orange = Medium, Blue = Low)
+                    val flagTint = when (item.priority.lowercase()) {
+                        "high" -> Color(0xFFEF4444) // Red flag
+                        "low" -> Color(0xFF3B82F6)  // Blue flag
+                        else -> Color(0xFFFF9800)   // Orange flag
+                    }
+                    Icon(
+                        imageVector = Icons.Default.Flag,
+                        contentDescription = "${item.priority} priority flag",
+                        tint = flagTint,
+                        modifier = Modifier.size(15.dp)
+                    )
+
+                    // Hashtag / Tags
+                    item.tags.forEach { tag ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "#$tag",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    // Cost Score beside Hashtag: reduced in multiples of entered cost Value
+                    val enteredCost = item.costValue.toDoubleOrNull() ?: 0.0
+                    val totalCostImpact = enteredCost * item.logs.size
+                    val formattedImpact = if (totalCostImpact % 1.0 == 0.0) {
+                        totalCostImpact.toLong().toString()
+                    } else {
+                        String.format(java.util.Locale.US, "%.1f", totalCostImpact)
+                    }
+
+                    val (costEmoji, costLabel) = when (item.costType.lowercase()) {
+                        "money" -> Pair("💰", "")
+                        "mood" -> Pair("😊", "Mood")
+                        "health" -> Pair("🛡️", "Health")
+                        "time" -> Pair("⏰", "Time")
+                        else -> Pair("💔", item.costType)
+                    }
+
+                    val displayCostText = if (costLabel.isEmpty()) {
+                        "$costEmoji -$formattedImpact"
+                    } else {
+                        "$costEmoji $costLabel -$formattedImpact"
+                    }
+
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        color = BrandRose.copy(alpha = 0.1f),
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = "#$tag",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            text = displayCostText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandRose,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                         )
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.weight(1f))
+            // Right side: Clean timer & Avoided/Slipped stats
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = cleanTimerText,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black,
+                    color = BrandGreen
+                )
 
-                // Stats: Avoided (Star with number of times avoided)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Avoided count",
-                        tint = BrandAmber,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = "${item.avoidCount}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Avoided count",
+                            tint = BrandAmber,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "${item.avoidCount}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
-                // Stats: Slipped (Error mark with number of relapses)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Cancel,
-                        contentDescription = "Relapses count",
-                        tint = BrandRose,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = "${item.logs.size}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cancel,
+                            contentDescription = "Slipped count",
+                            tint = BrandRose,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "${item.logs.size}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+fun getGalleryTemplateIcon(templateName: String): ImageVector {
+    val lower = templateName.lowercase()
+    return when {
+        lower.contains("lying") || lower.contains("gossip") || lower.contains("argument") -> Icons.Default.RecordVoiceOver
+        lower.contains("procrastinat") || lower.contains("snooze") || lower.contains("alarm") -> Icons.Default.HourglassDisabled
+        lower.contains("nail") || lower.contains("junk food") || lower.contains("sugar") -> Icons.Default.NoFood
+        lower.contains("phone") || lower.contains("social media") || lower.contains("email") || lower.contains("scroll") -> Icons.Default.PhonelinkOff
+        lower.contains("shopping") || lower.contains("buy") -> Icons.Default.ShoppingCart
+        lower.contains("exercise") || lower.contains("sitting") -> Icons.Default.FitnessCenter
+        lower.contains("workspace") || lower.contains("mess") -> Icons.Default.CleaningServices
+        lower.contains("caffeine") || lower.contains("coffee") -> Icons.Default.LocalCafe
+        lower.contains("smok") || lower.contains("vap") -> Icons.Default.SmokeFree
+        lower.contains("sleep") -> Icons.Default.Bedtime
+        lower.contains("interrupt") -> Icons.Default.Forum
+        lower.contains("toxic friend") -> Icons.Default.People
+        lower.contains("compare") || lower.contains("validation") || lower.contains("overthink") || lower.contains("inner monologue") -> Icons.Default.Psychology
+        else -> Icons.Default.Block
     }
 }
 
@@ -653,7 +692,7 @@ fun FullPageGallery(
                 title = {
                     Column {
                         Text("Gallery of Bad Habits", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                        Text("Swipe left or right to explore trigger categories", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Tap any tile to instantly add to your list", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 navigationIcon = {
@@ -743,6 +782,7 @@ fun FullPageGallery(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(items) { template ->
+                        val templateIcon = getGalleryTemplateIcon(template.name)
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
@@ -759,7 +799,7 @@ fun FullPageGallery(
                                 modifier = Modifier
                                     .padding(14.dp)
                                     .fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.Start,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
@@ -767,12 +807,20 @@ fun FullPageGallery(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Block,
-                                        contentDescription = null,
-                                        tint = BrandRose,
-                                        modifier = Modifier.size(22.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(BrandRose.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = templateIcon,
+                                            contentDescription = null,
+                                            tint = BrandRose,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                     Column {
                                         Text(
                                             text = template.name,
@@ -785,18 +833,6 @@ fun FullPageGallery(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                }
-
-                                Button(
-                                    onClick = {
-                                        onAddTemplateDirectly(template.name, template.type, template.tag, template.priority)
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandRose.copy(alpha = 0.15f), contentColor = BrandRose),
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(32.dp)
-                                ) {
-                                    Text("+ Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -814,6 +850,12 @@ fun FullPageAddAvoidItem(
     initialType: String = "Habit",
     initialTag: String = "Health",
     initialPriority: String = "Medium",
+    initialReminderTime: String = "",
+    initialIsRecurring: Boolean = true,
+    initialEventDate: String = "",
+    initialCostType: String = "Time",
+    initialCostValue: String = "6.0",
+    initialIconName: String = "Block",
     onBack: () -> Unit,
     onSave: (
         name: String,
@@ -831,14 +873,14 @@ fun FullPageAddAvoidItem(
     val context = LocalContext.current
     var name by remember { mutableStateOf(initialName) }
     var avoidType by remember { mutableStateOf(initialType) }
-    var reminderTime by remember { mutableStateOf("") }
+    var reminderTime by remember { mutableStateOf(initialReminderTime) }
     var selectedTag by remember { mutableStateOf(initialTag) }
     var priority by remember { mutableStateOf(initialPriority) }
-    var isRecurring by remember { mutableStateOf(true) }
-    var eventDate by remember { mutableStateOf("") }
-    var costType by remember { mutableStateOf("Time") }
-    var costValue by remember { mutableStateOf("6.0") }
-    var iconName by remember { mutableStateOf("Block") }
+    var isRecurring by remember { mutableStateOf(initialIsRecurring) }
+    var eventDate by remember { mutableStateOf(initialEventDate) }
+    var costType by remember { mutableStateOf(initialCostType) }
+    var costValue by remember { mutableStateOf(initialCostValue) }
+    var iconName by remember { mutableStateOf(initialIconName) }
     var isAdvancedExpanded by remember { mutableStateOf(true) }
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -1037,35 +1079,37 @@ fun FullPageAddAvoidItem(
                 )
             }
 
-            // Event Date Row (Screenshot 1 & 2)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Event Date:",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                TextButton(
-                    onClick = { showDatePicker = true },
-                    modifier = Modifier.testTag("select_event_date_btn")
+            // Event Date Row (only visible if isRecurring is false)
+            if (!isRecurring) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.DateRange,
-                        contentDescription = null,
-                        tint = BrandViolet,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (eventDate.isBlank()) "Select Date" else eventDate,
-                        color = BrandViolet,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        text = "Event Date:",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+                    TextButton(
+                        onClick = { showDatePicker = true },
+                        modifier = Modifier.testTag("select_event_date_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = null,
+                            tint = BrandViolet,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (eventDate.isBlank()) "Select Date" else eventDate,
+                            color = BrandViolet,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
                 }
             }
 
@@ -1357,16 +1401,37 @@ fun HabitBreakerOptionsBottomSheet(
     cleanTimerText: String,
     onDismiss: () -> Unit,
     onLogNow: () -> Unit,
-    onAISupport: () -> Unit,
     onEdit: () -> Unit,
     onChangeIcon: () -> Unit,
-    onSelectGame: () -> Unit,
-    onGraph: () -> Unit,
-    onReflections: () -> Unit,
-    onMilestones: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val context = LocalContext.current
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Habit Breaker?") },
+            text = { Text("Are you sure you want to permanently delete '${item.name}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDismiss()
+                        onRemove()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = BrandRose)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1382,7 +1447,7 @@ fun HabitBreakerOptionsBottomSheet(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.Start
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1424,23 +1489,6 @@ fun HabitBreakerOptionsBottomSheet(
                         )
                     }
                 }
-
-                IconButton(
-                    onClick = {
-                        val sendIntent = android.content.Intent().apply {
-                            action = android.content.Intent.ACTION_SEND
-                            putExtra(android.content.Intent.EXTRA_TEXT, "I've been avoiding ${item.name} for $cleanTimerText!")
-                            type = "text/plain"
-                        }
-                        context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Streak"))
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Share",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
 
             Surface(
@@ -1456,17 +1504,6 @@ fun HabitBreakerOptionsBottomSheet(
                         onClick = {
                             onDismiss()
                             onLogNow()
-                        }
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                    OptionRowItem(
-                        icon = Icons.Default.AutoAwesome,
-                        iconTint = BrandViolet,
-                        title = "AI Support",
-                        onClick = {
-                            onDismiss()
-                            onAISupport()
                         }
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
@@ -1491,59 +1528,12 @@ fun HabitBreakerOptionsBottomSheet(
                             onChangeIcon()
                         }
                     )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                    OptionRowItem(
-                        icon = Icons.Default.PushPin,
-                        iconTint = MaterialTheme.colorScheme.onSurface,
-                        title = "Select Break Game",
-                        subtitle = "Random from pool",
-                        onClick = {
-                            onDismiss()
-                            onSelectGame()
-                        }
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                    OptionRowItem(
-                        icon = Icons.Default.BarChart,
-                        iconTint = MaterialTheme.colorScheme.onSurface,
-                        title = "Graph",
-                        onClick = {
-                            onDismiss()
-                            onGraph()
-                        }
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                    OptionRowItem(
-                        icon = Icons.Default.MenuBook,
-                        iconTint = MaterialTheme.colorScheme.onSurface,
-                        title = "Reflections",
-                        onClick = {
-                            onDismiss()
-                            onReflections()
-                        }
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                    OptionRowItem(
-                        icon = Icons.Default.Flag,
-                        iconTint = MaterialTheme.colorScheme.onSurface,
-                        title = "Milestones",
-                        badge = "Plus",
-                        onClick = {
-                            onDismiss()
-                            onMilestones()
-                        }
-                    )
                 }
             }
 
             TextButton(
                 onClick = {
-                    onDismiss()
-                    onRemove()
+                    showDeleteConfirm = true
                 },
                 modifier = Modifier
                     .fillMaxWidth()
