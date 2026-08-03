@@ -78,97 +78,77 @@ fun WorkspaceScreen(
     var subtaskTargetTask by remember { mutableStateOf<TaskEntity?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
-    val pagerState = rememberPagerState(initialPage = activeSubTab, pageCount = { 6 })
-
-    // Sync from ViewModel state to PagerState
-    LaunchedEffect(activeSubTab) {
-        if (pagerState.currentPage != activeSubTab) {
-            pagerState.animateScrollToPage(activeSubTab)
-        }
-    }
-
-    // Sync from PagerState to ViewModel state
-    LaunchedEffect(pagerState.currentPage) {
-        if (activeSubTab != pagerState.currentPage) {
-            viewModel.setWorkspaceSubTab(pagerState.currentPage)
-        }
-    }
-
     Box(modifier = modifier.fillMaxSize()) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize()
-        ) { page ->
-            key(page) {
-                var visible by remember { mutableStateOf(false) }
-                LaunchedEffect(Unit) {
-                    visible = true
-                }
-                val alpha by animateFloatAsState(
-                    targetValue = if (visible) 1f else 0f,
-                    animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing)
+        val page = activeSubTab
+        key(page) {
+            var visible by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) {
+                visible = true
+            }
+            val alpha by animateFloatAsState(
+                targetValue = if (visible) 1f else 0f,
+                animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing)
+            )
+            val scale by animateFloatAsState(
+                targetValue = if (visible) 1f else 0.96f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
                 )
-                val scale by animateFloatAsState(
-                    targetValue = if (visible) 1f else 0.96f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
+            )
+            val translationY by animateFloatAsState(
+                targetValue = if (visible) 0f else 24f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
                 )
-                val translationY by animateFloatAsState(
-                    targetValue = if (visible) 0f else 24f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                )
-                Box(
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        this.alpha = alpha
+                        this.scaleX = scale
+                        this.scaleY = scale
+                        this.translationY = translationY
+                    }
+            ) {
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer {
-                            this.alpha = alpha
-                            this.scaleX = scale
-                            this.scaleY = scale
-                            this.translationY = translationY
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
                         }
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                focusManager.clearFocus()
+                    when (page) {
+                        0 -> { // Tasks Sub-Tab
+                            item { TaskSection(viewModel = viewModel, onAddSubtaskClick = { subtaskTargetTask = it }) }
+                        }
+                        1 -> { // Habit Sub-Tab
+                            item {
+                                HabitSection(
+                                    viewModel = viewModel,
+                                    onHabitClick = { viewModel.setActiveDetailHabit(it) }
+                                )
                             }
-                            .padding(horizontal = 16.dp),
-                        contentPadding = PaddingValues(bottom = 96.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        when (page) {
-                            0 -> { // Tasks Sub-Tab
-                                item { TaskSection(viewModel = viewModel, onAddSubtaskClick = { subtaskTargetTask = it }) }
-                            }
-                            1 -> { // Habit Sub-Tab
-                                item {
-                                    HabitSection(
-                                        viewModel = viewModel,
-                                        onHabitClick = { viewModel.setActiveDetailHabit(it) }
-                                    )
-                                }
-                            }
-                            2 -> { // Wishlist Sub-Tab
-                                item { WishlistSection(viewModel = viewModel) }
-                            }
-                            3 -> { // Birthdays Sub-Tab
-                                item { BirthdaySection(viewModel = viewModel) }
-                            }
-                            4 -> { // Alarms & Clocks Sub-Tab
-                                item { AlarmTimerSection(viewModel = viewModel) }
-                            }
-                            5 -> { // Grocery List Sub-Tab
-                                item { GrocerySection(viewModel = viewModel) }
-                            }
+                        }
+                        2 -> { // Wishlist Sub-Tab
+                            item { WishlistSection(viewModel = viewModel) }
+                        }
+                        3 -> { // Birthdays Sub-Tab
+                            item { BirthdaySection(viewModel = viewModel) }
+                        }
+                        4 -> { // Alarms & Clocks Sub-Tab
+                            item { AlarmTimerSection(viewModel = viewModel) }
+                        }
+                        5 -> { // Grocery List Sub-Tab
+                            item { GrocerySection(viewModel = viewModel) }
                         }
                     }
                 }
@@ -676,12 +656,14 @@ fun TaskSection(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Your 1st Task", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Add Task", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         } else {
-            filteredTasks.forEach { task ->
-                TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
+            filteredTasks.forEachIndexed { index, task ->
+                StaggeredItem(index = index) {
+                    TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
+                }
             }
         }
     }
@@ -1463,16 +1445,18 @@ fun HabitSection(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Your 1st Habit", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Add Habit", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         } else {
-            filteredHabits.forEach { habit ->
-                HabitCard(
-                    habit = habit,
-                    viewModel = viewModel,
-                    onHabitClick = { onHabitClick(habit) }
-                )
+            filteredHabits.forEachIndexed { index, habit ->
+                StaggeredItem(index = index) {
+                    HabitCard(
+                        habit = habit,
+                        viewModel = viewModel,
+                        onHabitClick = { onHabitClick(habit) }
+                    )
+                }
             }
         }
     }
@@ -2298,18 +2282,19 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Your 1st Wishlist Item", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Add Wishlist Item", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         } else {
-            items.forEach { item ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-                        .clickable { editingWishItem = item }
-                ) {
+            items.forEachIndexed { index, item ->
+                StaggeredItem(index = index) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
+                            .clickable { editingWishItem = item }
+                    ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -2359,6 +2344,7 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                     }
                 }
             }
+        }
         }
     }
 }
@@ -3483,7 +3469,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Add Your 1st Occasion", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Add Occasion", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             } else {
@@ -3492,8 +3478,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         .thenBy { calculateOccasionDays(it) }
                 )
 
-                sortedBirthdays.forEach { bday ->
-                    val bdayType = bday.category.split("|")[0]
+                sortedBirthdays.forEachIndexed { index, bday ->
+                    StaggeredItem(index = index) {
+                        val bdayType = bday.category.split("|")[0]
                     val daysLeft = calculateOccasionDays(bday)
                     val age = calculateAge(bday.date)
                     val catColor = when (bdayType) {
@@ -3625,6 +3612,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         }
                     }
                 }
+            }
             }
         }
     }

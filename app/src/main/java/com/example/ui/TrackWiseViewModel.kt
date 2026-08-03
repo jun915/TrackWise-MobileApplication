@@ -1321,12 +1321,39 @@ class TrackWiseViewModel(
         }
     }
 
+    private fun autoDismissNotification(itemId: String, itemTitle: String? = null) {
+        try {
+            val context = getApplication<Application>().applicationContext
+            val notifManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                val activeNotifs = notifManager.activeNotifications
+                for (sbn in activeNotifs) {
+                    val extras = sbn.notification.extras
+                    val notifTaskId = extras.getString("task_id")
+                    val notifHabitId = extras.getString("habit_id")
+                    val notifTabletId = extras.getString("tablet_id")
+                    val title = extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: ""
+                    
+                    val matchesId = (notifTaskId == itemId || notifHabitId == itemId || notifTabletId == itemId)
+                    val matchesTitle = itemTitle != null && itemTitle.isNotBlank() && title.contains(itemTitle, ignoreCase = true)
+                    
+                    if (matchesId || matchesTitle) {
+                        notifManager.cancel(sbn.id)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
     fun toggleTaskCompletion(task: TaskEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             val updated = task.copy(completed = !task.completed)
             repository.insertTask(updated)
             if (updated.completed) {
                 playTaskCompletionSound()
+                autoDismissNotification(task.id, task.title)
             }
             triggerFakeSync()
         }
@@ -1471,6 +1498,7 @@ class TrackWiseViewModel(
                 days.remove(todayStr)
             } else {
                 days.add(todayStr)
+                autoDismissNotification(habit.id, habit.name)
             }
             
             // Recalculate streak
@@ -1827,6 +1855,9 @@ class TrackWiseViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val updated = item.copy(purchased = !item.purchased)
             repository.insertWishItem(updated)
+            if (updated.purchased) {
+                autoDismissNotification(item.id, item.title)
+            }
             triggerFakeSync()
         }
     }
@@ -3375,6 +3406,9 @@ class TrackWiseViewModel(
                 _syncMessage.value = "Importing backup..."
                 
                 val rootJson = org.json.JSONObject(jsonContent)
+                
+                // Clear old database data first to avoid residual data merging
+                repository.clearUserData(user.id)
                 
                 // Restore App Preferences
                 if (rootJson.has("appPreferences")) {

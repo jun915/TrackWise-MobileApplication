@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.BirthdayEntity
 import com.example.data.TaskEntity
+import com.example.data.HabitEntity
 import com.example.ui.theme.*
 import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
@@ -40,6 +41,7 @@ fun CalendarScreen(
 ) {
     val tasks by viewModel.allTasks.collectAsState()
     val birthdays by viewModel.allBirthdays.collectAsState()
+    val habits by viewModel.allHabits.collectAsState()
     val overlay by viewModel.calendarOverlay.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
 
@@ -355,7 +357,8 @@ fun CalendarScreen(
                 "day" -> CalendarDayView(
                     currentDate = currentDate,
                     tasks = tasks,
-                    birthdays = birthdays
+                    birthdays = birthdays,
+                    habits = habits
                 )
                 "week" -> CalendarWeekView(
                     currentDate = currentDate,
@@ -803,11 +806,13 @@ fun CalendarScreen(
 fun CalendarDayView(
     currentDate: Calendar,
     tasks: List<TaskEntity>,
-    birthdays: List<BirthdayEntity>
+    birthdays: List<BirthdayEntity>,
+    habits: List<HabitEntity> = emptyList()
 ) {
     val dayStr = TrackWiseUtils.formatDate(currentDate.time, "yyyy-MM-dd")
     val todayTasks = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, dayStr) }
     val todayBirthdays = birthdays.filter { it.date.endsWith(dayStr.substring(5)) }
+    val todayHabits = habits.filter { TrackWiseUtils.shouldShowHabitOnDate(it, dayStr) }
     val festivals = TrackWiseUtils.getIndianFestivalsForDate(dayStr)
 
     // Separate tasks: all-day (no reminder time) vs timed (has reminder time)
@@ -835,8 +840,9 @@ fun CalendarDayView(
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    val totalItemsCount = todayTasks.size + todayHabits.size
                     Text(
-                        text = "Teams Daily Schedule • ${todayTasks.size} tasks",
+                        text = "Teams Daily Schedule • $totalItemsCount items",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -982,6 +988,18 @@ fun CalendarDayView(
                         } else false
                     }
 
+                    // Find habits for this hour slot
+                    val hourHabits = todayHabits.filter { habit ->
+                        val time = habit.reminderTime ?: habit.dueTime
+                        if (!time.isNullOrBlank()) {
+                            val parts = time.split(":")
+                            if (parts.size >= 2) {
+                                val hour = parts[0].toIntOrNull()
+                                hour == h
+                            } else false
+                        } else false
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1030,17 +1048,17 @@ fun CalendarDayView(
                                         .padding(top = 16.dp)
                                         .size(6.dp)
                                         .clip(CircleShape)
-                                        .background(if (hourTasks.isNotEmpty()) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
+                                        .background(if (hourTasks.isNotEmpty() || hourHabits.isNotEmpty()) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f))
                                 )
                             }
 
-                            // Scheduled tasks for this hour
+                            // Scheduled tasks & habits for this hour
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(vertical = 8.dp)
                             ) {
-                                if (hourTasks.isEmpty()) {
+                                if (hourTasks.isEmpty() && hourHabits.isEmpty()) {
                                     // Teams style empty schedule placeholder
                                     Spacer(modifier = Modifier.height(28.dp))
                                 } else {
@@ -1096,6 +1114,72 @@ fun CalendarDayView(
                                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                                             )
                                                         }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        hourHabits.forEach { habit ->
+                                            val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(dayStr)
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isDone) {
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                                    } else {
+                                                        BrandOrange.copy(alpha = 0.12f)
+                                                    }
+                                                ),
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .border(
+                                                        1.dp,
+                                                        if (isDone) Color.Transparent else BrandOrange.copy(alpha = 0.3f),
+                                                        RoundedCornerShape(10.dp)
+                                                    )
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isDone) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                                            contentDescription = null,
+                                                            tint = if (isDone) BrandOrange else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                        Column {
+                                                            Text(
+                                                                text = habit.name,
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = if (isDone) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface,
+                                                                maxLines = 2,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                            val habitTime = habit.reminderTime ?: habit.dueTime
+                                                            Text(
+                                                                text = "Time: $habitTime",
+                                                                fontSize = 11.sp,
+                                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                                            )
+                                                        }
+                                                    }
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(4.dp))
+                                                            .background(BrandOrange.copy(alpha = 0.2f))
+                                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("Habit", fontSize = 9.sp, color = BrandOrange, fontWeight = FontWeight.Bold)
                                                     }
                                                 }
                                             }

@@ -76,6 +76,16 @@ fun DashboardScreen(
     val allHabits by viewModel.allHabits.collectAsState()
     val allWishlist by viewModel.allWishlist.collectAsState()
     val badHabits by viewModel.badHabits.collectAsState()
+    val allFinanceLogs by viewModel.allFinanceLogs.collectAsState()
+    val allBirthdays by viewModel.allBirthdays.collectAsState()
+    val friendConnections by viewModel.friendConnections.collectAsState()
+    val allAlarms by viewModel.allAlarms.collectAsState()
+    val waterLogs by viewModel.waterLogs.collectAsState()
+    val streakHistory by viewModel.streakHistory.collectAsState()
+
+    val reminderWishlist = remember(allWishlist) {
+        allWishlist.filter { !it.purchased && (it.remindMe || !it.reminderDate.isNullOrEmpty()) }
+    }
 
     var activePostponeTask by remember { mutableStateOf<TaskEntity?>(null) }
 
@@ -111,6 +121,10 @@ fun DashboardScreen(
             .thenByDescending { it.priority == "high" }
             .thenBy { it.title }
         )
+    }
+
+    val combinedPriorityAndTodayItems = remember(todayFocusItems, priorityAndOverdueItems) {
+        (todayFocusItems + priorityAndOverdueItems).distinctBy { it.id }
     }
 
     val name = currentUser?.fullName?.split(" ")?.firstOrNull() ?: "there"
@@ -167,208 +181,92 @@ fun DashboardScreen(
         }
         // --- Welcome Header Section ---
         item {
-            var currentTimeState by remember { mutableStateOf(SimpleDateFormat("EEEE, dd MMMM yyyy  •  hh:mm a", Locale.US).format(Date())) }
-            LaunchedEffect(Unit) {
-                while (true) {
-                    currentTimeState = SimpleDateFormat("EEEE, dd MMMM yyyy  •  hh:mm a", Locale.US).format(Date())
-                    kotlinx.coroutines.delay(10000)
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-            ) {
-                Text(
-                    text = "$greeting, $name!",
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
-                    modifier = Modifier.padding(top = 6.dp, bottom = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Schedule,
-                            contentDescription = "Current Date & Time",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = currentTimeState,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+            StaggeredItem(index = 0) {
+                var currentTimeState by remember { mutableStateOf(SimpleDateFormat("EEEE, dd MMMM yyyy  •  hh:mm a", Locale.US).format(Date())) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        currentTimeState = SimpleDateFormat("EEEE, dd MMMM yyyy  •  hh:mm a", Locale.US).format(Date())
+                        kotlinx.coroutines.delay(10000)
                     }
                 }
 
-                Text(
-                    text = "Your analytics, today's focus, and priority runways at a glance.",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                )
-            }
-        }
-
-        // --- Badge Level Mastery Widget ---
-        item {
-            val earnedCount = remember(allHabits) {
-                allHabits.flatMap {
-                    TrackWiseUtils.deserializeIntList(it.badgesEarnedJson)
-                }.distinct().size
-            }
-            
-            val (rankName, medal, nextMilestone) = when {
-                earnedCount <= 1 -> Triple("Bronze Explorer", "🥉", "Earn 2 badges for Silver")
-                earnedCount <= 4 -> Triple("Silver Achiever", "🥈", "Earn 5 badges for Gold")
-                earnedCount <= 8 -> Triple("Gold Champion", "🥇", "Earn 9 badges for Platinum")
-                earnedCount <= 11 -> Triple("Platinum Legend", "👑", "Earn 12 badges for Immortal")
-                else -> Triple("Immortal Master", "🔮", "You've unlocked all milestones!")
-            }
-
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        viewModel.setSocialSubTab("achievements")
-                        onNavigate("social")
-                    }
-                    .border(
-                        1.dp,
-                        BrandPink.copy(alpha = 0.5f),
-                        RoundedCornerShape(20.dp)
-                    )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
                 ) {
-                    // Animating Medal icon
-                    val infiniteTransition = rememberInfiniteTransition(label = "mastery_medal")
-                    val bounceScale by infiniteTransition.animateFloat(
-                        initialValue = 0.92f,
-                        targetValue = 1.08f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(1000, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "bounce"
+                    Text(
+                        text = "$greeting, $name!",
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
 
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(BrandPink.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                        modifier = Modifier.padding(top = 6.dp, bottom = 4.dp)
                     ) {
-                        Text(
-                            text = medal,
-                            fontSize = 32.sp,
-                            modifier = Modifier.graphicsLayer {
-                                scaleX = bounceScale
-                                scaleY = bounceScale
-                            }
-                        )
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
                         Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Column {
-                                Text(
-                                    text = "BADGE MASTERY LEVEL",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = BrandPink,
-                                    letterSpacing = 1.sp
-                                )
-                                Text(
-                                    text = rankName,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = "Current Date & Time",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Text(
-                                text = "$earnedCount/12 Badges",
+                                text = currentTimeState,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = BrandPink
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        LinearProgressIndicator(
-                            progress = { earnedCount.toFloat() / 12f },
-                            color = BrandPink,
-                            trackColor = BrandPink.copy(alpha = 0.15f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = "🎯 Goal: $nextMilestone",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
                     }
+
+                    Text(
+                        text = "Your analytics, today's focus, and priority runways at a glance.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
                 }
             }
         }
 
         // --- Level & XP Mastery Progress Card ---
         item {
-            val streakHistory by viewModel.streakHistory.collectAsState()
-            val totalXP = remember(streakHistory, todayScore) {
-                streakHistory.sumOf { it.score } + todayScore
-            }
-            val userLevel = (totalXP / 100) + 1
-            val currentLevelXP = totalXP % 100
-            val levelProgressFraction = (currentLevelXP / 100f).coerceIn(0f, 1f)
-            val levelTitle = when {
-                userLevel <= 1 -> "Novice Focused"
-                userLevel <= 3 -> "Rising Explorer"
-                userLevel <= 5 -> "Habit Architect"
-                userLevel <= 8 -> "Productivity Strategist"
-                userLevel <= 12 -> "Master Motivator"
-                else -> "Grandmaster Legend"
-            }
+            StaggeredItem(index = 2) {
+                val streakHistory by viewModel.streakHistory.collectAsState()
+                val totalXP = remember(streakHistory, todayScore) {
+                    streakHistory.sumOf { it.score } + todayScore
+                }
+                val userLevel = (totalXP / 1000) + 1
+                val currentLevelXP = totalXP % 1000
+                val levelProgressFraction = (currentLevelXP / 1000f).coerceIn(0f, 1f)
+                val levelTitle = when {
+                    userLevel <= 1 -> "Novice Focused"
+                    userLevel <= 3 -> "Rising Explorer"
+                    userLevel <= 5 -> "Habit Architect"
+                    userLevel <= 8 -> "Productivity Strategist"
+                    userLevel <= 12 -> "Master Motivator"
+                    else -> "Grandmaster Legend"
+                }
 
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        BrandViolet.copy(alpha = 0.5f),
-                        RoundedCornerShape(20.dp)
-                    )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            BrandViolet.copy(alpha = 0.5f),
+                            RoundedCornerShape(20.dp)
+                        )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -413,30 +311,6 @@ fun DashboardScreen(
                                 )
                             }
                         }
-
-                        Surface(
-                            color = BrandGreen.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = null,
-                                    tint = BrandGreen,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "+$todayScore XP Today",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandGreen
-                                )
-                            }
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -447,7 +321,7 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Level Progress: $currentLevelXP / 100 XP",
+                            text = "Level Progress: $currentLevelXP / 1000 XP",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -474,15 +348,17 @@ fun DashboardScreen(
                 }
             }
         }
+    }
 
         // --- 4 Stat Tiles Grid (XP Gained, Level, Streak, Tasks) ---
         item {
-            val streakHistory by viewModel.streakHistory.collectAsState()
-            val totalXP = remember(streakHistory, todayScore) {
-                streakHistory.sumOf { it.score } + todayScore
-            }
-            val userLevel = (totalXP / 100) + 1
-            val totalTasksCompleted = allTasks.count { it.completed }
+            StaggeredItem(index = 3) {
+                val streakHistory by viewModel.streakHistory.collectAsState()
+                val totalXP = remember(streakHistory, todayScore) {
+                    streakHistory.sumOf { it.score } + todayScore
+                }
+                val userLevel = (totalXP / 1000) + 1
+                val totalTasksCompleted = allTasks.count { it.completed }
             val maxHabitStreak = allHabits.maxOfOrNull { it.streak } ?: 0
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -530,70 +406,118 @@ fun DashboardScreen(
                 }
             }
         }
+    }
 
         // --- Daily Scores Overview Widget ---
         item {
-            DailyScoresOverviewWidget(viewModel = viewModel)
+            StaggeredItem(index = 4) {
+                DailyScoresOverviewWidget(viewModel = viewModel)
+            }
         }
 
-        // --- Habit Streaks Widget (1st section of streaks) ---
+        // --- Monthly Finance Summary Widget ---
         item {
-            HabitStreaksWidget(allHabits = allHabits)
+            StaggeredItem(index = 5) {
+                DashboardFinanceSummaryWidget(
+                    financeLogs = allFinanceLogs,
+                    onNavigate = onNavigate
+                )
+            }
         }
 
-        // --- Water Intake Widget (1st section of health) ---
+        // --- Occasions Countdown Widget (<= 3 Days Left) ---
         item {
-            val waterLogs by viewModel.waterLogs.collectAsState()
-            WaterIntakeWidget(viewModel = viewModel, waterLogs = waterLogs)
+            StaggeredItem(index = 6) {
+                DashboardOccasionsCountdownWidget(
+                    birthdays = allBirthdays,
+                    onNavigate = onNavigate
+                )
+            }
         }
 
-        // --- Today's Items Widget (Section 8.3) ---
+        // --- Habit Streaks Widget ---
         item {
-            TodayItemsWidget(
-                tasks = todayFocusItems,
-                onToggleTask = { viewModel.toggleTaskCompletion(it) },
-                onDeleteTask = { viewModel.deleteTask(it.id) },
-                onArchiveTask = { viewModel.updateTask(it.copy(notes = it.notes + "[ARCHIVED]")) },
-                onPinTask = { viewModel.updateTask(it.copy(notes = if (it.notes.contains("[PINNED]")) it.notes.replace("[PINNED]", "") else it.notes + "[PINNED]")) },
-                onPostponeTask = { activePostponeTask = it },
-                onAddTask = { viewModel.openAddTaskSheet() }
-            )
+            StaggeredItem(index = 7) {
+                HabitStreaksWidget(allHabits = allHabits)
+            }
         }
 
-        // --- Priority Items Widget (Section 8.4) ---
+        // --- Water Intake Widget (Hydration Monitor) ---
         item {
-            PriorityItemsWidget(
-                tasks = priorityAndOverdueItems,
-                onToggleTask = { viewModel.toggleTaskCompletion(it) },
-                onDeleteTask = { viewModel.deleteTask(it.id) },
-                onArchiveTask = { viewModel.updateTask(it.copy(notes = it.notes + "[ARCHIVED]")) },
-                onPinTask = { viewModel.updateTask(it.copy(notes = if (it.notes.contains("[PINNED]")) it.notes.replace("[PINNED]", "") else it.notes + "[PINNED]")) },
-                onPostponeTask = { activePostponeTask = it }
-            )
+            StaggeredItem(index = 8) {
+                val waterLogs by viewModel.waterLogs.collectAsState()
+                WaterIntakeWidget(viewModel = viewModel, waterLogs = waterLogs)
+            }
         }
 
-        // --- Daily Habits Widget (Section 8.5) ---
+        // --- Daily Habits Widget (Daily Habit Runways - BELOW Hydration) ---
         item {
-            DailyHabitsWidget(
-                habits = allHabits,
-                onToggleHabit = { viewModel.toggleHabitToday(it) },
-                onHabitClick = { viewModel.setActiveDetailHabit(it) },
-                onAddHabit = { viewModel.openHabitCreationSheet() }
-            )
+            StaggeredItem(index = 9) {
+                DailyHabitsWidget(
+                    habits = allHabits,
+                    onToggleHabit = { viewModel.toggleHabitToday(it) },
+                    onHabitClick = { viewModel.setActiveDetailHabit(it) },
+                    onAddHabit = { viewModel.openHabitCreationSheet() }
+                )
+            }
         }
 
-        // --- Habit Breaker Chart Widget ---
+        // --- Habit Breaker Chart Widget (Habit Breaker Insights - BELOW Hydration) ---
         item {
-            DashboardHabitBreakerChartWidget(
-                badHabits = badHabits,
-                onNavigate = onNavigate
-            )
+            StaggeredItem(index = 10) {
+                DashboardHabitBreakerChartWidget(
+                    badHabits = badHabits,
+                    onNavigate = onNavigate
+                )
+            }
         }
 
-        // --- Habit Badge Collection (Section 8.6) ---
-        if (allHabits.isNotEmpty()) {
+        // --- Priority & Overdue Runway (includes Today's Focus) ---
+        item {
+            StaggeredItem(index = 12) {
+                PriorityItemsWidget(
+                    tasks = combinedPriorityAndTodayItems,
+                    onToggleTask = { viewModel.toggleTaskCompletion(it) },
+                    onDeleteTask = { viewModel.deleteTask(it.id) },
+                    onArchiveTask = { viewModel.updateTask(it.copy(notes = it.notes + "[ARCHIVED]")) },
+                    onPinTask = { viewModel.updateTask(it.copy(notes = if (it.notes.contains("[PINNED]")) it.notes.replace("[PINNED]", "") else it.notes + "[PINNED]")) },
+                    onPostponeTask = { activePostponeTask = it }
+                )
+            }
+        }
+
+        // --- Wishlist Reminders Widget ---
+        if (reminderWishlist.isNotEmpty()) {
             item {
-                HabitBadgeCollection(habits = allHabits)
+                StaggeredItem(index = 13) {
+                    DashboardWishlistRemindersWidget(
+                        wishlistItems = reminderWishlist,
+                        onTogglePurchased = { viewModel.toggleWishPurchased(it) },
+                        onNavigate = onNavigate
+                    )
+                }
+            }
+        }
+
+        // --- Badges & Achievements Mastery Hall Board ---
+        item {
+            StaggeredItem(index = 14) {
+                DashboardBadgesAndAchievementsHallWidget(
+                    allHabits = allHabits,
+                    allTasks = allTasks,
+                    allFinanceLogs = allFinanceLogs,
+                    allWishlist = allWishlist,
+                    allBirthdays = allBirthdays,
+                    badHabits = badHabits,
+                    socialCircleSize = friendConnections.size,
+                    hasActiveAlarm = allAlarms.any { it.isEnabled },
+                    alarmsCount = allAlarms.size,
+                    waterLogs = waterLogs,
+                    streakHistory = streakHistory,
+                    userLevel = (streakHistory.sumOf { it.score } + todayScore) / 1000 + 1,
+                    todayScore = todayScore,
+                    onNavigate = onNavigate
+                )
             }
         }
     }
@@ -2095,13 +2019,7 @@ fun HabitBadgeCollection(
     }
 }
 
-data class BadgeSpec(
-    val days: Int,
-    val name: String,
-    val medal: String,
-    val tier: String,
-    val description: String
-)
+
 
 private fun getTomorrowDate(): String {
     val cal = Calendar.getInstance()
@@ -2738,6 +2656,889 @@ fun DashboardHabitBreakerChartWidget(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun DashboardFinanceSummaryWidget(
+    financeLogs: List<com.example.data.FinanceLogEntity>,
+    onNavigate: (String) -> Unit
+) {
+    val currentMonthKey = remember { SimpleDateFormat("yyyy-MM", Locale.US).format(Date()) }
+    val currentMonthName = remember { SimpleDateFormat("MMMM yyyy", Locale.US).format(Date()) }
+
+    val monthLogs = remember(financeLogs, currentMonthKey) {
+        financeLogs.filter { it.date.startsWith(currentMonthKey) }
+    }
+
+    val totalIncome = remember(monthLogs) {
+        monthLogs.filter { it.type == "income" }.sumOf { it.amount }
+    }
+
+    val totalExpense = remember(monthLogs) {
+        monthLogs.filter { it.type == "expense" }.sumOf { it.amount }
+    }
+
+    val netBalance = totalIncome - totalExpense
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onNavigate("finance") }
+            .border(
+                1.dp,
+                BrandGreen.copy(alpha = 0.5f),
+                RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(BrandGreen.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountBalanceWallet,
+                            contentDescription = null,
+                            tint = BrandGreen,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "MONTHLY FINANCE SUMMARY",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandGreen,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = currentMonthName,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "View Finance",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Income tile
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF10B981).copy(alpha = 0.1f),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Income",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF10B981)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "₹${String.format("%,.0f", totalIncome)}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF10B981)
+                        )
+                    }
+                }
+
+                // Expense tile
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFEF4444).copy(alpha = 0.1f),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Expense",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFEF4444)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "₹${String.format("%,.0f", totalExpense)}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFEF4444)
+                        )
+                    }
+                }
+
+                // Net Balance tile
+                val balanceColor = if (netBalance >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = balanceColor.copy(alpha = 0.1f),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Net Balance",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = balanceColor
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "₹${String.format("%,.0f", netBalance)}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = balanceColor
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun calculateDashboardOccasionDays(bday: com.example.data.BirthdayEntity): Int {
+    val dateStr = bday.date
+    val parts = dateStr.split("-")
+    if (parts.size == 3) {
+        val year = parts[0].toIntOrNull() ?: 2000
+        val month = parts[1].toIntOrNull() ?: 1
+        val day = parts[2].toIntOrNull() ?: 1
+
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val eventDate = Calendar.getInstance().apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month - 1)
+            set(Calendar.DAY_OF_MONTH, day)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        if (bday.countingMode == "Count Up") {
+            return 999
+        }
+
+        if (eventDate.timeInMillis == today.timeInMillis) {
+            return 0
+        } else if (eventDate.after(today)) {
+            val diffMs = eventDate.timeInMillis - today.timeInMillis
+            return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
+        } else {
+            val bdayThisYear = Calendar.getInstance().apply {
+                set(Calendar.YEAR, today.get(Calendar.YEAR))
+                set(Calendar.MONTH, month - 1)
+                set(Calendar.DAY_OF_MONTH, day)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            if (bdayThisYear.timeInMillis == today.timeInMillis) {
+                return 0
+            } else if (bdayThisYear.after(today)) {
+                val diffMs = bdayThisYear.timeInMillis - today.timeInMillis
+                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
+            } else {
+                val bdayNextYear = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, today.get(Calendar.YEAR) + 1)
+                    set(Calendar.MONTH, month - 1)
+                    set(Calendar.DAY_OF_MONTH, day)
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val diffMs = bdayNextYear.timeInMillis - today.timeInMillis
+                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
+            }
+        }
+    }
+    return 999
+}
+
+@Composable
+fun DashboardOccasionsCountdownWidget(
+    birthdays: List<com.example.data.BirthdayEntity>,
+    onNavigate: (String) -> Unit
+) {
+    val countdownItems = remember(birthdays) {
+        birthdays.map { it to calculateDashboardOccasionDays(it) }
+            .filter { it.second in 0..3 }
+            .sortedBy { it.second }
+    }
+
+    if (countdownItems.isEmpty()) return
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                1.dp,
+                BrandOrange.copy(alpha = 0.5f),
+                RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(BrandOrange.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Event,
+                            contentDescription = null,
+                            tint = BrandOrange,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "UPCOMING OCCASION COUNTDOWNS",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandOrange,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "3 Days or Fewer Remaining",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                Surface(
+                    onClick = { onNavigate("workspace") },
+                    shape = RoundedCornerShape(8.dp),
+                    color = BrandOrange.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = "View All",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandOrange,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                countdownItems.forEach { (bday, daysLeft) ->
+                    val badgeColor = when (daysLeft) {
+                        0 -> Color(0xFFEF4444)
+                        1 -> Color(0xFFF59E0B)
+                        else -> BrandCyan
+                    }
+                    val badgeText = when (daysLeft) {
+                        0 -> "TODAY! 🎉"
+                        1 -> "1 DAY LEFT ⏰"
+                        else -> "$daysLeft DAYS LEFT ⏳"
+                    }
+
+                    Surface(
+                        onClick = { onNavigate("workspace") },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = bday.name,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = bday.category.split("|").firstOrNull() ?: "Occasion",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = badgeColor.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = badgeText,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = badgeColor,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardWishlistRemindersWidget(
+    wishlistItems: List<com.example.data.WishItemEntity>,
+    onTogglePurchased: (com.example.data.WishItemEntity) -> Unit,
+    onNavigate: (String) -> Unit
+) {
+    if (wishlistItems.isEmpty()) return
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                1.dp,
+                BrandPink.copy(alpha = 0.5f),
+                RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(BrandPink.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = BrandPink,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "WISHLIST REMINDERS",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandPink,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "${wishlistItems.size} Scheduled Items",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                Surface(
+                    onClick = { onNavigate("workspace") },
+                    shape = RoundedCornerShape(8.dp),
+                    color = BrandPink.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = "View All",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandPink,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                wishlistItems.forEach { item ->
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.title,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "₹${String.format("%,.0f", item.price)}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = BrandPink
+                                    )
+                                    val priorityColor = when (item.priority.lowercase()) {
+                                        "high" -> Color(0xFFEF4444)
+                                        "medium" -> Color(0xFFF59E0B)
+                                        else -> BrandCyan
+                                    }
+                                    Text(
+                                        text = "• ${item.priority.uppercase()}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = priorityColor
+                                    )
+                                    if (!item.reminderDate.isNullOrBlank()) {
+                                        Text(
+                                            text = "• ⏰ ${item.reminderDate} ${item.reminderTime ?: ""}",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(
+                                onClick = { onTogglePurchased(item) },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(BrandPink.copy(alpha = 0.15f))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Mark Purchased",
+                                    tint = BrandPink,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardBadgesAndAchievementsHallWidget(
+    allHabits: List<com.example.data.HabitEntity>,
+    allTasks: List<com.example.data.TaskEntity>,
+    allFinanceLogs: List<com.example.data.FinanceLogEntity>,
+    allWishlist: List<com.example.data.WishItemEntity>,
+    allBirthdays: List<com.example.data.BirthdayEntity>,
+    badHabits: List<TrackWiseViewModel.BadHabitSpec>,
+    socialCircleSize: Int,
+    hasActiveAlarm: Boolean,
+    alarmsCount: Int,
+    waterLogs: List<com.example.data.WaterLogEntity>,
+    streakHistory: List<com.example.data.StreakHistoryEntity>,
+    userLevel: Int,
+    todayScore: Int,
+    onNavigate: (String) -> Unit
+) {
+    val totalXP = remember(streakHistory, todayScore) {
+        streakHistory.sumOf { it.score } + todayScore
+    }
+    val netWorth = remember(allFinanceLogs) {
+        allFinanceLogs.filter { it.type == "income" || it.type == "savings" }.sumOf { it.amount } - allFinanceLogs.filter { it.type == "expense" }.sumOf { it.amount }
+    }
+
+    val systemAchievements = remember(allTasks, allHabits, allFinanceLogs, allWishlist, allBirthdays, badHabits, socialCircleSize, hasActiveAlarm, alarmsCount, waterLogs, streakHistory, userLevel, totalXP, netWorth) {
+        getAllSystemAchievements(
+            allTasks = allTasks,
+            allHabits = allHabits,
+            allFinanceLogs = allFinanceLogs,
+            allWishlist = allWishlist,
+            allBirthdays = allBirthdays,
+            badHabits = badHabits,
+            socialCircleSize = socialCircleSize,
+            hasActiveAlarm = hasActiveAlarm,
+            alarmsCount = alarmsCount,
+            waterLogs = waterLogs,
+            streakHistory = streakHistory,
+            userLevel = userLevel,
+            totalXP = totalXP,
+            netWorth = netWorth
+        )
+    }
+
+    val earnedBadgeDays = remember(allHabits) {
+        allHabits.flatMap { TrackWiseUtils.deserializeIntList(it.badgesEarnedJson) }.distinct()
+    }
+
+    val habitBadgesData = remember(earnedBadgeDays) {
+        ALL_STANDARD_HABIT_BADGES.map { spec ->
+            val maxStreak = allHabits.maxOfOrNull { it.maxStreak } ?: 0
+            AchievementItemSpec(
+                title = spec.name,
+                desc = spec.desc,
+                progress = maxStreak,
+                target = spec.days,
+                icon = Icons.Default.MilitaryTech,
+                iconColor = BrandAmber,
+                tier = spec.tier.uppercase(),
+                isBadge = true
+            )
+        }
+    }
+
+    val allBoardItems = remember(habitBadgesData, systemAchievements) {
+        habitBadgesData + systemAchievements
+    }
+
+    val totalUnlockedCount = remember(allBoardItems) {
+        allBoardItems.count { it.progress >= it.target }
+    }
+
+    var selectedFilter by remember { mutableStateOf("All") }
+    var selectedInspectItem by remember { mutableStateOf<AchievementItemSpec?>(null) }
+
+    val filteredItems = remember(allBoardItems, selectedFilter) {
+        when (selectedFilter) {
+            "Badges" -> allBoardItems.filter { it.isBadge }
+            "Achievements" -> allBoardItems.filter { !it.isBadge }
+            "Unlocked" -> allBoardItems.filter { it.progress >= it.target }
+            else -> allBoardItems
+        }
+    }
+
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                1.dp,
+                BrandViolet.copy(alpha = 0.5f),
+                RoundedCornerShape(24.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(BrandViolet.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.EmojiEvents,
+                            contentDescription = null,
+                            tint = BrandViolet,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "BADGES & ACHIEVEMENTS MASTERY HALL",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandViolet,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "$totalUnlockedCount / ${allBoardItems.size} Unlocked",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Filter Tabs
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf("All", "Badges", "Achievements", "Unlocked").forEach { filter ->
+                    val isSel = selectedFilter == filter
+                    Surface(
+                        onClick = { selectedFilter = filter },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSel) BrandViolet else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = filter,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3 Horizontal Sliding Rows (sliding at once)
+            val chunkedCols = filteredItems.chunked(3)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(chunkedCols) { colItems ->
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        colItems.forEach { item ->
+                            val isUnlocked = item.progress >= item.target
+                            MasteryItemGridCard(
+                                item = item,
+                                isUnlocked = isUnlocked,
+                                onClick = { selectedInspectItem = item },
+                                modifier = Modifier.width(105.dp)
+                            )
+                        }
+                        if (colItems.size < 3) {
+                            repeat(3 - colItems.size) {
+                                Spacer(
+                                    modifier = Modifier
+                                        .width(105.dp)
+                                        .aspectRatio(0.85f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    selectedInspectItem?.let { item ->
+        val isUnlocked = item.progress >= item.target
+        AlertDialog(
+            onDismissRequest = { selectedInspectItem = null },
+            confirmButton = {
+                TextButton(onClick = { selectedInspectItem = null }) {
+                    Text("Close", fontWeight = FontWeight.Bold)
+                }
+            },
+            icon = {
+                Icon(
+                    imageVector = if (isUnlocked) item.icon else Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = if (isUnlocked) item.iconColor else Color.Gray,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = item.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = item.desc,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isUnlocked) BrandViolet.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = if (isUnlocked) "UNLOCKED • ${item.tier}" else "LOCKED • Progress: ${item.progress}/${item.target}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isUnlocked) BrandViolet else Color.Gray,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun MasteryItemGridCard(
+    item: AchievementItemSpec,
+    isUnlocked: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val tierColor = when (item.tier) {
+        "MYTHIC" -> Color(0xFFFF3B30)
+        "LEGENDARY" -> Color(0xFFFFD700)
+        "EPIC" -> Color(0xFFAF52DE)
+        "RARE" -> Color(0xFF007AFF)
+        else -> Color(0xFF34C759)
+    }
+
+    val cardBg = if (isUnlocked) {
+        tierColor.copy(alpha = 0.12f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+    }
+
+    val borderStroke = if (isUnlocked) {
+        BorderStroke(1.5.dp, tierColor)
+    } else {
+        BorderStroke(1.dp, Color.Gray.copy(alpha = 0.25f))
+    }
+
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        shape = RoundedCornerShape(16.dp),
+        border = borderStroke,
+        modifier = modifier.aspectRatio(0.85f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isUnlocked) {
+                    Text(
+                        text = item.tier.take(3),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Black,
+                        color = tierColor
+                    )
+                    Text(
+                        text = "★",
+                        fontSize = 10.sp,
+                        color = Color(0xFFFFD700)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Locked",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = "${item.progress}/${item.target}",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isUnlocked) tierColor.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.12f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = item.icon,
+                    contentDescription = null,
+                    tint = if (isUnlocked) tierColor else Color.Gray,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Text(
+                text = item.title,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isUnlocked) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

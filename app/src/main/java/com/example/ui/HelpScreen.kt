@@ -136,7 +136,7 @@ fun HelpScreen(
                 Net Worth = Σ(Assets) - Σ(Liabilities)
                 
                 ■ Automatic Transaction Sync:
-                When you add a transaction, the engine records the category, payment source, and date. It immediately reconciles the balances. For example, logging a $50 fuel expense from your 'Credit Card' account automatically increases that liability by $50, decreasing your net worth, while updating monthly spending charts.
+                When you add a transaction, the engine records the category, payment source, and date. It immediately reconciles the balances. For example, logging a ₹50 fuel expense from your 'Credit Card' account automatically increases that liability by ₹50, decreasing your net worth, while updating monthly spending charts.
             """.trimIndent()
         ),
         ChapterSpec(

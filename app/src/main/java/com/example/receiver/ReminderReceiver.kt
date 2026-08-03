@@ -101,7 +101,11 @@ class ReminderReceiver : BroadcastReceiver() {
             val triggerTime = System.currentTimeMillis() + 300_000L
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingSnooze)
+                    try {
+                        alarmManager.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingSnooze)
+                    } catch (se: SecurityException) {
+                        alarmManager.set(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingSnooze)
+                    }
                 } else {
                     alarmManager.set(android.app.AlarmManager.RTC_WAKEUP, triggerTime, pendingSnooze)
                 }

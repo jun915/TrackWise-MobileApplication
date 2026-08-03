@@ -166,7 +166,7 @@ fun AppBackground(
                         .fillMaxSize()
                         .background(activeColor)
                 )
-                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.25f)
+                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.45f)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -181,7 +181,7 @@ fun AppBackground(
                         .fillMaxSize()
                         .background(Brush.verticalGradient(activeColors))
                 )
-                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.25f)
+                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.45f)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -206,7 +206,7 @@ fun AppBackground(
                 }
 
                 // Transparency / Scrim Overlay to ensure maximum contrast and legibility for all screens
-                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.75f)
+                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.82f)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -233,7 +233,7 @@ fun AppBackground(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = 0.45f),
+                            if (isDark) Color.Black.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.4f),
                             Color.Transparent
                         )
                     )

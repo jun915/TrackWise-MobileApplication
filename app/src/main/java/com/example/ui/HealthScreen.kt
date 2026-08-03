@@ -2392,170 +2392,172 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Add Your 1st Medication", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Add Medication", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    tabletReminders.forEach { reminder ->
-                        // Deserialization helper for taken dates
-                        val takenDatesList = try {
-                            val array = org.json.JSONArray(reminder.completedDatesJson)
-                            val list = mutableListOf<String>()
-                            for (i in 0 until array.length()) {
-                                list.add(array.getString(i))
+                    tabletReminders.forEachIndexed { index, reminder ->
+                        StaggeredItem(index = index) {
+                            // Deserialization helper for taken dates
+                            val takenDatesList = try {
+                                val array = org.json.JSONArray(reminder.completedDatesJson)
+                                val list = mutableListOf<String>()
+                                for (i in 0 until array.length()) {
+                                    list.add(array.getString(i))
+                                }
+                                list
+                            } catch (e: Exception) {
+                                emptyList()
                             }
-                            list
-                        } catch (e: Exception) {
-                            emptyList()
-                        }
 
-                        val isTakenToday = takenDatesList.contains(today)
+                            val isTakenToday = takenDatesList.contains(today)
 
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Row 1: Tablet Name, Dosage, Time, Delete
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Top
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { editingTabletReminder = reminder }
+                                // Row 1: Tablet Name, Dosage, Time, Delete
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(reminder.tabletName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                        Box(
-                                            modifier = Modifier
-                                                .background(BrandViolet.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(reminder.scheduleType, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { editingTabletReminder = reminder }
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(reminder.tabletName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(BrandViolet.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(reminder.scheduleType, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = BrandViolet)
+                                            }
+                                        }
+                                        Text(
+                                            text = "${reminder.dosage} · Scheduled: ${reminder.timeOfDay}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                        if (!reminder.notes.isNullOrBlank()) {
+                                            Text(
+                                                text = "Note: ${reminder.notes}",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
                                         }
                                     }
-                                    Text(
-                                        text = "${reminder.dosage} · Scheduled: ${reminder.timeOfDay}",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                        modifier = Modifier.padding(top = 2.dp)
-                                    )
-                                    if (!reminder.notes.isNullOrBlank()) {
+
+                                    IconButton(
+                                        onClick = { viewModel.deleteTabletReminder(reminder.id) },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete medication", tint = BrandRose, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+
+                                // Taken Today Logging Action Button
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isTakenToday) BrandGreen.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
+                                        .border(
+                                            1.dp,
+                                            if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { viewModel.toggleTabletTaken(reminder, today) }
+                                        .padding(vertical = 10.dp, horizontal = 12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isTakenToday) Icons.Default.CheckCircle else Icons.Default.Circle,
+                                            contentDescription = null,
+                                            tint = if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "Note: ${reminder.notes}",
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                            modifier = Modifier.padding(top = 2.dp)
+                                            text = if (isTakenToday) "Taken Today (Click to Undo)" else "Log as Taken Today",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                 }
 
-                                IconButton(
-                                    onClick = { viewModel.deleteTabletReminder(reminder.id) },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete medication", tint = BrandRose, modifier = Modifier.size(16.dp))
-                                }
-                            }
-
-                            // Taken Today Logging Action Button
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isTakenToday) BrandGreen.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
-                                    .border(
-                                        1.dp,
-                                        if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable { viewModel.toggleTabletTaken(reminder, today) }
-                                    .padding(vertical = 10.dp, horizontal = 12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = if (isTakenToday) Icons.Default.CheckCircle else Icons.Default.Circle,
-                                        contentDescription = null,
-                                        tint = if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (isTakenToday) "Taken Today (Click to Undo)" else "Log as Taken Today",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isTakenToday) BrandGreen else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-
-                            // Row 3: 7-Day Analytics Visual Tracker
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("7-Day Analytics History", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                                    
-                                    // Calculate completion rate
-                                    val last7Days = (0..6).map { offset ->
-                                        val cal = Calendar.getInstance()
-                                        cal.add(Calendar.DAY_OF_YEAR, -offset)
-                                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
-                                        takenDatesList.contains(dateStr)
+                                // Row 3: 7-Day Analytics Visual Tracker
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("7-Day Analytics History", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                        
+                                        // Calculate completion rate
+                                        val last7Days = (0..6).map { offset ->
+                                            val cal = Calendar.getInstance()
+                                            cal.add(Calendar.DAY_OF_YEAR, -offset)
+                                            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
+                                            takenDatesList.contains(dateStr)
+                                        }
+                                        val takenCount = last7Days.count { it }
+                                        val ratePercent = (takenCount / 7.0 * 100).toInt()
+                                        
+                                        Text("Compliance Rate: $ratePercent%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (ratePercent >= 75) BrandGreen else BrandAmber)
                                     }
-                                    val takenCount = last7Days.count { it }
-                                    val ratePercent = (takenCount / 7.0 * 100).toInt()
-                                    
-                                    Text("Compliance Rate: $ratePercent%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (ratePercent >= 75) BrandGreen else BrandAmber)
-                                }
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    // List 7 days from oldest (6 days ago) to newest (today)
-                                    (0..6).reversed().forEach { offset ->
-                                        val cal = Calendar.getInstance()
-                                        cal.add(Calendar.DAY_OF_YEAR, -offset)
-                                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
-                                        val dayName = SimpleDateFormat("E", Locale.getDefault()).format(cal.time).take(1) // M, T, W...
-                                        val wasTaken = takenDatesList.contains(dateStr)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        // List 7 days from oldest (6 days ago) to newest (today)
+                                        (0..6).reversed().forEach { offset ->
+                                            val cal = Calendar.getInstance()
+                                            cal.add(Calendar.DAY_OF_YEAR, -offset)
+                                            val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
+                                            val dayName = SimpleDateFormat("E", Locale.getDefault()).format(cal.time).take(1) // M, T, W...
+                                            val wasTaken = takenDatesList.contains(dateStr)
 
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                                            modifier = Modifier.clickable { viewModel.toggleTabletTaken(reminder, dateStr) }
-                                        ) {
-                                            Text(dayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(CircleShape)
-                                                    .background(if (wasTaken) BrandGreen else MaterialTheme.colorScheme.surfaceVariant)
-                                                    .border(
-                                                        1.dp,
-                                                        if (wasTaken) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                                        CircleShape
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                                modifier = Modifier.clickable { viewModel.toggleTabletTaken(reminder, dateStr) }
                                             ) {
-                                                if (wasTaken) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                                                } else {
-                                                    Text(dayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                                                Text(dayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clip(CircleShape)
+                                                        .background(if (wasTaken) BrandGreen else MaterialTheme.colorScheme.surfaceVariant)
+                                                        .border(
+                                                            1.dp,
+                                                            if (wasTaken) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                                            CircleShape
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (wasTaken) {
+                                                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                                    } else {
+                                                        Text(dayName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                                                    }
                                                 }
                                             }
                                         }

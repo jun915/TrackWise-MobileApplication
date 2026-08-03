@@ -48,6 +48,11 @@ fun SocialScreen(
     val waterLogs by viewModel.waterLogs.collectAsState()
     val exerciseLogs by viewModel.exerciseLogs.collectAsState()
     val alarms by viewModel.allAlarms.collectAsState()
+    val allFinanceLogs by viewModel.allFinanceLogs.collectAsState()
+    val allWishlist by viewModel.allWishlist.collectAsState()
+    val allBirthdays by viewModel.allBirthdays.collectAsState()
+    val streakHistory by viewModel.streakHistory.collectAsState()
+    val todayScore by viewModel.todayScore.collectAsState()
 
     var friendEmailInput by remember { mutableStateOf("") }
     var showFriendErrors by remember { mutableStateOf(false) }
@@ -619,7 +624,37 @@ fun SocialScreen(
                 val hasActiveAlarm = alarms.any { it.isEnabled }
                 val socialCircleSize = friends.size
                 
-                val achievementsData = listOf(
+                val totalXP = streakHistory.sumOf { it.score } + todayScore
+                val netWorth = allFinanceLogs.filter { it.type == "income" || it.type == "savings" }.sumOf { it.amount } - allFinanceLogs.filter { it.type == "expense" }.sumOf { it.amount }
+                val achievementsData = getAllSystemAchievements(
+                    allTasks = tasks,
+                    allHabits = habits,
+                    allFinanceLogs = allFinanceLogs,
+                    allWishlist = allWishlist,
+                    allBirthdays = allBirthdays,
+                    badHabits = badHabits,
+                    socialCircleSize = friends.size,
+                    hasActiveAlarm = alarms.any { it.isEnabled },
+                    alarmsCount = alarms.size,
+                    waterLogs = waterLogs,
+                    streakHistory = streakHistory,
+                    userLevel = (streakHistory.sumOf { it.score } + todayScore) / 1000 + 1,
+                    totalXP = totalXP,
+                    netWorth = netWorth
+                ).map { spec ->
+                    AchievementItem(
+                        title = spec.title,
+                        desc = spec.desc,
+                        progress = spec.progress,
+                        target = spec.target,
+                        icon = spec.icon,
+                        iconColor = spec.iconColor,
+                        tier = spec.tier
+                    )
+                }
+                val legacyAchievementsData = emptyList<AchievementItem>()
+                if (false) {
+                    listOf(
                     // --- 1. Habiteers & Streaks (PUBG Inspired) ---
                     AchievementItem(
                         title = "First Blood: Streak Champion",
@@ -975,7 +1010,8 @@ fun SocialScreen(
                         iconColor = BrandRose,
                         tier = "LEGENDARY"
                     )
-                )
+                    )
+                }
 
                 items(achievementsData) { achievement ->
                     val isUnlocked = achievement.progress >= achievement.target

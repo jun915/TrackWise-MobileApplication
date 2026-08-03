@@ -362,7 +362,7 @@ fun HabitDetailScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(0.85f)
-                            .height(260.dp),
+                            .height(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         HabitBackgroundIllustration(
@@ -398,10 +398,12 @@ fun HabitDetailScreen(
                     ) {
                         Text(
                             text = habit.name,
-                            fontSize = 28.sp,
+                            fontSize = 24.sp,
+                            lineHeight = 28.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(

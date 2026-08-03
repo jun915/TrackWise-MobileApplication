@@ -71,6 +71,7 @@ val ALL_NAV_TABS = listOf(
     NavTabItemSpec("countdown", "Countdown", Icons.Default.HourglassEmpty, BrandOrange, "workspace", 3),
     NavTabItemSpec("habit_breaker", "Habit Breaker", Icons.Default.Block, BrandRose, "habit_breaker", -1),
     NavTabItemSpec("finance", "Finance", Icons.Default.AttachMoney, BrandOrange, "finance", -1),
+    NavTabItemSpec("net_worth", "Net Worth", Icons.Default.AccountBalanceWallet, BrandPink, "net_worth", -1),
     NavTabItemSpec("wishlist", "Wishlist", Icons.Default.Star, BrandPink, "workspace", 2),
     NavTabItemSpec("focus", "Focus", Icons.Default.Timer, BrandIndigo, "workspace", 4),
     NavTabItemSpec("grocery", "Grocery List", Icons.Default.ShoppingCart, BrandGreen, "workspace", 5),
@@ -262,8 +263,9 @@ fun MainScreen(
 
     val isShowAddFinanceSheet by viewModel.showAddFinanceSheet.collectAsState()
     val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isShowAddFinanceSheet
+    val isSubViewActive = (activeTab == "finance" && (financeViewMode != "home" || isFinanceSearchActive))
 
-    BackHandler(enabled = isAnyPopupOpen || navigationHistory.size > 1) {
+    BackHandler(enabled = isAnyPopupOpen || isSubViewActive || navigationHistory.size > 1) {
         if (activeDetailHabit != null) {
             viewModel.setActiveDetailHabit(null)
         } else if (showCustomTaskSheet) {
@@ -286,6 +288,10 @@ fun MainScreen(
             showMoreMenu = false
         } else if (showSettings) {
             viewModel.setSettingsPanelOpen(false)
+        } else if (activeTab == "finance" && isFinanceSearchActive) {
+            isFinanceSearchActive = false
+        } else if (activeTab == "finance" && financeViewMode != "home") {
+            financeViewMode = "home"
         } else {
             navigateBack()
         }
@@ -405,6 +411,7 @@ fun MainScreen(
                             presetTabForAddSheet = financePresetTab,
                             onPresetTabChange = { financePresetTab = it }
                         )
+                        "net_worth" -> NetWorthScreen(viewModel = viewModel)
                         "analytics" -> AnalyticsScreen(viewModel = viewModel)
                         "profile" -> ProfileScreen(
                             viewModel = viewModel,
@@ -618,17 +625,20 @@ fun MainScreen(
                     val activeSubTabVal by viewModel.workspaceSubTab.collectAsState()
 
                     if (!isConfiguringBottomBar) {
-                        // --- NORMAL MORE MENU OPTIONS GRID ---
-                        val moreItems = listOf(
-                            MoreMenuItemSpec("Habit Breaker", Icons.Default.Block, BrandRose, "habit_breaker", -1),
-                            MoreMenuItemSpec("Finance", Icons.Default.AttachMoney, BrandOrange, "finance", -1),
-                            MoreMenuItemSpec("Wishlist", Icons.Default.Star, BrandPink, "workspace", 2),
-                            MoreMenuItemSpec("Focus", Icons.Default.Timer, BrandIndigo, "workspace", 4),
-                            MoreMenuItemSpec("Grocery List", Icons.Default.ShoppingCart, BrandGreen, "workspace", 5),
-                            MoreMenuItemSpec("Health", Icons.Default.Favorite, BrandRose, "health", -1),
-                            MoreMenuItemSpec("Calendar", Icons.Default.DateRange, BrandViolet, "calendar", -1),
-                            MoreMenuItemSpec("Social", Icons.Default.People, BrandViolet, "social", -1)
-                        )
+                        // --- DYNAMIC MORE MENU OPTIONS GRID ---
+                        val moreItems = remember(bottomBarIds) {
+                            ALL_NAV_TABS
+                                .filter { tabSpec -> !bottomBarIds.contains(tabSpec.id) && tabSpec.id != "dashboard" }
+                                .map { tabSpec ->
+                                    MoreMenuItemSpec(
+                                        label = tabSpec.label,
+                                        icon = tabSpec.icon,
+                                        color = tabSpec.color,
+                                        tab = tabSpec.tab,
+                                        subTab = tabSpec.subTab
+                                    )
+                                }
+                        }
 
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             for (row in 0 until (moreItems.size + 1) / 2) {
@@ -741,33 +751,7 @@ fun MainScreen(
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
 
-                                            if (index > 0) {
-                                                IconButton(
-                                                    onClick = { viewModel.moveTabInBottomBar(index, index - 1) },
-                                                    modifier = Modifier.size(20.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.AutoMirrored.Default.ArrowBack,
-                                                        contentDescription = "Move Left",
-                                                        tint = spec.color,
-                                                        modifier = Modifier.size(12.dp)
-                                                    )
-                                                }
-                                            }
 
-                                            if (index < bottomBarIds.size - 1) {
-                                                IconButton(
-                                                    onClick = { viewModel.moveTabInBottomBar(index, index + 1) },
-                                                    modifier = Modifier.size(20.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.AutoMirrored.Default.ArrowForward,
-                                                        contentDescription = "Move Right",
-                                                        tint = spec.color,
-                                                        modifier = Modifier.size(12.dp)
-                                                    )
-                                                }
-                                            }
 
                                             if (bottomBarIds.size > 2) {
                                                 IconButton(
@@ -1209,9 +1193,7 @@ fun MainScreen(
 
                             if (isFinanceSpeedDialOpen && activeTab == "finance") {
                                 val financeSpeedDialOptions = listOf(
-                                    Triple("expense", "Expense", Icons.Default.TrendingDown),
-                                    Triple("income", "Income", Icons.Default.TrendingUp),
-                                    Triple("savings", "Savings", Icons.Default.AccountBalance),
+                                    Triple("add_transaction", "Add transaction", Icons.Default.Add),
                                     Triple("net_worth", "Net Worth", Icons.Default.AccountBalanceWallet),
                                     Triple("report", "Report", Icons.Default.Assessment),
                                     Triple("calendar", "Calendar", Icons.Default.CalendarToday),
@@ -1220,9 +1202,7 @@ fun MainScreen(
 
                                 financeSpeedDialOptions.forEach { (key, label, icon) ->
                                     val color = when (key) {
-                                        "expense" -> Color(0xFFEF4444)
-                                        "income" -> Color(0xFF10B981)
-                                        "savings" -> Color(0xFF3B82F6)
+                                        "add_transaction" -> Color(0xFF3B82F6)
                                         "net_worth" -> Color(0xFFEC4899)
                                         "report" -> Color(0xFF8B5CF6)
                                         "calendar" -> Color(0xFFF59E0B)
@@ -1235,17 +1215,23 @@ fun MainScreen(
                                         modifier = Modifier.clickable {
                                             isFinanceSpeedDialOpen = false
                                             when (key) {
-                                                "expense", "income", "savings", "net_worth" -> {
-                                                    financePresetTab = key
+                                                "add_transaction" -> {
+                                                    financePresetTab = "expense"
                                                     viewModel.openAddFinanceSheet()
                                                 }
+                                                "net_worth" -> {
+                                                    navigateTo("net_worth")
+                                                }
                                                 "report" -> {
+                                                    navigateTo("finance")
                                                     financeViewMode = "reports"
                                                 }
                                                 "calendar" -> {
+                                                    navigateTo("finance")
                                                     financeViewMode = "calendar"
                                                 }
                                                 "search" -> {
+                                                    navigateTo("finance")
                                                     isFinanceSearchActive = true
                                                     financeViewMode = "home"
                                                 }
@@ -1270,17 +1256,23 @@ fun MainScreen(
                                             onClick = {
                                                 isFinanceSpeedDialOpen = false
                                                 when (key) {
-                                                    "expense", "income", "savings" -> {
-                                                        financePresetTab = key
+                                                    "add_transaction" -> {
+                                                        financePresetTab = "expense"
                                                         viewModel.openAddFinanceSheet()
                                                     }
+                                                    "net_worth" -> {
+                                                        navigateTo("net_worth")
+                                                    }
                                                     "report" -> {
+                                                        navigateTo("finance")
                                                         financeViewMode = "reports"
                                                     }
                                                     "calendar" -> {
+                                                        navigateTo("finance")
                                                         financeViewMode = "calendar"
                                                     }
                                                     "search" -> {
+                                                        navigateTo("finance")
                                                         isFinanceSearchActive = true
                                                         financeViewMode = "home"
                                                     }
@@ -1704,6 +1696,7 @@ fun HeaderToolbar(
         "health" -> "Health"
         "calendar" -> "Calendar"
         "finance" -> "Finance"
+        "net_worth" -> "Net Worth"
         "analytics" -> "Analytics"
         "settings", "profile" -> "Settings"
         "folders" -> "Task & Habit Folders"
@@ -1982,7 +1975,7 @@ fun BottomNavigationBar(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(bottom = 12.dp, start = 12.dp, end = 12.dp)
+            .padding(bottom = 12.dp, start = 4.dp, end = 4.dp)
             .clip(RoundedCornerShape(24.dp))
             .background(barBgColor)
             .border(1.2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
@@ -2042,7 +2035,7 @@ fun BottomTabItem(
             .clip(RoundedCornerShape(16.dp))
             .background(backgroundColor)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .padding(horizontal = 4.dp, vertical = 8.dp)
     ) {
         Icon(
             imageVector = icon,
@@ -3785,5 +3778,35 @@ fun ModernLoadingTilesEffect(
         ) {
             content()
         }
+    }
+}
+
+@Composable
+fun StaggeredItem(
+    index: Int,
+    content: @Composable () -> Unit
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(index * 60L) // Beautiful 60ms stagger delay
+        visible = true
+    }
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(durationMillis = 350, easing = LinearOutSlowInEasing)
+    )
+    val offsetY by animateDpAsState(
+        targetValue = if (visible) 0.dp else 16.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        )
+    )
+    Box(
+        modifier = Modifier
+            .graphicsLayer { this.alpha = alpha }
+            .offset(y = offsetY)
+    ) {
+        content()
     }
 }

@@ -1214,7 +1214,7 @@ fun CompletionsTrackerCard(tasks: List<TaskEntity>, habits: List<HabitEntity>) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth(0.55f)
-                                        .fillMaxHeight(ratio.coerceIn(0.08f, 1f))
+                                        .height(80.dp * ratio.coerceIn(0.08f, 1f))
                                         .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                                         .background(Brush.verticalGradient(listOf(BrandGreen, BrandGreen.copy(alpha = 0.4f))))
                                 )
@@ -1473,7 +1473,7 @@ fun AverageWeightCard(weightLogs: List<WeightEntryEntity>, defaultWeight: Double
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(0.5f)
-                                .fillMaxHeight(normalizedVal.coerceIn(0.15f, 1f))
+                                .height(80.dp * normalizedVal.coerceIn(0.15f, 1f))
                                 .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
                                         .background(
                                             Brush.verticalGradient(
@@ -5611,7 +5611,7 @@ fun HabitBreakerCostSavingsCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("TOTAL SAVED BY RESISTING URGES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
-                    Text("$${String.format("%.2f", costSaved)} USD", fontSize = 24.sp, fontWeight = FontWeight.Black, color = BrandGreen)
+                    Text("₹${String.format("%.2f", costSaved)}", fontSize = 24.sp, fontWeight = FontWeight.Black, color = BrandGreen)
                     Text("This is estimated cash, time, and health value preserved by exercising self-control this month.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
             }
@@ -5879,7 +5879,7 @@ fun WishlistSavingsProgressCard(wishlist: List<WishItemEntity>) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(text = item.title, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text(text = "$${String.format("%.1f", savedProgress)} / $${String.format("%.1f", item.price)} (${(fraction * 100).toInt()}%)", fontSize = 11.sp, color = BrandGreen, fontWeight = FontWeight.Bold)
+                            Text(text = "₹${String.format("%.1f", savedProgress)} / ₹${String.format("%.1f", item.price)} (${(fraction * 100).toInt()}%)", fontSize = 11.sp, color = BrandGreen, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Box(
@@ -6169,7 +6169,7 @@ fun GroceryPriceDistributionCard(groceries: List<GroceryItemEntity>) {
                             Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             Text("Category: ${item.category}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                         }
-                        Text("$${String.format("%.2f", item.price ?: 0.0)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = BrandGreen)
+                        Text("₹${String.format("%.2f", item.price ?: 0.0)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = BrandGreen)
                     }
                 }
             }
@@ -6259,8 +6259,8 @@ fun GroceryBudgetPacingCard(groceries: List<GroceryItemEntity>) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Monthly Grocery Budget: $300", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "$${String.format("%.1f", estimatedBasketCost)} spent (${(fraction * 100).toInt()}%)", fontSize = 11.sp, color = BrandGreen, fontWeight = FontWeight.Bold)
+                    Text(text = "Monthly Grocery Budget: ₹300", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "₹${String.format("%.1f", estimatedBasketCost)} spent (${(fraction * 100).toInt()}%)", fontSize = 11.sp, color = BrandGreen, fontWeight = FontWeight.Bold)
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Box(
@@ -6284,7 +6284,7 @@ fun GroceryBudgetPacingCard(groceries: List<GroceryItemEntity>) {
                 }
                 if (fraction > 1.0f) {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("Warning: You are overpacing your standard $300 grocery allocation limit!", fontSize = 10.sp, color = BrandRose, fontWeight = FontWeight.Bold)
+                    Text("Warning: You are overpacing your standard ₹300 grocery allocation limit!", fontSize = 10.sp, color = BrandRose, fontWeight = FontWeight.Bold)
                 }
             }
         }

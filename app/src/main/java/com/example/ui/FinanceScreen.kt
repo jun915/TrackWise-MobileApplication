@@ -2,6 +2,7 @@ package com.example.ui
 
 import android.app.DatePickerDialog
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
@@ -121,8 +122,8 @@ fun FinanceScreen(
     val totalSavings = remember(monthLogs) {
         monthLogs.filter { it.type == "savings" }.sumOf { it.amount }
     }
-    val totalBalance = remember(totalIncome, totalExpense) {
-        totalIncome - totalExpense
+    val totalBalance = remember(totalIncome, totalExpense, totalSavings) {
+        totalIncome - totalExpense - totalSavings
     }
 
     // Colors matching overall app theme
@@ -257,32 +258,42 @@ fun FinanceScreen(
 
         // Add Transaction Sheet (Triggered by FAB Options)
         if (isShowAddSheet) {
-            FinanceAddSheet(
-                initialTab = presetTabForAddSheet,
-                onDismiss = { viewModel.closeAddFinanceSheet() },
-                onOpenSettings = {
-                    viewModel.closeAddFinanceSheet()
-                    showCategorySettings = true
-                },
-                onOpenRecurring = {
-                    showRecurringTransactionsScreen = true
-                },
-                onSaveLog = { type, category, amount, notes, date ->
-                    viewModel.addFinanceLog(
-                        type = type,
-                        category = category,
-                        title = category,
-                        amount = amount,
-                        notes = notes,
-                        date = date
-                    )
-                    viewModel.closeAddFinanceSheet()
-                },
-                onSaveNetWorth = { name, type, amount ->
-                    viewModel.addNetWorthItem(name, type, amount)
-                    viewModel.closeAddFinanceSheet()
-                }
-            )
+            if (presetTabForAddSheet == "net_worth") {
+                NetWorthAddSheet(
+                    onDismiss = { viewModel.closeAddFinanceSheet() },
+                    onSave = { name, type, amount ->
+                        viewModel.addNetWorthItem(name, type, amount)
+                        viewModel.closeAddFinanceSheet()
+                    }
+                )
+            } else {
+                FinanceAddSheet(
+                    initialTab = presetTabForAddSheet,
+                    onDismiss = { viewModel.closeAddFinanceSheet() },
+                    onOpenSettings = {
+                        viewModel.closeAddFinanceSheet()
+                        showCategorySettings = true
+                    },
+                    onOpenRecurring = {
+                        showRecurringTransactionsScreen = true
+                    },
+                    onSaveLog = { type, category, amount, notes, date ->
+                        viewModel.addFinanceLog(
+                            type = type,
+                            category = category,
+                            title = category,
+                            amount = amount,
+                            notes = notes,
+                            date = date
+                        )
+                        viewModel.closeAddFinanceSheet()
+                    },
+                    onSaveNetWorth = { name, type, amount ->
+                        viewModel.addNetWorthItem(name, type, amount)
+                        viewModel.closeAddFinanceSheet()
+                    }
+                )
+            }
         }
 
         // Transaction Detail Dialog
@@ -542,35 +553,50 @@ fun MoneyTrackerHeader(
                 }
 
                 // Expense Total
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Expenses", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Expenses", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        String.format("%.2f", totalExpense),
+                        "₹${String.format("%,.0f", totalExpense)}",
                         color = Color(0xFFEF4444),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 // Income Total
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Income", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Income", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        String.format("%.2f", totalIncome),
+                        "₹${String.format("%,.0f", totalIncome)}",
                         color = Color(0xFF10B981),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 // Balance
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Balance", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    modifier = Modifier.weight(1.5f)
+                ) {
+                    Text("Balance", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        String.format("%.2f", totalBalance),
+                        "₹${String.format("%,.0f", totalBalance)}",
                         color = if (totalBalance >= 0) MaterialTheme.colorScheme.onSurface else Color(0xFFEF4444),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -705,8 +731,9 @@ fun MoneyTrackerHomeView(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            groupedLogs.forEach { (dateStr, logs) ->
-                item {
+            val list = groupedLogs.toList()
+            itemsIndexed(list) { index, (dateStr, logs) ->
+                StaggeredItem(index = index) {
                     val dateExpense = logs.filter { it.type == "expense" }.sumOf { it.amount }
                     val dateIncome = logs.filter { it.type == "income" }.sumOf { it.amount }
 
@@ -728,14 +755,14 @@ fun MoneyTrackerHomeView(
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 if (dateExpense > 0) {
                                     Text(
-                                        "Exp: -₹${String.format("%.2f", dateExpense)}",
+                                        "Exp: -₹${String.format("%,.0f", dateExpense)}",
                                         color = Color(0xFFEF4444),
                                         fontSize = 11.sp
                                     )
                                 }
                                 if (dateIncome > 0) {
                                     Text(
-                                        "Inc: +₹${String.format("%.2f", dateIncome)}",
+                                        "Inc: +₹${String.format("%,.0f", dateIncome)}",
                                         color = Color(0xFF10B981),
                                         fontSize = 11.sp
                                     )
@@ -821,7 +848,7 @@ fun FinanceItemRow(
                 val amountColor = if (isExpense) Color(0xFFEF4444) else Color(0xFF10B981)
 
                 Text(
-                    "$sign₹${String.format("%.2f", log.amount)}",
+                    "$sign₹${String.format("%,.0f", log.amount)}",
                     color = amountColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
@@ -893,7 +920,7 @@ fun TransactionDetailDialog(
                     val sign = if (isExpense) "-" else "+"
                     val amountColor = if (isExpense) Color(0xFFEF4444) else Color(0xFF10B981)
                     Text(
-                        "$sign₹${String.format("%.2f", log.amount)}",
+                        "$sign₹${String.format("%,.0f", log.amount)}",
                         color = amountColor,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
@@ -1000,11 +1027,11 @@ fun MoneyTrackerReportsView(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ReportRow("Net Income", "₹${String.format("%.2f", totalIncome)}", Color(0xFF10B981))
+                    ReportRow("Net Income", "₹${String.format("%,.0f", totalIncome)}", Color(0xFF10B981))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    ReportRow("Total Expenses", "₹${String.format("%.2f", totalExpense)}", Color(0xFFEF4444))
+                    ReportRow("Total Expenses", "₹${String.format("%,.0f", totalExpense)}", Color(0xFFEF4444))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    ReportRow("Net Balance", "₹${String.format("%.2f", totalBalance)}", Color(0xFFF59E0B))
+                    ReportRow("Net Balance", "₹${String.format("%,.0f", totalBalance)}", Color(0xFFF59E0B))
                 }
             }
         }
@@ -1023,7 +1050,7 @@ fun MoneyTrackerReportsView(
                     ReportRow("Total Recorded Logs", "${financeLogs.size}", MaterialTheme.colorScheme.onSurface)
                     ReportRow(
                         "Avg Expense / Transaction",
-                        "₹${String.format("%.2f", if (financeLogs.none { it.type == "expense" }) 0.0 else financeLogs.filter { it.type == "expense" }.map { it.amount }.average())}",
+                        "₹${String.format("%,.0f", if (financeLogs.none { it.type == "expense" }) 0.0 else financeLogs.filter { it.type == "expense" }.map { it.amount }.average())}",
                         MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -1271,6 +1298,152 @@ fun DateDetailView(
 }
 
 // -----------------------------------------------------------------------------
+// ADD NET WORTH SHEET
+// -----------------------------------------------------------------------------
+@Composable
+fun NetWorthAddSheet(
+    onDismiss: () -> Unit,
+    onSave: (name: String, type: String, amount: Double) -> Unit
+) {
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf("asset") } // "asset", "liability", "loan"
+    var amountStr by remember { mutableStateOf("") }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.85f))
+            .clickable(onClick = onDismiss)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(enabled = false) {}, // prevent click-through
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Top Header: Cancel | Title
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Cancel",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        modifier = Modifier.clickable(onClick = onDismiss)
+                    )
+                    Text(
+                        "Add Asset or Liability",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(48.dp)) // balance layout
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Selector for Asset, Liability, Loan
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("asset" to "Asset", "liability" to "Liability", "loan" to "Loan").forEach { (typeKey, label) ->
+                        val isSelected = type == typeKey
+                        val color = if (isSelected) {
+                            when (typeKey) {
+                                "asset" -> Color(0xFF10B981)
+                                "liability" -> Color(0xFFEF4444)
+                                else -> Color(0xFFF59E0B)
+                            }
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        }
+                        val textColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .background(color, RoundedCornerShape(22.dp))
+                                .clickable { type = typeKey },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = textColor,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Name Input
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Item Name") },
+                    placeholder = { Text("e.g. Mutual Funds, Credit Card, Home Loan") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                // Amount Input
+                OutlinedTextField(
+                    value = amountStr,
+                    onValueChange = { amountStr = it },
+                    label = { Text("Amount (₹)") },
+                    placeholder = { Text("0.00") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Save Button
+                Button(
+                    onClick = {
+                        val amt = amountStr.toDoubleOrNull() ?: 0.0
+                        if (name.isNotBlank() && amt > 0) {
+                            onSave(name, type, amt)
+                        } else {
+                            Toast.makeText(context, "Please enter a valid name and amount", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEC4899)),
+                    shape = RoundedCornerShape(25.dp)
+                ) {
+                    Text("Save Asset / Liability", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
 // ADD TRANSACTION SHEET (Screenshots 1, 2, 3, 4)
 // -----------------------------------------------------------------------------
 @Composable
@@ -1357,7 +1530,7 @@ fun FinanceAddSheet(
                     }
                 }
 
-                // Tabs: Expense | Income | Savings | Net Worth
+                // Tabs: Expense | Income | Savings
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1369,8 +1542,7 @@ fun FinanceAddSheet(
                     val tabs = listOf(
                         "expense" to "Expense",
                         "income" to "Income",
-                        "savings" to "Savings",
-                        "net_worth" to "Net Worth"
+                        "savings" to "Savings"
                     )
                     tabs.forEach { (tabKey, label) ->
                         val isSelected = activeTab == tabKey
@@ -1401,160 +1573,86 @@ fun FinanceAddSheet(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (activeTab == "net_worth") {
-                    // Net Worth Asset/Liability Form
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            "Net Worth Ledger",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        // Segmented Control/Row for Type (Asset vs Liability vs Loan)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                                .padding(2.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                // Categories Grid (4 Columns)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(4),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(currentCategories) { item ->
+                        val isSelected = selectedCategoryItem?.id == item.id
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.clickable {
+                                selectedCategoryItem = item
+                                mathExpression = ""
+                            }
                         ) {
-                            listOf("asset" to "Asset", "liability" to "Liability", "loan" to "Loan").forEach { (typeKey, label) ->
-                                val isSelected = netWorthType == typeKey
-                                val chipColor = when (typeKey) {
-                                    "asset" -> Color(0xFF10B981)
-                                    "liability" -> Color(0xFFEF4444)
-                                    else -> Color(0xFF3B82F6)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelected) chipColor.copy(alpha = 0.12f) else Color.Transparent)
-                                        .border(
-                                            width = if (isSelected) 1.5.dp else 0.dp,
-                                            color = if (isSelected) chipColor else Color.Transparent,
-                                            shape = RoundedCornerShape(6.dp)
-                                        )
-                                        .clickable {
-                                            netWorthType = typeKey
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        label,
-                                        color = if (isSelected) chipColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 13.sp
-                                    )
-                                }
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .background(
+                                        if (isSelected) Color(0xFFF59E0B) else MaterialTheme.colorScheme.surfaceVariant,
+                                        CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    FinanceCategoryDefaults.getCategoryIcon(item.iconKey),
+                                    contentDescription = item.name,
+                                    tint = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(26.dp)
+                                )
                             }
-                        }
-
-                        // TextField for the name
-                        OutlinedTextField(
-                            value = netWorthName,
-                            onValueChange = { netWorthName = it },
-                            label = { Text("Item Name") },
-                            placeholder = { Text("e.g. Mutual Funds, Gold, Loan") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFFF59E0B),
-                                focusedLabelColor = Color(0xFFF59E0B),
-                                cursorColor = Color(0xFFF59E0B)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                item.name,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
                             )
-                        )
-                    }
-                } else {
-                    // Categories Grid (4 Columns)
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(currentCategories) { item ->
-                            val isSelected = selectedCategoryItem?.id == item.id
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable {
-                                    selectedCategoryItem = item
-                                    mathExpression = ""
-                                }
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(54.dp)
-                                        .background(
-                                            if (isSelected) Color(0xFFF59E0B) else MaterialTheme.colorScheme.surfaceVariant,
-                                            CircleShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        FinanceCategoryDefaults.getCategoryIcon(item.iconKey),
-                                        contentDescription = item.name,
-                                        tint = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    item.name,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
                         }
+                    }
 
-                        // Last Item: + Settings
-                        item {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable(onClick = onOpenSettings)
+                    // Last Item: + Settings
+                    item {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.clickable(onClick = onOpenSettings)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(54.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.Add,
-                                        contentDescription = "Settings",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    "Settings",
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    textAlign = TextAlign.Center
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Settings",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Settings",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
 
-                // Calculator Keypad Overlay (Screenshots 3 & 4) when Category or Net Worth is selected
-                if (selectedCategoryItem != null || activeTab == "net_worth") {
+                // Calculator Keypad Overlay (Screenshots 3 & 4) when Category is selected
+                if (selectedCategoryItem != null) {
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
@@ -1579,31 +1677,49 @@ fun FinanceAddSheet(
                                 )
                             }
 
-                            // Note Input Line (only if not net worth)
-                            if (activeTab != "net_worth") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        if (noteText.isEmpty()) {
-                                            Text("Note : Enter a note...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                                        }
-                                        BasicTextField(
-                                            value = noteText,
-                                            onValueChange = { noteText = it },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
-                                        )
+                            // Note Input Line with Send/Enter button
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (noteText.isEmpty()) {
+                                        Text("Note : Enter a note...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                                     }
-                                    Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                    BasicTextField(
+                                        value = noteText,
+                                        onValueChange = { noteText = it },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(10.dp))
+                                IconButton(
+                                    onClick = {
+                                        val calculatedVal = evaluateMathExpression(mathExpression)
+                                        if (calculatedVal > 0) {
+                                            onSaveLog(
+                                                activeTab,
+                                                selectedCategoryItem!!.name,
+                                                calculatedVal,
+                                                noteText.ifBlank { null },
+                                                selectedDate
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Send,
+                                        contentDescription = "Save Transaction",
+                                        tint = Color(0xFFF59E0B),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             // Keypad Buttons Grid (4x5 perfectly aligned)
                             val keypadRows = listOf(
@@ -1648,19 +1764,10 @@ fun FinanceAddSheet(
                                                         "⌫" -> if (mathExpression.isNotEmpty()) mathExpression = mathExpression.dropLast(1)
                                                         "=" -> {
                                                             val calculatedVal = evaluateMathExpression(mathExpression)
-                                                            if (calculatedVal > 0) {
-                                                                if (activeTab == "net_worth") {
-                                                                    val resolvedName = netWorthName.ifBlank { "Custom Asset" }
-                                                                    onSaveNetWorth(resolvedName, netWorthType, calculatedVal)
-                                                                } else {
-                                                                    onSaveLog(
-                                                                        activeTab,
-                                                                        selectedCategoryItem!!.name,
-                                                                        calculatedVal,
-                                                                        noteText.ifBlank { null },
-                                                                        selectedDate
-                                                                    )
-                                                                }
+                                                            mathExpression = if (calculatedVal > 0) {
+                                                                java.lang.Math.round(calculatedVal).toString()
+                                                            } else {
+                                                                ""
                                                             }
                                                         }
                                                         else -> mathExpression += btn
@@ -2069,7 +2176,7 @@ fun RecurringTransactionsScreen(
                                     val amountColor = if (isExpense) Color(0xFFEF4444) else Color(0xFF10B981)
 
                                     Text(
-                                        "$sign₹${String.format("%.2f", item.amount)}",
+                                        "$sign₹${String.format("%,.0f", item.amount)}",
                                         color = amountColor,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
@@ -2294,7 +2401,6 @@ fun AddRecurringTransactionSheet(
                     )
                 }
             }
-        }
 
         // Pickers
         if (showTypePicker) {
@@ -2348,6 +2454,7 @@ fun AddRecurringTransactionSheet(
             )
         }
     }
+}
 }
 
 @Composable
@@ -2543,8 +2650,10 @@ fun NetWorthManagerView(
     onAddNetWorthClick: () -> Unit
 ) {
     val netWorthItems by viewModel.allNetWorthItems.collectAsState()
+    val allFinanceLogs by viewModel.allFinanceLogs.collectAsState()
     
-    val totalAssets = remember(netWorthItems) { netWorthItems.filter { it.type == "asset" }.sumOf { it.amount } }
+    val totalSavingsFromLogs = remember(allFinanceLogs) { allFinanceLogs.filter { it.type == "savings" }.sumOf { it.amount } }
+    val totalAssets = remember(netWorthItems, totalSavingsFromLogs) { netWorthItems.filter { it.type == "asset" }.sumOf { it.amount } + totalSavingsFromLogs }
     val totalLoans = remember(netWorthItems) { netWorthItems.filter { it.type == "loan" }.sumOf { it.amount } }
     val totalLiabilities = remember(netWorthItems) { netWorthItems.filter { it.type == "liability" }.sumOf { it.amount } }
     val totalDebt = totalLoans + totalLiabilities
@@ -2559,52 +2668,54 @@ fun NetWorthManagerView(
     ) {
         // Net Worth Card
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+            StaggeredItem(index = 0) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                 ) {
-                    Text(
-                        text = "YOUR ESTIMATED NET WORTH",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 1.2.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "₹${String.format("%,.2f", netWorth)}",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = if (netWorth >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Total Assets", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("₹${String.format("%,.0f", totalAssets)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
-                        }
-                        Divider(
-                            modifier = Modifier
-                                .height(32.dp)
-                                .width(1.dp),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                        Text(
+                            text = "YOUR ESTIMATED NET WORTH",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.2.sp
                         )
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Total Liabilities", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("₹${String.format("%,.0f", totalDebt)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "₹${String.format("%,.0f", netWorth)}",
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (netWorth >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Total Assets", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("₹${String.format("%,.0f", totalAssets)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                            }
+                            Divider(
+                                modifier = Modifier
+                                    .height(32.dp)
+                                    .width(1.dp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Total Liabilities", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("₹${String.format("%,.0f", totalDebt)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+                            }
                         }
                     }
                 }
@@ -2613,15 +2724,17 @@ fun NetWorthManagerView(
 
         // Add Button Row
         item {
-            Button(
-                onClick = onAddNetWorthClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEC4899)),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Asset or Liability", color = Color.White, fontWeight = FontWeight.Bold)
+            StaggeredItem(index = 1) {
+                Button(
+                    onClick = onAddNetWorthClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEC4899)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Add Asset or Liability", color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
         }
 
@@ -2670,8 +2783,10 @@ fun NetWorthManagerView(
                         letterSpacing = 1.sp
                     )
                 }
-                items(assetsList) { item ->
-                    NetWorthItemRow(item = item, onDelete = { viewModel.deleteNetWorthItem(item.id) })
+                itemsIndexed(assetsList) { idx, item ->
+                    StaggeredItem(index = 2 + idx) {
+                        NetWorthItemRow(item = item, onDelete = { viewModel.deleteNetWorthItem(item.id) })
+                    }
                 }
             }
 
@@ -2688,8 +2803,10 @@ fun NetWorthManagerView(
                         letterSpacing = 1.sp
                     )
                 }
-                items(debtsList) { item ->
-                    NetWorthItemRow(item = item, onDelete = { viewModel.deleteNetWorthItem(item.id) })
+                itemsIndexed(debtsList) { idx, item ->
+                    StaggeredItem(index = 2 + assetsList.size + idx) {
+                        NetWorthItemRow(item = item, onDelete = { viewModel.deleteNetWorthItem(item.id) })
+                    }
                 }
             }
         }
@@ -2756,7 +2873,7 @@ fun NetWorthItemRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    "₹${String.format("%,.2f", item.amount)}",
+                    "₹${String.format("%,.0f", item.amount)}",
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                     color = if (item.type == "asset") Color(0xFF10B981) else Color(0xFFEF4444)
@@ -2770,6 +2887,28 @@ fun NetWorthItemRow(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun NetWorthScreen(viewModel: TrackWiseViewModel) {
+    var showAddSheet by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        NetWorthManagerView(
+            viewModel = viewModel,
+            onAddNetWorthClick = { showAddSheet = true }
+        )
+
+        if (showAddSheet) {
+            NetWorthAddSheet(
+                onDismiss = { showAddSheet = false },
+                onSave = { name, type, amount ->
+                    viewModel.addNetWorthItem(name, type, amount)
+                    showAddSheet = false
+                }
+            )
         }
     }
 }

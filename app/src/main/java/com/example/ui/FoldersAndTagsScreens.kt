@@ -310,7 +310,7 @@ fun TaskFoldersScreen(
 
                                     if (tasks.isEmpty()) {
                                         Text(
-                                            text = "No tasks available to assign. Add tasks first!",
+                                            text = "No tasks available to assign. Add tasks!",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                                             modifier = Modifier.padding(bottom = 8.dp, start = 8.dp)
@@ -375,7 +375,7 @@ fun TaskFoldersScreen(
 
                                     if (habits.isEmpty()) {
                                         Text(
-                                            text = "No habits available to assign. Add habits first!",
+                                            text = "No habits available to assign. Add habits!",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                                             modifier = Modifier.padding(bottom = 8.dp, start = 8.dp)
@@ -829,7 +829,7 @@ fun HashtagsScreen(
 
                                     if (tasks.isEmpty()) {
                                         Text(
-                                            text = "No tasks available to tag. Add tasks first!",
+                                            text = "No tasks available to tag. Add tasks!",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                                             modifier = Modifier.padding(8.dp)
@@ -890,7 +890,7 @@ fun HashtagsScreen(
 
                                     if (habits.isEmpty()) {
                                         Text(
-                                            text = "No habits available to tag. Add habits first!",
+                                            text = "No habits available to tag. Add habits!",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                                             modifier = Modifier.padding(8.dp)
