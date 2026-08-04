@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,6 +63,7 @@ fun HabitDetailScreen(
     onEditHabit: (HabitEntity) -> Unit
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val habits by viewModel.allHabits.collectAsState()
     val habit = habits.find { it.id == habitId }
 
@@ -244,7 +247,12 @@ fun HabitDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(enabled = false) {}
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusManager.clearFocus()
+            }
             .background(themeBgColor)
     ) {
         Column(

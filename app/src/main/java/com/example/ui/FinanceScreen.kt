@@ -35,6 +35,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -1302,13 +1304,47 @@ fun DateDetailView(
 // -----------------------------------------------------------------------------
 @Composable
 fun NetWorthAddSheet(
+    initialType: String = "asset",
     onDismiss: () -> Unit,
     onSave: (name: String, type: String, amount: Double) -> Unit
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    var type by remember(initialType) { mutableStateOf(initialType) } // "asset", "liability", "loan"
+    var selectedAssetType by remember { mutableStateOf("Emergency Fund") }
+    var customAssetName by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf("asset") } // "asset", "liability", "loan"
     var amountStr by remember { mutableStateOf("") }
+    var dropdownExpanded by remember { mutableStateOf(false) }
+
+    val assetOptions = listOf(
+        "Emergency Fund",
+        "Fixed Deposit",
+        "FD",
+        "Retirement",
+        "Mutual Funds",
+        "Gold",
+        "Silver",
+        "EPF",
+        "NPS",
+        "Stocks",
+        "PPF",
+        "Savings bank account",
+        "Savings Account",
+        "Property",
+        "Real Estate",
+        "RD",
+        "LIC",
+        "Piggy Bank",
+        "Crypto",
+        "Others"
+    )
+
+    val finalName = if (type == "asset") {
+        if (selectedAssetType == "Others") customAssetName else selectedAssetType
+    } else {
+        name
+    }
 
     Box(
         modifier = Modifier
@@ -1319,7 +1355,12 @@ fun NetWorthAddSheet(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(enabled = false) {}, // prevent click-through
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                },
             color = MaterialTheme.colorScheme.surface
         ) {
             Column(
@@ -1391,16 +1432,73 @@ fun NetWorthAddSheet(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Name Input
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Item Name") },
-                    placeholder = { Text("e.g. Mutual Funds, Credit Card, Home Loan") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
+                // Name Input depends on selection
+                if (type == "asset") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = "Asset Category",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = selectedAssetType,
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = {
+                                    IconButton(onClick = { dropdownExpanded = true }) {
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Category")
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { dropdownExpanded = true },
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            DropdownMenu(
+                                expanded = dropdownExpanded,
+                                onDismissRequest = { dropdownExpanded = false },
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .background(MaterialTheme.colorScheme.surface)
+                            ) {
+                                assetOptions.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option, color = MaterialTheme.colorScheme.onSurface) },
+                                        onClick = {
+                                            selectedAssetType = option
+                                            dropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        if (selectedAssetType == "Others") {
+                            OutlinedTextField(
+                                value = customAssetName,
+                                onValueChange = { customAssetName = it },
+                                label = { Text("Custom Asset Name") },
+                                placeholder = { Text("e.g. Startup Equity, Art Collection") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                        }
+                    }
+                } else {
+                    // Name Input for Liability/Loan
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Item Name") },
+                        placeholder = { Text("e.g. Credit Card, Home Loan") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true
+                    )
+                }
 
                 // Amount Input
                 OutlinedTextField(
@@ -1422,8 +1520,8 @@ fun NetWorthAddSheet(
                 Button(
                     onClick = {
                         val amt = amountStr.toDoubleOrNull() ?: 0.0
-                        if (name.isNotBlank() && amt > 0) {
-                            onSave(name, type, amt)
+                        if (finalName.isNotBlank() && amt > 0) {
+                            onSave(finalName, type, amt)
                         } else {
                             Toast.makeText(context, "Please enter a valid name and amount", Toast.LENGTH_SHORT).show()
                         }
@@ -1456,6 +1554,7 @@ fun FinanceAddSheet(
     onSaveNetWorth: (name: String, type: String, amount: Double) -> Unit = { _, _, _ -> }
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     var activeTab by remember { mutableStateOf(initialTab) } // "expense", "income", "savings", "net_worth"
     var selectedCategoryItem by remember { mutableStateOf<FinanceCategoryItem?>(null) }
 
@@ -1505,7 +1604,12 @@ fun FinanceAddSheet(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(enabled = false) {}, // prevent click-through
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                },
             color = MaterialTheme.colorScheme.surface
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -2233,6 +2337,7 @@ fun AddRecurringTransactionSheet(
     onSave: (RecurringTransaction) -> Unit
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
     var name by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf("Expense") }
@@ -2272,7 +2377,12 @@ fun AddRecurringTransactionSheet(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(enabled = false) {},
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                },
             color = MaterialTheme.colorScheme.surface
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -2722,22 +2832,6 @@ fun NetWorthManagerView(
             }
         }
 
-        // Add Button Row
-        item {
-            StaggeredItem(index = 1) {
-                Button(
-                    onClick = onAddNetWorthClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEC4899)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Add Asset or Liability", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
         if (netWorthItems.isEmpty()) {
             item {
                 Box(
@@ -2893,20 +2987,22 @@ fun NetWorthItemRow(
 
 @Composable
 fun NetWorthScreen(viewModel: TrackWiseViewModel) {
-    var showAddSheet by remember { mutableStateOf(false) }
+    val showAddSheet by viewModel.showNetWorthAddSheet.collectAsState()
+    val presetType by viewModel.netWorthPresetType.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         NetWorthManagerView(
             viewModel = viewModel,
-            onAddNetWorthClick = { showAddSheet = true }
+            onAddNetWorthClick = {}
         )
 
         if (showAddSheet) {
             NetWorthAddSheet(
-                onDismiss = { showAddSheet = false },
+                initialType = presetType,
+                onDismiss = { viewModel.closeNetWorthAddSheet() },
                 onSave = { name, type, amount ->
                     viewModel.addNetWorthItem(name, type, amount)
-                    showAddSheet = false
+                    viewModel.closeNetWorthAddSheet()
                 }
             )
         }

@@ -178,7 +178,12 @@ fun WorkspaceScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = false) {}
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        }
                 ) {
                     Column(
                         modifier = Modifier
@@ -662,7 +667,31 @@ fun TaskSection(
         } else {
             filteredTasks.forEachIndexed { index, task ->
                 StaggeredItem(index = index) {
-                    TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
+                    SwipeableTaskItem(
+                        task = task,
+                        onToggleTask = { viewModel.toggleTaskCompletion(task) },
+                        onDeleteTask = { viewModel.deleteTask(task.id) },
+                        onArchiveTask = { viewModel.updateTask(task.copy(notes = task.notes + "[ARCHIVED]")) },
+                        onPinTask = {
+                            viewModel.updateTask(task.copy(notes = if (task.notes.contains("[PINNED]")) task.notes.replace("[PINNED]", "") else task.notes + " [PINNED]"))
+                        },
+                        onPostponeTask = {
+                            try {
+                                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                                val curDate = sdf.parse(task.deadline)
+                                val cal = java.util.Calendar.getInstance().apply {
+                                    time = curDate
+                                    add(java.util.Calendar.DAY_OF_YEAR, 1)
+                                }
+                                val newDeadline = sdf.format(cal.time)
+                                viewModel.updateTask(task.copy(deadline = newDeadline))
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    ) {
+                        TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
+                    }
                 }
             }
         }
@@ -736,7 +765,8 @@ fun TaskCard(
     }
 
     val tileTextColor = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.onBackground.red > 0.5f
+    val adaptiveBrandViolet = if (isDark) Color(0xFFA78BFA) else BrandViolet
     val gradientBrush = if (task.completed) {
         Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
     } else {
@@ -860,7 +890,7 @@ fun TaskCard(
                             text = "📝 ${task.notes.replace("[PINNED]", "")}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet
+                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else adaptiveBrandViolet
                         )
                     }
 
@@ -880,14 +910,14 @@ fun TaskCard(
                             Icon(
                                 imageVector = Icons.Default.Folder,
                                 contentDescription = "Project",
-                                tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet,
+                                tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else adaptiveBrandViolet,
                                 modifier = Modifier.size(13.dp)
                             )
                             Text(
                                 text = task.project,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet
+                                color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else adaptiveBrandViolet
                             )
                         }
 
@@ -979,7 +1009,7 @@ fun TaskCard(
                             text = "Subtasks",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet
+                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else adaptiveBrandViolet
                         )
 
                         Column(
@@ -1033,7 +1063,7 @@ fun TaskCard(
                                                 text = "$datePart$spacer$timePart",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet.copy(alpha = 0.8f)
+                                                color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else adaptiveBrandViolet.copy(alpha = 0.8f)
                                             )
                                         }
                                     }
@@ -1064,13 +1094,13 @@ fun TaskCard(
                             imageVector = Icons.Default.Add,
                             contentDescription = null,
                             modifier = Modifier.size(16.dp),
-                            tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet
+                            tint = if (task.completed) tileTextColor.copy(alpha = 0.5f) else adaptiveBrandViolet
                         )
                         Text(
                             text = "Add Subtask",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else BrandViolet,
+                            color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else adaptiveBrandViolet,
                             modifier = Modifier.padding(start = 4.dp)
                         )
                     }
@@ -1451,11 +1481,23 @@ fun HabitSection(
         } else {
             filteredHabits.forEachIndexed { index, habit ->
                 StaggeredItem(index = index) {
-                    HabitCard(
+                    SwipeableHabitCard(
                         habit = habit,
-                        viewModel = viewModel,
-                        onHabitClick = { onHabitClick(habit) }
-                    )
+                        onToggleCompleted = { completed ->
+                            val todayStr = TrackWiseUtils.getTodayString()
+                            val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                            val isCurrentlyCompleted = days.contains(todayStr)
+                            if (isCurrentlyCompleted != completed) {
+                                viewModel.toggleHabitToday(habit)
+                            }
+                        }
+                    ) {
+                        HabitCard(
+                            habit = habit,
+                            viewModel = viewModel,
+                            onHabitClick = { onHabitClick(habit) }
+                        )
+                    }
                 }
             }
         }
@@ -1814,7 +1856,7 @@ fun HabitCard(
         )
     }
 
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.onBackground.red > 0.5f
     val gradientBrush = if (isDark) {
         Brush.linearGradient(colors = listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
     } else {
@@ -1942,6 +1984,76 @@ fun HabitCard(
                 }
             }
         }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeableHabitCard(
+    habit: com.example.data.HabitEntity,
+    onToggleCompleted: (Boolean) -> Unit,
+    content: @Composable () -> Unit
+) {
+    val dismissState = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> {
+                    onToggleCompleted(true)
+                    false
+                }
+                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> {
+                    onToggleCompleted(false)
+                    false
+                }
+                androidx.compose.material3.SwipeToDismissBoxValue.Settled -> false
+            }
+        }
+    )
+
+    androidx.compose.material3.SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val color = when (direction) {
+                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> BrandGreen
+                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> BrandRose
+                else -> androidx.compose.ui.graphics.Color.Transparent
+            }
+            val icon = when (direction) {
+                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> Icons.Default.CheckCircle
+                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> Icons.Default.Cancel
+                else -> Icons.Default.Block
+            }
+            val text = when (direction) {
+                androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> "✨ Done for Today!"
+                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> "⚠️ Not Completed Today"
+                else -> ""
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = if (direction == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (direction == androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd) {
+                        Icon(imageVector = icon, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White)
+                        Text(text = text, color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    } else if (direction == androidx.compose.material3.SwipeToDismissBoxValue.EndToStart) {
+                        Text(text = text, color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Icon(imageVector = icon, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White)
+                    }
+                }
+            }
+        }
+    ) {
+        content()
     }
 }
 

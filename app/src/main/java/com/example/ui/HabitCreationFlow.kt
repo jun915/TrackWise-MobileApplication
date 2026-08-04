@@ -34,6 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDown
 import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -234,6 +237,8 @@ fun HabitCreationFlowDialog(
         val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
         val textColor = MaterialTheme.colorScheme.onBackground
 
+        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -241,6 +246,16 @@ fun HabitCreationFlowDialog(
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .imePadding()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.any { it.changedToDown() }) {
+                                focusManager.clearFocus()
+                            }
+                        }
+                    }
+                }
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Header Bar

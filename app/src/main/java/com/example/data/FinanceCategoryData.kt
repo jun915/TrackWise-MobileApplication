@@ -65,7 +65,16 @@ object FinanceCategoryDefaults {
         FinanceCategoryItem("sav_8", "Piggy Bank", "savings", "piggy_bank", 0xFFEC4899),
         FinanceCategoryItem("sav_9", "Stocks", "savings", "stocks", 0xFF3B82F6),
         FinanceCategoryItem("sav_10", "Crypto", "savings", "crypto", 0xFF8B5CF6),
-        FinanceCategoryItem("sav_11", "Others", "savings", "others", 0xFF6B7280)
+        FinanceCategoryItem("sav_11", "Silver", "savings", "silver", 0xFF94A3B8),
+        FinanceCategoryItem("sav_12", "EPF", "savings", "epf", 0xFF4F46E5),
+        FinanceCategoryItem("sav_13", "NPS", "savings", "nps", 0xFFF97316),
+        FinanceCategoryItem("sav_14", "PPF", "savings", "ppf", 0xFF16A34A),
+        FinanceCategoryItem("sav_15", "Savings bank account", "savings", "savings_bank_account", 0xFF10B981),
+        FinanceCategoryItem("sav_16", "Property", "savings", "property", 0xFF06B6D4),
+        FinanceCategoryItem("sav_17", "FD", "savings", "fd", 0xFF10B981),
+        FinanceCategoryItem("sav_18", "RD", "savings", "rd", 0xFF0891B2),
+        FinanceCategoryItem("sav_19", "LIC", "savings", "lic", 0xFFE11D48),
+        FinanceCategoryItem("sav_20", "Others", "savings", "others", 0xFF6B7280)
     )
 
     fun moveCategoryUp(list: SnapshotStateList<FinanceCategoryItem>, index: Int) {
@@ -127,6 +136,14 @@ object FinanceCategoryDefaults {
             "piggy_bank" -> Icons.Default.Savings
             "stocks" -> Icons.Default.SsidChart
             "crypto" -> Icons.Default.CurrencyBitcoin
+            "silver" -> Icons.Default.MonetizationOn
+            "epf" -> Icons.Default.BeachAccess
+            "nps" -> Icons.Default.BeachAccess
+            "ppf" -> Icons.Default.BeachAccess
+            "savings_bank_account" -> Icons.Default.AccountBalanceWallet
+            "property" -> Icons.Default.LocationCity
+            "rd" -> Icons.Default.AccountBalance
+            "lic" -> Icons.Default.Shield
             "settings" -> Icons.Default.Add
             else -> Icons.Default.Category
         }

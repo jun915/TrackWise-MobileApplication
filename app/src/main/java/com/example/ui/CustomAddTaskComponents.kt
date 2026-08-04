@@ -25,6 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -544,12 +547,23 @@ fun CustomAddTaskBottomSheet(
                 ),
             contentAlignment = Alignment.BottomCenter
         ) {
+            val focusManager = LocalFocusManager.current
             // Sheet Content Container
             Card(
                 shape = if (isFullScreen) RoundedCornerShape(0.dp) else RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
                 modifier = (if (isFullScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (event.changes.any { it.changedToDown() }) {
+                                    focusManager.clearFocus()
+                                }
+                            }
+                        }
+                    }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -935,6 +949,7 @@ fun CustomAddTaskBottomSheet(
             enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
             exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
         ) {
+            val focusManager = LocalFocusManager.current
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -947,7 +962,12 @@ fun CustomAddTaskBottomSheet(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = false) {} // prevent clicking on card from dismissing
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        } // prevent clicking on card from dismissing
                         .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
                 ) {
                     Column(
@@ -1063,6 +1083,7 @@ fun CustomAddTaskBottomSheet(
             enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
             exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
         ) {
+            val focusManager = LocalFocusManager.current
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1078,7 +1099,12 @@ fun CustomAddTaskBottomSheet(
                     elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = false) {}
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        }
                 ) {
                     Column(
                         modifier = Modifier

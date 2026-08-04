@@ -38,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDown
 import com.example.data.BirthdayEntity
 import com.example.ui.theme.*
 import java.text.SimpleDateFormat
@@ -127,7 +130,7 @@ fun ModernAddOccasionDialog(
     // Counting Mode state
     var selectedCountingMode by remember {
         mutableStateOf(
-            editingBirthday?.countingMode ?: if (selectedType.lowercase() == "countdown") "Count Down" else "Count Up"
+            editingBirthday?.countingMode ?: "Count Down"
         )
     }
     var showCountingModePickerDialog by remember { mutableStateOf(false) }
@@ -187,6 +190,8 @@ fun ModernAddOccasionDialog(
     val fieldBg = if (isDark) FieldDarkBg else FieldLightBg
     val textColor = MaterialTheme.colorScheme.onBackground
 
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -194,7 +199,17 @@ fun ModernAddOccasionDialog(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 0.dp, vertical = 0.dp),
+                .padding(horizontal = 0.dp, vertical = 0.dp)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.any { it.changedToDown() }) {
+                                focusManager.clearFocus()
+                            }
+                        }
+                    }
+                },
             color = bgColor
         ) {
             Column(

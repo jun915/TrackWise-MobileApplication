@@ -663,9 +663,6 @@ object TrackWiseUtils {
     }
 
     fun shouldShowTaskOnDate(task: com.example.data.TaskEntity, dateStr: String): Boolean {
-        if (task.repeatType == "none") {
-            return dateStr == task.deadline
-        }
         val sDate = if (!task.startDate.isNullOrBlank()) task.startDate else task.deadline
         if (dateStr < sDate) {
             return false
@@ -673,6 +670,110 @@ object TrackWiseUtils {
         if (!task.endDate.isNullOrBlank() && dateStr > task.endDate) {
             return false
         }
-        return true
+
+        val date = parseDate(dateStr)
+        val created = parseDate(sDate)
+
+        val cal = Calendar.getInstance().apply { time = date }
+        val calCreated = Calendar.getInstance().apply { time = created }
+
+        val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+        val dayOfWeekStr = when (dayOfWeek) {
+            Calendar.SUNDAY -> "Sun"
+            Calendar.MONDAY -> "Mon"
+            Calendar.TUESDAY -> "Tue"
+            Calendar.WEDNESDAY -> "Wed"
+            Calendar.THURSDAY -> "Thu"
+            Calendar.FRIDAY -> "Fri"
+            Calendar.SATURDAY -> "Sat"
+            else -> ""
+        }
+
+        // Check if task has specific days of week selected (e.g. "Mon,Wed,Fri")
+        val customDaysList = task.customRepeatDaysOfWeek?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+        if (customDaysList.isNotEmpty() && !customDaysList.contains(dayOfWeekStr)) {
+            return false
+        }
+
+        return when (task.repeatType.lowercase()) {
+            "none" -> {
+                dateStr == sDate
+            }
+            "daily" -> {
+                if (customDaysList.isNotEmpty()) {
+                    customDaysList.contains(dayOfWeekStr)
+                } else {
+                    true
+                }
+            }
+            "weekdays" -> {
+                dayOfWeek in listOf(Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY)
+            }
+            "weekly" -> {
+                if (customDaysList.isNotEmpty()) {
+                    customDaysList.contains(dayOfWeekStr)
+                } else {
+                    cal.get(Calendar.DAY_OF_WEEK) == calCreated.get(Calendar.DAY_OF_WEEK)
+                }
+            }
+            "monthly" -> {
+                val targetDay = minOf(calCreated.get(Calendar.DAY_OF_MONTH), cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                cal.get(Calendar.DAY_OF_MONTH) == targetDay
+            }
+            "yearly" -> {
+                val targetDay = minOf(calCreated.get(Calendar.DAY_OF_MONTH), cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                cal.get(Calendar.DAY_OF_MONTH) == targetDay && cal.get(Calendar.MONTH) == calCreated.get(Calendar.MONTH)
+            }
+            "custom" -> {
+                val value = task.customRepeatValue.coerceAtLeast(1)
+                val cal1 = Calendar.getInstance().apply {
+                    time = created
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val cal2 = Calendar.getInstance().apply {
+                    time = date
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val diffMs = cal2.timeInMillis - cal1.timeInMillis
+                val diffDays = java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
+
+                when (task.customRepeatUnit.lowercase()) {
+                    "days" -> {
+                        diffDays >= 0 && (diffDays % value == 0)
+                    }
+                    "weeks" -> {
+                        val diffWeeks = diffDays / 7
+                        val isCorrectWeek = diffWeeks >= 0 && (diffWeeks % value == 0)
+                        if (customDaysList.isEmpty()) {
+                            isCorrectWeek && cal.get(Calendar.DAY_OF_WEEK) == calCreated.get(Calendar.DAY_OF_WEEK)
+                        } else {
+                            isCorrectWeek && customDaysList.contains(dayOfWeekStr)
+                        }
+                    }
+                    "months" -> {
+                        val yearDiff = cal.get(Calendar.YEAR) - calCreated.get(Calendar.YEAR)
+                        val monthDiff = cal.get(Calendar.MONTH) - calCreated.get(Calendar.MONTH) + (yearDiff * 12)
+                        val isCorrectMonth = monthDiff >= 0 && (monthDiff % value == 0)
+                        val targetDay = minOf(calCreated.get(Calendar.DAY_OF_MONTH), cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                        isCorrectMonth && cal.get(Calendar.DAY_OF_MONTH) == targetDay
+                    }
+                    "years" -> {
+                        val yearDiff = cal.get(Calendar.YEAR) - calCreated.get(Calendar.YEAR)
+                        val isCorrectYear = yearDiff >= 0 && (yearDiff % value == 0)
+                        val targetDay = minOf(calCreated.get(Calendar.DAY_OF_MONTH), cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+                        isCorrectYear && cal.get(Calendar.DAY_OF_MONTH) == targetDay &&
+                                cal.get(Calendar.MONTH) == calCreated.get(Calendar.MONTH)
+                    }
+                    else -> true
+                }
+            }
+            else -> true
+        }
     }
 }

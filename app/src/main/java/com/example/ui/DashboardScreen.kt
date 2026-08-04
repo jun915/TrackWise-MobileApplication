@@ -95,11 +95,10 @@ fun DashboardScreen(
     val todayFocusItems = remember(allTasks, todayStr) {
         allTasks.filter { 
             !it.notes.contains("[ARCHIVED]") &&
-            TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && 
-            (!it.completed || !isTaskDueTimeEnded(it, todayStr))
+            !it.completed &&
+            TrackWiseUtils.shouldShowTaskOnDate(it, todayStr)
         }
         .sortedWith(compareBy<TaskEntity> { !it.notes.contains("[PINNED]") }
-            .thenBy { it.completed }
             .thenBy { it.reminderTime == null }
             .thenBy { it.reminderTime ?: "" }
             .thenBy { it.title }
@@ -109,14 +108,10 @@ fun DashboardScreen(
     val priorityAndOverdueItems = remember(allTasks, todayStr) {
         allTasks.filter {
             !it.notes.contains("[ARCHIVED]") &&
-            if (it.completed) {
-                (it.deadline <= todayStr || it.priority == "high") && !isTaskDueTimeEnded(it, todayStr)
-            } else {
-                it.deadline < todayStr || it.priority == "high"
-            }
+            !it.completed &&
+            (it.deadline < todayStr || it.priority == "high")
         }
         .sortedWith(compareBy<TaskEntity> { !it.notes.contains("[PINNED]") }
-            .thenBy { it.completed }
             .thenBy { it.deadline }
             .thenByDescending { it.priority == "high" }
             .thenBy { it.title }
@@ -430,7 +425,14 @@ fun DashboardScreen(
             StaggeredItem(index = 6) {
                 DashboardOccasionsCountdownWidget(
                     birthdays = allBirthdays,
-                    onNavigate = onNavigate
+                    onNavigate = { target ->
+                        if (target == "countdown") {
+                            viewModel.setWorkspaceSubTab(3)
+                            onNavigate("workspace")
+                        } else {
+                            onNavigate(target)
+                        }
+                    }
                 )
             }
         }
@@ -1096,7 +1098,7 @@ fun TodayItemsWidget(
                             onPinTask = { onPinTask(task) },
                             onPostponeTask = { onPostponeTask(task) }
                         ) {
-                            val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                            val isDark = MaterialTheme.colorScheme.onBackground.red > 0.5f
                             val gradientBrush = if (task.completed) {
                                 Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
                             } else {
@@ -1346,7 +1348,7 @@ fun PriorityItemsWidget(
                             onPinTask = { onPinTask(task) },
                             onPostponeTask = { onPostponeTask(task) }
                         ) {
-                            val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                            val isDark = MaterialTheme.colorScheme.onBackground.red > 0.5f
                             val gradientBrush = if (task.completed) {
                                 Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
                             } else {
@@ -1542,6 +1544,11 @@ fun DailyHabitsWidget(
     val completedToday = filteredHabits.count {
         TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
     }
+    val renderedHabits = remember(filteredHabits, today) {
+        filteredHabits.filter {
+            !TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
+        }
+    }
 
     Card(
         shape = RoundedCornerShape(24.dp),
@@ -1594,109 +1601,121 @@ fun DailyHabitsWidget(
                 }
             }
 
-            if (filteredHabits.isEmpty()) {
+            if (renderedHabits.isEmpty()) {
                 Column(
                     modifier = Modifier.padding(vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = if (habits.isEmpty()) "Configure Habits in the Workspace tab to launch daily streak multipliers." else "No active habits scheduled for today.",
+                        text = if (habits.isEmpty()) "Configure Habits in the Workspace tab to launch daily streak multipliers."
+                               else if (completedToday > 0 && completedToday == filteredHabits.size) "All of today's habits completed! Keep up the great work! 🎉"
+                               else "No active habits scheduled for today.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    filteredHabits.sortedBy {
-                        TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
-                    }.forEach { habit ->
+                    renderedHabits.forEach { habit ->
                         val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isDone) BrandOrange.copy(alpha = 0.05f)
-                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    if (isDone) BrandOrange.copy(alpha = 0.25f)
-                                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
-                                    RoundedCornerShape(16.dp)
-                                )
-                                .clickable { onHabitClick(habit) }
+                        SwipeableHabitCard(
+                            habit = habit,
+                            onToggleCompleted = { completed ->
+                                val todayStr = TrackWiseUtils.getTodayString()
+                                val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                                val isCurrentlyCompleted = days.contains(todayStr)
+                                if (isCurrentlyCompleted != completed) {
+                                    onToggleHabit(habit)
+                                }
+                            }
                         ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isDone) BrandOrange.copy(alpha = 0.05f)
+                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        1.dp,
+                                        if (isDone) BrandOrange.copy(alpha = 0.25f)
+                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .clickable { onHabitClick(habit) }
                             ) {
-                                // Left: Habit icon / checkmark
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clickable { onToggleHabit(habit) },
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (isDone) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "Done",
-                                            tint = BrandOrange,
-                                            modifier = Modifier.size(22.dp)
+                                    // Left: Habit icon / checkmark
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clickable { onToggleHabit(habit) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isDone) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Done",
+                                                tint = BrandOrange,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        } else {
+                                            HabitIconView(
+                                                icon = habit.icon,
+                                                tint = BrandOrange,
+                                                size = 22.dp
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    // Middle: Text details
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = habit.name,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None,
+                                            color = if (isDone) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground
                                         )
-                                    } else {
-                                        HabitIconView(
-                                            icon = habit.icon,
-                                            tint = BrandOrange,
-                                            size = 22.dp
+                                        Text(
+                                            text = habit.category,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
-                                }
 
-                                Spacer(modifier = Modifier.width(14.dp))
-
-                                // Middle: Text details
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = habit.name,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        textDecoration = if (isDone) TextDecoration.LineThrough else TextDecoration.None,
-                                        color = if (isDone) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground
-                                    )
-                                    Text(
-                                        text = habit.category,
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-
-                                // Right: Beautiful streak flame badge
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .background(
-                                            if (habit.streak > 0) BrandOrange.copy(alpha = 0.12f)
-                                            else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.04f),
-                                            RoundedCornerShape(8.dp)
+                                    // Right: Beautiful streak flame badge
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .background(
+                                                if (habit.streak > 0) BrandOrange.copy(alpha = 0.12f)
+                                                else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.04f),
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocalFireDepartment,
+                                            contentDescription = null,
+                                            tint = if (habit.streak > 0) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                                            modifier = Modifier.size(13.dp)
                                         )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.LocalFireDepartment,
-                                        contentDescription = null,
-                                        tint = if (habit.streak > 0) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Text(
-                                        text = "${habit.streak}d",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = if (habit.streak > 0) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                        modifier = Modifier.padding(start = 2.dp)
-                                    )
+                                        Text(
+                                            text = "${habit.streak}d",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = if (habit.streak > 0) BrandOrange else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                            modifier = Modifier.padding(start = 2.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2680,7 +2699,11 @@ fun DashboardFinanceSummaryWidget(
         monthLogs.filter { it.type == "expense" }.sumOf { it.amount }
     }
 
-    val netBalance = totalIncome - totalExpense
+    val totalSavings = remember(monthLogs) {
+        monthLogs.filter { it.type == "savings" }.sumOf { it.amount }
+    }
+
+    val netBalance = totalIncome - totalExpense - totalSavings
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -2962,7 +2985,7 @@ fun DashboardOccasionsCountdownWidget(
                     }
                 }
                 Surface(
-                    onClick = { onNavigate("workspace") },
+                    onClick = { onNavigate("countdown") },
                     shape = RoundedCornerShape(8.dp),
                     color = BrandOrange.copy(alpha = 0.12f)
                 ) {
@@ -2992,7 +3015,7 @@ fun DashboardOccasionsCountdownWidget(
                     }
 
                     Surface(
-                        onClick = { onNavigate("workspace") },
+                        onClick = { onNavigate("countdown") },
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                         modifier = Modifier.fillMaxWidth()

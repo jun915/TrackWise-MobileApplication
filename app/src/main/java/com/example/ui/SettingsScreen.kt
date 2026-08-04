@@ -389,8 +389,17 @@ fun AppearanceSection(viewModel: TrackWiseViewModel) {
                             "dark" -> "Dark Mode 🌙"
                             else -> "System Default ⚙️"
                         }
-                        Text(text = currentThemeLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Theme Mode")
+                        Text(
+                            text = currentThemeLabel,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Expand Theme Mode",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
                 DropdownMenu(
@@ -429,8 +438,17 @@ fun AppearanceSection(viewModel: TrackWiseViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "$fontSize Size Option", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Font Size")
+                        Text(
+                            text = "$fontSize Size Option",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Expand Font Size",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
                 DropdownMenu(
@@ -469,8 +487,17 @@ fun AppearanceSection(viewModel: TrackWiseViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = "$fontStyle Style Option", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Expand Font Style")
+                        Text(
+                            text = "$fontStyle Style Option",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Expand Font Style",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
                 DropdownMenu(
@@ -562,6 +589,7 @@ fun AppearanceSection(viewModel: TrackWiseViewModel) {
             }
 
             // Options Content depending on selection
+            val isDark = MaterialTheme.colorScheme.onBackground.red > 0.5f
             when {
                 bgType == "color" -> {
                     Text("Choose Background Color", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
@@ -573,7 +601,7 @@ fun AppearanceSection(viewModel: TrackWiseViewModel) {
                             ) {
                                 chunk.forEach { colorOpt ->
                                     val isSelected = bgType == "color" && bgColorName == colorOpt.name
-                                    val swatchColor = if (isSystemInDarkTheme()) colorOpt.darkColor else colorOpt.lightColor
+                                    val swatchColor = if (isDark) colorOpt.darkColor else colorOpt.lightColor
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
@@ -595,7 +623,7 @@ fun AppearanceSection(viewModel: TrackWiseViewModel) {
                                             Icon(
                                                 imageVector = Icons.Default.Check,
                                                 contentDescription = "Selected",
-                                                tint = if (isSystemInDarkTheme()) Color.White else Color.Black,
+                                                tint = if (isDark) Color.White else Color.Black,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -620,7 +648,7 @@ fun AppearanceSection(viewModel: TrackWiseViewModel) {
                             ) {
                                 chunk.forEach { gradOpt ->
                                     val isSelected = bgType == "gradient" && bgGradientName == gradOpt.name
-                                    val colors = if (isSystemInDarkTheme()) gradOpt.darkColors else gradOpt.lightColors
+                                    val colors = if (isDark) gradOpt.darkColors else gradOpt.lightColors
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
@@ -642,7 +670,7 @@ fun AppearanceSection(viewModel: TrackWiseViewModel) {
                                             Icon(
                                                 imageVector = Icons.Default.Check,
                                                 contentDescription = "Selected",
-                                                tint = if (isSystemInDarkTheme()) Color.White else Color.Black,
+                                                tint = if (isDark) Color.White else Color.Black,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }

@@ -104,6 +104,30 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            LaunchedEffect(isDark) {
+                if (isDark) {
+                    enableEdgeToEdge(
+                        statusBarStyle = androidx.activity.SystemBarStyle.dark(
+                            android.graphics.Color.TRANSPARENT
+                        ),
+                        navigationBarStyle = androidx.activity.SystemBarStyle.dark(
+                            android.graphics.Color.TRANSPARENT
+                        )
+                    )
+                } else {
+                    enableEdgeToEdge(
+                        statusBarStyle = androidx.activity.SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        ),
+                        navigationBarStyle = androidx.activity.SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT
+                        )
+                    )
+                }
+            }
+
             MyApplicationTheme(
                 darkTheme = isDark,
                 themeAccent = themeAccent,

@@ -312,7 +312,13 @@ class TrackWiseViewModel(
     }
 
     private val _badHabits = MutableStateFlow<List<BadHabitSpec>>(emptyList())
-    val badHabits: StateFlow<List<BadHabitSpec>> = _badHabits.asStateFlow()
+    val badHabits: StateFlow<List<BadHabitSpec>> = _badHabits
+        .map { list ->
+            list.sortedWith(compareBy<BadHabitSpec> { 
+                it.reminderTime.ifBlank { "99:99" } 
+            }.thenBy { it.name })
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _habitBreakerViewState = MutableStateFlow("list") // "list", "gallery", "create"
     val habitBreakerViewState: StateFlow<String> = _habitBreakerViewState.asStateFlow()
@@ -558,21 +564,25 @@ class TrackWiseViewModel(
         val saved = prefs.getString("bottom_bar_tab_ids_v1", null)
         if (!saved.isNullOrBlank()) {
             val list = saved.split(",").map { it.trim() }.filter { it.isNotBlank() }
-            if (list.size in 2..5) return list
+            if (list.isNotEmpty()) {
+                val taken = list.take(4)
+                if (taken.size in 2..4) return taken
+            }
         }
         return listOf("dashboard", "tasks", "habits", "countdown")
     }
 
     fun setBottomBarTabs(tabs: List<String>) {
-        if (tabs.size in 2..5) {
-            _bottomBarTabIds.value = tabs
-            getSharedPrefs().edit().putString("bottom_bar_tab_ids_v1", tabs.joinToString(",")).apply()
+        val limited = tabs.take(4)
+        if (limited.size in 2..4) {
+            _bottomBarTabIds.value = limited
+            getSharedPrefs().edit().putString("bottom_bar_tab_ids_v1", limited.joinToString(",")).apply()
         }
     }
 
     fun addTabToBottomBar(tabId: String) {
         val current = _bottomBarTabIds.value.toMutableList()
-        if (!current.contains(tabId) && current.size < 5) {
+        if (!current.contains(tabId) && current.size < 4) {
             current.add(tabId)
             setBottomBarTabs(current)
         }
@@ -742,7 +752,16 @@ class TrackWiseViewModel(
 
     val allHabits: StateFlow<List<HabitEntity>> = _sessionUser
         .flatMapLatest { user ->
-            if (user != null) repository.getHabitsFlow(user.id) else flowOf(emptyList())
+            if (user != null) {
+                repository.getHabitsFlow(user.id).map { habits ->
+                    habits.sortedWith(compareBy<HabitEntity> { 
+                        val time = it.reminderTime ?: ""
+                        if (time.isBlank()) "99:99" else time
+                    }.thenBy { it.name })
+                }
+            } else {
+                flowOf(emptyList())
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -1233,6 +1252,21 @@ class TrackWiseViewModel(
 
     private val _showAddFinanceSheet = MutableStateFlow(false)
     val showAddFinanceSheet: StateFlow<Boolean> = _showAddFinanceSheet.asStateFlow()
+
+    private val _showNetWorthAddSheet = MutableStateFlow(false)
+    val showNetWorthAddSheet: StateFlow<Boolean> = _showNetWorthAddSheet.asStateFlow()
+
+    private val _netWorthPresetType = MutableStateFlow("asset")
+    val netWorthPresetType: StateFlow<String> = _netWorthPresetType.asStateFlow()
+
+    fun openNetWorthAddSheet(type: String = "asset") {
+        _netWorthPresetType.value = type
+        _showNetWorthAddSheet.value = true
+    }
+
+    fun closeNetWorthAddSheet() {
+        _showNetWorthAddSheet.value = false
+    }
 
     fun openAddFinanceSheet() {
         _showAddFinanceSheet.value = true

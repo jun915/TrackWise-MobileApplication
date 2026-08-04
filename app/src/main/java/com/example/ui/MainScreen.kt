@@ -2,6 +2,8 @@ package com.example.ui
 
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.window.Dialog
@@ -89,6 +91,7 @@ fun MainScreen(
     val activeTab = navigationHistory.lastOrNull() ?: "dashboard"
 
     var isFinanceSpeedDialOpen by remember { mutableStateOf(false) }
+    var isNetWorthSpeedDialOpen by remember { mutableStateOf(false) }
     var financeViewMode by remember { mutableStateOf("home") }
     var isFinanceSearchActive by remember { mutableStateOf(false) }
     var financePresetTab by remember { mutableStateOf("expense") }
@@ -119,6 +122,7 @@ fun MainScreen(
             isFinanceSearchActive = false
             isFinanceSpeedDialOpen = false
         }
+        isNetWorthSpeedDialOpen = false
     }
 
     fun navigateBack() {
@@ -262,11 +266,16 @@ fun MainScreen(
     val focusManager = LocalFocusManager.current
 
     val isShowAddFinanceSheet by viewModel.showAddFinanceSheet.collectAsState()
-    val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isShowAddFinanceSheet
+    val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isShowAddFinanceSheet || isNetWorthSpeedDialOpen
     val isSubViewActive = (activeTab == "finance" && (financeViewMode != "home" || isFinanceSearchActive))
 
-    BackHandler(enabled = isAnyPopupOpen || isSubViewActive || navigationHistory.size > 1) {
-        if (activeDetailHabit != null) {
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    val isKeyboardVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
+
+    BackHandler(enabled = isKeyboardVisible || isAnyPopupOpen || isSubViewActive || navigationHistory.size > 1) {
+        if (isKeyboardVisible) {
+            focusManager.clearFocus()
+        } else if (activeDetailHabit != null) {
             viewModel.setActiveDetailHabit(null)
         } else if (showCustomTaskSheet) {
             viewModel.closeCustomTaskSheet()
@@ -280,6 +289,8 @@ fun MainScreen(
             showOccasionSpeedDial = false
         } else if (isFinanceSpeedDialOpen) {
             isFinanceSpeedDialOpen = false
+        } else if (isNetWorthSpeedDialOpen) {
+            isNetWorthSpeedDialOpen = false
         } else if (isShowAddFinanceSheet) {
             viewModel.closeAddFinanceSheet()
         } else if (leftDrawerOpen) {
@@ -367,7 +378,17 @@ fun MainScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
                     .nestedScroll(nestedScrollConnection)
-                    .blur(if (isFinanceSpeedDialOpen || showMainSpeedDial || showOccasionSpeedDial) 16.dp else 0.dp)
+                    .blur(if (isFinanceSpeedDialOpen || showMainSpeedDial || showOccasionSpeedDial || isNetWorthSpeedDialOpen) 16.dp else 0.dp)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (isKeyboardVisible && event.changes.any { it.changedToDown() }) {
+                                    focusManager.clearFocus()
+                                }
+                            }
+                        }
+                    }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -714,7 +735,7 @@ fun MainScreen(
                         // --- BOTTOM BAR CONFIGURATOR MODE ---
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                text = "Pinned to Bottom Bar (${bottomBarIds.size} / 5)",
+                                text = "Pinned to Bottom Bar (${bottomBarIds.size} / 4)",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -868,11 +889,11 @@ fun MainScreen(
                                         } else {
                                             Button(
                                                 onClick = {
-                                                    if (bottomBarIds.size < 5) {
+                                                    if (bottomBarIds.size < 4) {
                                                         viewModel.addTabToBottomBar(spec.id)
                                                     }
                                                 },
-                                                enabled = bottomBarIds.size < 5,
+                                                enabled = bottomBarIds.size < 4,
                                                 colors = ButtonDefaults.buttonColors(
                                                     containerColor = BrandViolet.copy(alpha = 0.12f),
                                                     contentColor = BrandViolet
@@ -961,7 +982,7 @@ fun MainScreen(
         }
 
         // --- Full Screen Dim Backdrop for Speed Dial Options ---
-        if ((showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen) && activeDetailHabit == null && !needsOnboarding) {
+        if ((showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isNetWorthSpeedDialOpen) && activeDetailHabit == null && !needsOnboarding) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -973,6 +994,7 @@ fun MainScreen(
                         showMainSpeedDial = false
                         showOccasionSpeedDial = false
                         isFinanceSpeedDialOpen = false
+                        isNetWorthSpeedDialOpen = false
                     }
             )
         }
@@ -1191,10 +1213,61 @@ fun MainScreen(
                                 }
                             }
 
+                            if (isNetWorthSpeedDialOpen && activeTab == "net_worth") {
+                                val netWorthSpeedDialOptions = listOf(
+                                    Triple("asset", "Add Asset", Icons.Default.TrendingUp),
+                                    Triple("liability", "Add Liability", Icons.Default.TrendingDown),
+                                    Triple("loan", "Add Loan", Icons.Default.CreditCard)
+                                )
+
+                                netWorthSpeedDialOptions.forEach { (typeKey, label, icon) ->
+                                    val color = when (typeKey) {
+                                        "asset" -> Color(0xFF10B981) // Emerald Green
+                                        "liability" -> Color(0xFFEF4444) // Red
+                                        "loan" -> Color(0xFFF59E0B) // Amber
+                                        else -> MaterialTheme.colorScheme.primary
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.clickable {
+                                            isNetWorthSpeedDialOpen = false
+                                            viewModel.openNetWorthAddSheet(typeKey)
+                                        }
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            tonalElevation = 4.dp,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        FloatingActionButton(
+                                            onClick = {
+                                                isNetWorthSpeedDialOpen = false
+                                                viewModel.openNetWorthAddSheet(typeKey)
+                                            },
+                                            containerColor = color,
+                                            contentColor = Color.White,
+                                            modifier = Modifier.size(44.dp),
+                                            shape = CircleShape
+                                        ) {
+                                            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp), tint = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+
                             if (isFinanceSpeedDialOpen && activeTab == "finance") {
                                 val financeSpeedDialOptions = listOf(
                                     Triple("add_transaction", "Add transaction", Icons.Default.Add),
-                                    Triple("net_worth", "Net Worth", Icons.Default.AccountBalanceWallet),
                                     Triple("report", "Report", Icons.Default.Assessment),
                                     Triple("calendar", "Calendar", Icons.Default.CalendarToday),
                                     Triple("search", "Search", Icons.Default.Search)
@@ -1203,7 +1276,6 @@ fun MainScreen(
                                 financeSpeedDialOptions.forEach { (key, label, icon) ->
                                     val color = when (key) {
                                         "add_transaction" -> Color(0xFF3B82F6)
-                                        "net_worth" -> Color(0xFFEC4899)
                                         "report" -> Color(0xFF8B5CF6)
                                         "calendar" -> Color(0xFFF59E0B)
                                         "search" -> Color(0xFF06B6D4)
@@ -1218,9 +1290,6 @@ fun MainScreen(
                                                 "add_transaction" -> {
                                                     financePresetTab = "expense"
                                                     viewModel.openAddFinanceSheet()
-                                                }
-                                                "net_worth" -> {
-                                                    navigateTo("net_worth")
                                                 }
                                                 "report" -> {
                                                     navigateTo("finance")
@@ -1260,9 +1329,6 @@ fun MainScreen(
                                                         financePresetTab = "expense"
                                                         viewModel.openAddFinanceSheet()
                                                     }
-                                                    "net_worth" -> {
-                                                        navigateTo("net_worth")
-                                                    }
                                                     "report" -> {
                                                         navigateTo("finance")
                                                         financeViewMode = "reports"
@@ -1296,6 +1362,9 @@ fun MainScreen(
                                     } else if (activeTab == "finance") {
                                         showMoreMenu = false
                                         isFinanceSpeedDialOpen = !isFinanceSpeedDialOpen
+                                    } else if (activeTab == "net_worth") {
+                                        showMoreMenu = false
+                                        isNetWorthSpeedDialOpen = !isNetWorthSpeedDialOpen
                                     } else {
                                         showMoreMenu = false
                                         showMainSpeedDial = !showMainSpeedDial
@@ -1317,7 +1386,11 @@ fun MainScreen(
                                     .background(Brush.linearGradient(colors = listOf(BrandViolet, BrandCyan)), CircleShape)
                                     .testTag("floating_add_button")
                             ) {
-                                val isOpen = if (activeTab == "finance") isFinanceSpeedDialOpen else showMainSpeedDial
+                                val isOpen = when (activeTab) {
+                                    "finance" -> isFinanceSpeedDialOpen
+                                    "net_worth" -> isNetWorthSpeedDialOpen
+                                    else -> showMainSpeedDial
+                                }
                                 Icon(
                                     imageVector = if (isOpen && activeTab != "habit_breaker") Icons.Default.Close else Icons.Default.Add,
                                     contentDescription = "Quick Add",
@@ -3788,18 +3861,18 @@ fun StaggeredItem(
 ) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(index * 60L) // Beautiful 60ms stagger delay
+        kotlinx.coroutines.delay(index.coerceAtMost(4) * 40L) // Snappy capped delay to prevent blank tiles on scroll
         visible = true
     }
     val alpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(durationMillis = 350, easing = LinearOutSlowInEasing)
+        animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing)
     )
     val offsetY by animateDpAsState(
-        targetValue = if (visible) 0.dp else 16.dp,
+        targetValue = if (visible) 0.dp else 12.dp,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
         )
     )
     Box(
