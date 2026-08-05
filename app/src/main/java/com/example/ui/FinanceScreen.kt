@@ -6,9 +6,11 @@ import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -90,6 +92,8 @@ fun FinanceScreen(
 
     // Selected Date Detail for Calendar View (Matching 2nd Screenshot)
     var selectedDateDetail by remember { mutableStateOf<String?>(null) }
+
+    val pinnedFinanceLogIds by viewModel.pinnedFinanceLogIds.collectAsState()
 
     // Transaction editing, deleting & details
     var editingFinanceLog by remember { mutableStateOf<FinanceLogEntity?>(null) }
@@ -221,7 +225,11 @@ fun FinanceScreen(
                                         it.title.contains(searchQuery, ignoreCase = true) ||
                                         (it.notes ?: "").contains(searchQuery, ignoreCase = true)
                             },
-                            onSelectLog = { selectedDetailFinanceLog = it }
+                            pinnedFinanceLogIds = pinnedFinanceLogIds,
+                            onSelectLog = { selectedDetailFinanceLog = it },
+                            onTogglePinLog = { id -> viewModel.togglePinFinanceLog(id) },
+                            onEditLog = { editingFinanceLog = it },
+                            onDeleteLog = { deletingFinanceLog = it }
                         )
                         "reports" -> MoneyTrackerReportsView(
                             financeLogs = financeLogs,
@@ -701,8 +709,64 @@ fun MonthYearPickerDialog(
 @Composable
 fun MoneyTrackerHomeView(
     monthLogs: List<FinanceLogEntity>,
-    onSelectLog: (FinanceLogEntity) -> Unit
+    pinnedFinanceLogIds: Set<String> = emptySet(),
+    onSelectLog: (FinanceLogEntity) -> Unit,
+    onTogglePinLog: (String) -> Unit = {},
+    onEditLog: (FinanceLogEntity) -> Unit = {},
+    onDeleteLog: (FinanceLogEntity) -> Unit = {}
 ) {
+    var longPressLog by remember { mutableStateOf<FinanceLogEntity?>(null) }
+
+    if (longPressLog != null) {
+        val log = longPressLog!!
+        val isPinned = pinnedFinanceLogIds.contains(log.id)
+        AlertDialog(
+            onDismissRequest = { longPressLog = null },
+            title = { Text(log.category, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            longPressLog = null
+                            onEditLog(log)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Edit Transaction", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            onTogglePinLog(log.id)
+                            longPressLog = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, contentDescription = null, tint = Color(0xFFF59E0B))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            longPressLog = null
+                            onDeleteLog(log)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete Transaction", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { longPressLog = null }) { Text("Cancel") }
+            }
+        )
+    }
+
     if (monthLogs.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -735,6 +799,9 @@ fun MoneyTrackerHomeView(
         ) {
             val list = groupedLogs.toList()
             itemsIndexed(list) { index, (dateStr, logs) ->
+                val sortedLogs = remember(logs, pinnedFinanceLogIds) {
+                    logs.sortedByDescending { pinnedFinanceLogIds.contains(it.id) }
+                }
                 StaggeredItem(index = index) {
                     val dateExpense = logs.filter { it.type == "expense" }.sumOf { it.amount }
                     val dateIncome = logs.filter { it.type == "income" }.sumOf { it.amount }
@@ -773,10 +840,12 @@ fun MoneyTrackerHomeView(
                         }
 
                         // List of items
-                        logs.forEach { log ->
+                        sortedLogs.forEach { log ->
                             FinanceItemRow(
                                 log = log,
-                                onClick = { onSelectLog(log) }
+                                isPinned = pinnedFinanceLogIds.contains(log.id),
+                                onClick = { onSelectLog(log) },
+                                onLongClick = { longPressLog = log }
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                         }
@@ -787,17 +856,21 @@ fun MoneyTrackerHomeView(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FinanceItemRow(
     log: FinanceLogEntity,
-    onClick: () -> Unit
+    isPinned: Boolean = false,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(12.dp),
+        border = if (isPinned) BorderStroke(1.5.dp, Color(0xFFF59E0B).copy(alpha = 0.6f)) else null,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
         Row(
             modifier = Modifier
@@ -826,12 +899,23 @@ fun FinanceItemRow(
                 }
 
                 Column {
-                    Text(
-                        log.category,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isPinned) {
+                            Icon(
+                                imageVector = Icons.Default.PushPin,
+                                contentDescription = "Pinned",
+                                tint = Color(0xFFF59E0B),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        Text(
+                            log.category,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
                     if (!log.notes.isNullOrBlank()) {
                         Text(
                             log.notes,
@@ -1311,40 +1395,30 @@ fun NetWorthAddSheet(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     var type by remember(initialType) { mutableStateOf(initialType) } // "asset", "liability", "loan"
-    var selectedAssetType by remember { mutableStateOf("Emergency Fund") }
-    var customAssetName by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    val assetOptions = listOf(
-        "Emergency Fund",
-        "Fixed Deposit",
-        "FD",
-        "Retirement",
-        "Mutual Funds",
-        "Gold",
-        "Silver",
-        "EPF",
-        "NPS",
-        "Stocks",
-        "PPF",
-        "Savings bank account",
-        "Savings Account",
-        "Property",
-        "Real Estate",
-        "RD",
-        "LIC",
-        "Piggy Bank",
-        "Crypto",
-        "Others"
-    )
-
-    val finalName = if (type == "asset") {
-        if (selectedAssetType == "Others") customAssetName else selectedAssetType
-    } else {
-        name
+    val categoryOptions = when (type) {
+        "asset" -> listOf(
+            "Emergency Fund", "Fixed Deposit", "FD", "Retirement", "Mutual Funds",
+            "Gold", "Silver", "EPF", "NPS", "Stocks", "PPF",
+            "Savings bank account", "Savings Account", "Property", "Real Estate",
+            "RD", "LIC", "Piggy Bank", "Crypto", "Others"
+        )
+        "liability" -> listOf(
+            "Credit Card", "Personal Debt", "Overdraft", "Tax Due",
+            "Outstanding Bill", "Other Liability", "Others"
+        )
+        else -> listOf(
+            "Home Loan", "Personal Loan", "Car/Auto Loan", "Education Loan",
+            "Business Loan", "Gold Loan", "Other Loan", "Others"
+        )
     }
+
+    var selectedCategory by remember(type) { mutableStateOf(categoryOptions.first()) }
+    var customName by remember { mutableStateOf("") }
+
+    val finalName = if (selectedCategory == "Others") customName else selectedCategory
 
     Box(
         modifier = Modifier
@@ -1432,72 +1506,70 @@ fun NetWorthAddSheet(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Name Input depends on selection
-                if (type == "asset") {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "Asset Category",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = when (type) {
+                            "asset" -> "Asset Category"
+                            "liability" -> "Liability Category"
+                            else -> "Loan Category"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = selectedCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            enabled = false,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            trailingIcon = {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Category")
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
                         )
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedTextField(
-                                value = selectedAssetType,
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = {
-                                    IconButton(onClick = { dropdownExpanded = true }) {
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Category")
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { dropdownExpanded = true }
+                        )
+                        DropdownMenu(
+                            expanded = dropdownExpanded,
+                            onDismissRequest = { dropdownExpanded = false },
+                            modifier = Modifier
+                                .widthIn(max = 260.dp)
+                                .background(MaterialTheme.colorScheme.surface)
+                        ) {
+                            categoryOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option, color = MaterialTheme.colorScheme.onSurface) },
+                                    onClick = {
+                                        selectedCategory = option
+                                        dropdownExpanded = false
                                     }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { dropdownExpanded = true },
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            DropdownMenu(
-                                expanded = dropdownExpanded,
-                                onDismissRequest = { dropdownExpanded = false },
-                                modifier = Modifier
-                                    .fillMaxWidth(0.9f)
-                                    .background(MaterialTheme.colorScheme.surface)
-                            ) {
-                                assetOptions.forEach { option ->
-                                    DropdownMenuItem(
-                                        text = { Text(option, color = MaterialTheme.colorScheme.onSurface) },
-                                        onClick = {
-                                            selectedAssetType = option
-                                            dropdownExpanded = false
-                                        }
-                                    )
-                                }
+                                )
                             }
                         }
-
-                        if (selectedAssetType == "Others") {
-                            OutlinedTextField(
-                                value = customAssetName,
-                                onValueChange = { customAssetName = it },
-                                label = { Text("Custom Asset Name") },
-                                placeholder = { Text("e.g. Startup Equity, Art Collection") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                singleLine = true
-                            )
-                        }
                     }
-                } else {
-                    // Name Input for Liability/Loan
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Item Name") },
-                        placeholder = { Text("e.g. Credit Card, Home Loan") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true
-                    )
+
+                    if (selectedCategory == "Others") {
+                        OutlinedTextField(
+                            value = customName,
+                            onValueChange = { customName = it },
+                            label = { Text("Custom Name") },
+                            placeholder = { Text("Enter custom category or item name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+                    }
                 }
 
                 // Amount Input
@@ -2754,6 +2826,7 @@ fun CategoryGridSelectionDialog(
 // -----------------------------------------------------------------------------
 // NET WORTH MANAGER VIEW
 // -----------------------------------------------------------------------------
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NetWorthManagerView(
     viewModel: TrackWiseViewModel,
@@ -2761,6 +2834,10 @@ fun NetWorthManagerView(
 ) {
     val netWorthItems by viewModel.allNetWorthItems.collectAsState()
     val allFinanceLogs by viewModel.allFinanceLogs.collectAsState()
+    val pinnedNetWorthIds by viewModel.pinnedNetWorthIds.collectAsState()
+
+    var editingNetWorthItem by remember { mutableStateOf<NetWorthItemEntity?>(null) }
+    var deletingNetWorthItem by remember { mutableStateOf<NetWorthItemEntity?>(null) }
     
     val totalSavingsFromLogs = remember(allFinanceLogs) { allFinanceLogs.filter { it.type == "savings" }.sumOf { it.amount } }
     val totalAssets = remember(netWorthItems, totalSavingsFromLogs) { netWorthItems.filter { it.type == "asset" }.sumOf { it.amount } + totalSavingsFromLogs }
@@ -2768,6 +2845,100 @@ fun NetWorthManagerView(
     val totalLiabilities = remember(netWorthItems) { netWorthItems.filter { it.type == "liability" }.sumOf { it.amount } }
     val totalDebt = totalLoans + totalLiabilities
     val netWorth = totalAssets - totalDebt
+
+    // Edit Item Dialog
+    if (editingNetWorthItem != null) {
+        val item = editingNetWorthItem!!
+        var editName by remember { mutableStateOf(item.name) }
+        var editType by remember { mutableStateOf(item.type) }
+        var editAmountStr by remember { mutableStateOf(item.amount.toString()) }
+
+        AlertDialog(
+            onDismissRequest = { editingNetWorthItem = null },
+            title = { Text("Edit Net Worth Item", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        label = { Text("Item Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("asset" to "Asset", "liability" to "Liability", "loan" to "Loan").forEach { (typeKey, label) ->
+                            val isSel = editType == typeKey
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSel) Color(0xFF10B981) else MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { editType = typeKey }
+                            ) {
+                                Box(modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                    Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = editAmountStr,
+                        onValueChange = { editAmountStr = it },
+                        label = { Text("Amount (₹)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val amt = editAmountStr.toDoubleOrNull() ?: item.amount
+                        if (editName.isNotBlank() && amt >= 0) {
+                            viewModel.updateNetWorthItem(item.copy(name = editName, type = editType, amount = amt))
+                            editingNetWorthItem = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingNetWorthItem = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    if (deletingNetWorthItem != null) {
+        val item = deletingNetWorthItem!!
+        AlertDialog(
+            onDismissRequest = { deletingNetWorthItem = null },
+            title = { Text("Delete Net Worth Item", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete '${item.name}'? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteNetWorthItem(item.id)
+                        deletingNetWorthItem = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingNetWorthItem = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -2865,7 +3036,7 @@ fun NetWorthManagerView(
             }
         } else {
             // Assets List
-            val assetsList = netWorthItems.filter { it.type == "asset" }
+            val assetsList = netWorthItems.filter { it.type == "asset" }.sortedByDescending { pinnedNetWorthIds.contains(it.id) }
             if (assetsList.isNotEmpty()) {
                 item {
                     Text(
@@ -2879,13 +3050,19 @@ fun NetWorthManagerView(
                 }
                 itemsIndexed(assetsList) { idx, item ->
                     StaggeredItem(index = 2 + idx) {
-                        NetWorthItemRow(item = item, onDelete = { viewModel.deleteNetWorthItem(item.id) })
+                        NetWorthItemRow(
+                            item = item,
+                            isPinned = pinnedNetWorthIds.contains(item.id),
+                            onTogglePin = { viewModel.togglePinNetWorthItem(item.id) },
+                            onEdit = { editingNetWorthItem = item },
+                            onDelete = { deletingNetWorthItem = item }
+                        )
                     }
                 }
             }
 
             // Liabilities/Loans List
-            val debtsList = netWorthItems.filter { it.type != "asset" }
+            val debtsList = netWorthItems.filter { it.type != "asset" }.sortedByDescending { pinnedNetWorthIds.contains(it.id) }
             if (debtsList.isNotEmpty()) {
                 item {
                     Text(
@@ -2899,7 +3076,13 @@ fun NetWorthManagerView(
                 }
                 itemsIndexed(debtsList) { idx, item ->
                     StaggeredItem(index = 2 + assetsList.size + idx) {
-                        NetWorthItemRow(item = item, onDelete = { viewModel.deleteNetWorthItem(item.id) })
+                        NetWorthItemRow(
+                            item = item,
+                            isPinned = pinnedNetWorthIds.contains(item.id),
+                            onTogglePin = { viewModel.togglePinNetWorthItem(item.id) },
+                            onEdit = { editingNetWorthItem = item },
+                            onDelete = { deletingNetWorthItem = item }
+                        )
                     }
                 }
             }
@@ -2907,79 +3090,121 @@ fun NetWorthManagerView(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NetWorthItemRow(
     item: NetWorthItemEntity,
-    onDelete: () -> Unit
+    isPinned: Boolean = false,
+    onTogglePin: () -> Unit = {},
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {}
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onEdit,
+                onLongClick = { showMenu = true }
+            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Box {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val isAsset = item.type == "asset"
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(
-                            if (isAsset) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = if (isAsset) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
-                        contentDescription = null,
-                        tint = if (isAsset) Color(0xFF10B981) else Color(0xFFEF4444),
-                        modifier = Modifier.size(18.dp)
-                    )
+                    val isAsset = item.type == "asset"
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                if (isAsset) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f),
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isAsset) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
+                            contentDescription = null,
+                            tint = if (isAsset) Color(0xFF10B981) else Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isPinned) {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = "Pinned",
+                                    tint = BrandAmber,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            Text(
+                                item.name,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Text(
+                            item.type.uppercase(),
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                Column {
-                    Text(
-                        item.name,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        item.type.uppercase(),
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+                
                 Text(
                     "₹${String.format("%,.0f", item.amount)}",
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                     color = if (item.type == "asset") Color(0xFF10B981) else Color(0xFFEF4444)
                 )
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Edit Details") },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    onClick = {
+                        showMenu = false
+                        onEdit()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(if (isPinned) "Unpin from Top" else "Pin to Top") },
+                    leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber) },
+                    onClick = {
+                        showMenu = false
+                        onTogglePin()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    onClick = {
+                        showMenu = false
+                        onDelete()
+                    }
+                )
             }
         }
     }

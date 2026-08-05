@@ -2385,15 +2385,6 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
-                    Button(
-                        onClick = { showForm = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Add Medication", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {

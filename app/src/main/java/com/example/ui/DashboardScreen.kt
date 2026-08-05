@@ -799,12 +799,19 @@ fun HabitStreaksWidget(
             if (allHabits.isEmpty()) {
                 EmptyProgressPlaceholder("Create habits in the Workspace tab to view streak trajectories.")
             } else {
+                val sortedHabits = remember(allHabits) {
+                    allHabits.sortedWith(
+                        compareBy<HabitEntity> { habit ->
+                            com.example.receiver.ReminderReceiver.parseTo24HourTime(habit.reminderTime) ?: "23:59"
+                        }.thenBy { it.name }
+                    )
+                }
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 4.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(allHabits) { habit ->
+                    items(sortedHabits) { habit ->
                         val percentage = getHabitCompletionPercentage(habit)
                         val color = getHabitColor(allHabits.indexOf(habit), habit.category)
                         Card(
@@ -1615,9 +1622,45 @@ fun DailyHabitsWidget(
                     )
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    renderedHabits.forEach { habit ->
-                        val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
+                val groupedRenderedHabits = remember(renderedHabits) {
+                    renderedHabits.groupBy { habit ->
+                        habit.section.split(",").firstOrNull { it.isNotBlank() } ?: "Inbox"
+                    }.entries.sortedByDescending { it.value.size }.map { entry ->
+                        entry.key to entry.value.sortedBy { habit ->
+                            com.example.receiver.ReminderReceiver.parseTo24HourTime(habit.reminderTime) ?: "23:59"
+                        }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    groupedRenderedHabits.forEach { (folderName, folderHabits) ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (groupedRenderedHabits.size > 1 || folderName != "Inbox") {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Folder,
+                                        contentDescription = null,
+                                        tint = BrandOrange.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = folderName,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                                    )
+                                    Text(
+                                        text = "(${folderHabits.size})",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                    )
+                                }
+                            }
+                            folderHabits.forEach { habit ->
+                                val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
                         SwipeableHabitCard(
                             habit = habit,
                             onToggleCompleted = { completed ->
@@ -1723,6 +1766,8 @@ fun DailyHabitsWidget(
                 }
             }
         }
+    }
+}
     }
 }
 

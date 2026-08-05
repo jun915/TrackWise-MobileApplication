@@ -114,6 +114,8 @@ fun MainScreen(
     }
 
     LaunchedEffect(activeTab) {
+        viewModel.closeNetWorthAddSheet()
+        viewModel.closeAddFinanceSheet()
         if (activeTab == "dashboard") {
             viewModel.closeCustomTaskSheet()
         }
@@ -147,6 +149,40 @@ fun MainScreen(
         }
     }
     val showSettings by viewModel.settingsPanelOpen.collectAsState()
+    val showEarlyToRiseSleepDialog by viewModel.showEarlyToRiseSleepDialog.collectAsState()
+    if (showEarlyToRiseSleepDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.setShowEarlyToRiseSleepDialog(false) },
+            title = {
+                Text(
+                    text = "Sleep Hours Tracking 🛌",
+                    fontWeight = FontWeight.Bold,
+                    color = BrandViolet
+                )
+            },
+            text = {
+                Text("You completed your 'Early to rise' habit! Would you like to log your sleep hours?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.setShowEarlyToRiseSleepDialog(false)
+                        navigateTo("health")
+                        viewModel.setHealthSubTab(3) // index 3 is Sleep
+                    }
+                ) {
+                    Text("Yes, log sleep", fontWeight = FontWeight.Bold, color = BrandViolet)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.setShowEarlyToRiseSleepDialog(false) }
+                ) {
+                    Text("Maybe later")
+                }
+            }
+        )
+    }
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncMessage by viewModel.syncMessage.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
@@ -1001,7 +1037,8 @@ fun MainScreen(
 
         // --- Floating Action Button & Speed Dials Rendered at Root level above the Scrims ---
         val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
-        if (activeDetailHabit == null && !needsOnboarding && (!isShowAddFinanceSheet || activeTab != "finance")) {
+        val showNetWorthAddSheet by viewModel.showNetWorthAddSheet.collectAsState()
+        if (activeDetailHabit == null && !needsOnboarding && !showNetWorthAddSheet && (!isShowAddFinanceSheet || activeTab != "finance")) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

@@ -665,32 +665,83 @@ fun TaskSection(
                 }
             }
         } else {
-            filteredTasks.forEachIndexed { index, task ->
-                StaggeredItem(index = index) {
-                    SwipeableTaskItem(
-                        task = task,
-                        onToggleTask = { viewModel.toggleTaskCompletion(task) },
-                        onDeleteTask = { viewModel.deleteTask(task.id) },
-                        onArchiveTask = { viewModel.updateTask(task.copy(notes = task.notes + "[ARCHIVED]")) },
-                        onPinTask = {
-                            viewModel.updateTask(task.copy(notes = if (task.notes.contains("[PINNED]")) task.notes.replace("[PINNED]", "") else task.notes + " [PINNED]"))
-                        },
-                        onPostponeTask = {
-                            try {
-                                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                                val curDate = sdf.parse(task.deadline)
-                                val cal = java.util.Calendar.getInstance().apply {
-                                    time = curDate
-                                    add(java.util.Calendar.DAY_OF_YEAR, 1)
-                                }
-                                val newDeadline = sdf.format(cal.time)
-                                viewModel.updateTask(task.copy(deadline = newDeadline))
-                            } catch (e: Exception) {
-                                e.printStackTrace()
+            val groupedTaskEntries = remember(filteredTasks, selectedFolder) {
+                if (selectedFolder != null) {
+                    listOf(selectedFolder!! to filteredTasks.sortedWith(
+                        compareBy<TaskEntity> { if (it.completed) 1 else 0 }
+                            .thenBy { "${it.deadline.ifBlank { "9999-12-31" }} ${com.example.receiver.ReminderReceiver.parseTo24HourTime(it.reminderTime ?: it.dueTime) ?: "23:59"}" }
+                    ))
+                } else {
+                    filteredTasks.groupBy { task ->
+                        task.project.ifBlank { "Inbox" }
+                    }.entries.sortedByDescending { it.value.size }.map { entry ->
+                        entry.key to entry.value.sortedWith(
+                            compareBy<TaskEntity> { if (it.completed) 1 else 0 }
+                                .thenBy { "${it.deadline.ifBlank { "9999-12-31" }} ${com.example.receiver.ReminderReceiver.parseTo24HourTime(it.reminderTime ?: it.dueTime) ?: "23:59"}" }
+                        )
+                    }
+                }
+            }
+
+            var itemIdx = 0
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                groupedTaskEntries.forEach { (folderName, folderTasks) ->
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (selectedFolder == null && (groupedTaskEntries.size > 1 || folderName != "Inbox")) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = BrandViolet,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = folderName,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                                )
+                                Text(
+                                    text = "(${folderTasks.size})",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+                                )
                             }
                         }
-                    ) {
-                        TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
+                        folderTasks.forEach { task ->
+                            val index = itemIdx++
+                            StaggeredItem(index = index) {
+                                SwipeableTaskItem(
+                                    task = task,
+                                    onToggleTask = { viewModel.toggleTaskCompletion(task) },
+                                    onDeleteTask = { viewModel.deleteTask(task.id) },
+                                    onArchiveTask = { viewModel.updateTask(task.copy(notes = task.notes + "[ARCHIVED]")) },
+                                    onPinTask = {
+                                        viewModel.updateTask(task.copy(notes = if (task.notes.contains("[PINNED]")) task.notes.replace("[PINNED]", "") else task.notes + " [PINNED]"))
+                                    },
+                                    onPostponeTask = {
+                                        try {
+                                            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                                            val curDate = sdf.parse(task.deadline)
+                                            val cal = java.util.Calendar.getInstance().apply {
+                                                time = curDate
+                                                add(java.util.Calendar.DAY_OF_YEAR, 1)
+                                            }
+                                            val newDeadline = sdf.format(cal.time)
+                                            viewModel.updateTask(task.copy(deadline = newDeadline))
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                    }
+                                ) {
+                                    TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1479,24 +1530,73 @@ fun HabitSection(
                 }
             }
         } else {
-            filteredHabits.forEachIndexed { index, habit ->
-                StaggeredItem(index = index) {
-                    SwipeableHabitCard(
-                        habit = habit,
-                        onToggleCompleted = { completed ->
-                            val todayStr = TrackWiseUtils.getTodayString()
-                            val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
-                            val isCurrentlyCompleted = days.contains(todayStr)
-                            if (isCurrentlyCompleted != completed) {
-                                viewModel.toggleHabitToday(habit)
+            val groupedHabitEntries = remember(filteredHabits, selectedFolder) {
+                if (selectedFolder != null) {
+                    listOf(selectedFolder!! to filteredHabits.sortedBy { habit ->
+                        com.example.receiver.ReminderReceiver.parseTo24HourTime(habit.reminderTime) ?: "23:59"
+                    })
+                } else {
+                    filteredHabits.groupBy { habit ->
+                        habit.section.split(",").firstOrNull { it.isNotBlank() } ?: "Inbox"
+                    }.entries.sortedByDescending { it.value.size }.map { entry ->
+                        entry.key to entry.value.sortedBy { habit ->
+                            com.example.receiver.ReminderReceiver.parseTo24HourTime(habit.reminderTime) ?: "23:59"
+                        }
+                    }
+                }
+            }
+
+            var itemIdx = 0
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                groupedHabitEntries.forEach { (folderName, folderHabits) ->
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (selectedFolder == null && (groupedHabitEntries.size > 1 || folderName != "Inbox")) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = BrandOrange,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = folderName,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                                )
+                                Text(
+                                    text = "(${folderHabits.size})",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+                                )
                             }
                         }
-                    ) {
-                        HabitCard(
-                            habit = habit,
-                            viewModel = viewModel,
-                            onHabitClick = { onHabitClick(habit) }
-                        )
+                        folderHabits.forEach { habit ->
+                            val index = itemIdx++
+                            StaggeredItem(index = index) {
+                                SwipeableHabitCard(
+                                    habit = habit,
+                                    onToggleCompleted = { completed ->
+                                        val todayStr = TrackWiseUtils.getTodayString()
+                                        val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                                        val isCurrentlyCompleted = days.contains(todayStr)
+                                        if (isCurrentlyCompleted != completed) {
+                                            viewModel.toggleHabitToday(habit)
+                                        }
+                                    }
+                                ) {
+                                    HabitCard(
+                                        habit = habit,
+                                        viewModel = viewModel,
+                                        onHabitClick = { onHabitClick(habit) }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2058,11 +2158,92 @@ fun SwipeableHabitCard(
 }
 
 // ==================== 3. WISHLIST SECTION ====================
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WishlistSection(viewModel: TrackWiseViewModel) {
     val focusManager = LocalFocusManager.current
     val items by viewModel.allWishlist.collectAsState()
+    val pinnedWishlistIds by viewModel.pinnedWishlistIds.collectAsState()
     var showForm by remember { mutableStateOf(false) }
+    var editingWishItem by remember { mutableStateOf<com.example.data.WishItemEntity?>(null) }
+
+    var showLongPressMenuForWish by remember { mutableStateOf<com.example.data.WishItemEntity?>(null) }
+    var showDeleteConfirmForWish by remember { mutableStateOf<com.example.data.WishItemEntity?>(null) }
+
+    if (showLongPressMenuForWish != null) {
+        val wish = showLongPressMenuForWish!!
+        val isPinned = pinnedWishlistIds.contains(wish.id)
+        AlertDialog(
+            onDismissRequest = { showLongPressMenuForWish = null },
+            title = { Text(wish.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            showLongPressMenuForWish = null
+                            editingWishItem = wish
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Edit Details", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            viewModel.togglePinWishlist(wish.id)
+                            showLongPressMenuForWish = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            showDeleteConfirmForWish = wish
+                            showLongPressMenuForWish = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete Wishlist Item", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLongPressMenuForWish = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showDeleteConfirmForWish != null) {
+        val wish = showDeleteConfirmForWish!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmForWish = null },
+            title = { Text("Delete Wishlist Item?") },
+            text = { Text("Are you sure you want to delete '${wish.title}' from your wishlist?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteWishItem(wish.id)
+                        showDeleteConfirmForWish = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmForWish = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     var title by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
@@ -2076,8 +2257,6 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
     val titleError = if (title.isBlank()) "Item Title is required" else null
     val priceError = if (price.isNotBlank() && (price.toDoubleOrNull() ?: -1.0) < 0.0) "Enter a valid positive price" else null
     val linkError = if (link.isNotBlank() && !link.startsWith("http://") && !link.startsWith("https://")) "Must start with http:// or https://" else null
-
-    var editingWishItem by remember { mutableStateOf<com.example.data.WishItemEntity?>(null) }
 
     if (editingWishItem != null) {
         val wish = editingWishItem!!
@@ -2398,14 +2577,25 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                 }
             }
         } else {
-            items.forEachIndexed { index, item ->
+            val sortedItems = remember(items, pinnedWishlistIds) {
+                items.sortedByDescending { pinnedWishlistIds.contains(it.id) }
+            }
+            sortedItems.forEachIndexed { index, item ->
+                val isPinned = pinnedWishlistIds.contains(item.id)
                 StaggeredItem(index = index) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(16.dp))
-                            .clickable { editingWishItem = item }
+                            .border(
+                                width = if (isPinned) 1.5.dp else 1.dp,
+                                color = if (isPinned) BrandAmber.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .combinedClickable(
+                                onClick = { editingWishItem = item },
+                                onLongClick = { showLongPressMenuForWish = item }
+                            )
                     ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -2436,22 +2626,29 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                         Column(
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(
-                                text = item.title,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                textDecoration = if (item.purchased) TextDecoration.LineThrough else TextDecoration.None,
-                                color = if (item.purchased) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isPinned) {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = "Pinned",
+                                        tint = BrandAmber,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+                                Text(
+                                    text = item.title,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textDecoration = if (item.purchased) TextDecoration.LineThrough else TextDecoration.None,
+                                    color = if (item.purchased) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
+                                )
+                            }
                             Text(
                                 text = "₹${item.price} · ${item.priority.uppercase()} Priority",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             )
-                        }
-
-                        IconButton(onClick = { viewModel.deleteWishItem(item.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose)
                         }
                     }
                 }
@@ -2740,6 +2937,7 @@ private fun getDynamicRepeatLabel(choice: String, dateStr: String?): String {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BirthdaySection(viewModel: TrackWiseViewModel) {
     val focusManager = LocalFocusManager.current
@@ -2750,8 +2948,76 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
     var addOccasionType by remember { mutableStateOf("Birthday") }
     var editingBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
     var detailedBirthday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
+    var showLongPressMenuForBday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
+    var showDeleteConfirmForBday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
     var showGlobalFontDialog by remember { mutableStateOf(false) }
     var globalFontStyle by remember { mutableStateOf("Default") }
+
+    if (showLongPressMenuForBday != null) {
+        val bday = showLongPressMenuForBday!!
+        AlertDialog(
+            onDismissRequest = { showLongPressMenuForBday = null },
+            title = { Text(bday.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            viewModel.updateBirthday(bday.copy(isPinned = !bday.isPinned))
+                            showLongPressMenuForBday = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (bday.isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            showDeleteConfirmForBday = bday
+                            showLongPressMenuForBday = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete Occasion", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLongPressMenuForBday = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showDeleteConfirmForBday != null) {
+        val bday = showDeleteConfirmForBday!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmForBday = null },
+            title = { Text("Delete Occasion?") },
+            text = { Text("Are you sure you want to delete '${bday.name}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteBirthday(bday.id)
+                        if (detailedBirthday?.id == bday.id) {
+                            detailedBirthday = null
+                        }
+                        showDeleteConfirmForBday = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmForBday = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     val triggeredCategory by viewModel.triggerAddOccasion.collectAsState()
     LaunchedEffect(triggeredCategory) {
@@ -3619,7 +3885,10 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                 color = if (daysLeft == 0) BrandAmber else if (bday.isPinned) BrandAmber.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(16.dp)
                             )
-                            .clickable { detailedBirthday = bday }
+                            .combinedClickable(
+                                onClick = { detailedBirthday = bday },
+                                onLongClick = { showLongPressMenuForBday = bday }
+                            )
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
@@ -3843,8 +4112,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                         leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose) },
                                         onClick = {
                                             showMenu = false
-                                            viewModel.deleteBirthday(activeBday.id)
-                                            detailedBirthday = null
+                                            showDeleteConfirmForBday = activeBday
                                         }
                                     )
                                     DropdownMenuItem(
@@ -4315,12 +4583,92 @@ fun CompactTextField(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GrocerySection(viewModel: TrackWiseViewModel) {
     val focusManager = LocalFocusManager.current
     val groceryItems by viewModel.allGroceryItems.collectAsState()
-
+    val pinnedGroceryIds by viewModel.pinnedGroceryIds.collectAsState()
     var editingGroceryItem by remember { mutableStateOf<com.example.data.GroceryItemEntity?>(null) }
+
+    var showLongPressMenuForGrocery by remember { mutableStateOf<com.example.data.GroceryItemEntity?>(null) }
+    var showDeleteConfirmForGrocery by remember { mutableStateOf<com.example.data.GroceryItemEntity?>(null) }
+
+    if (showLongPressMenuForGrocery != null) {
+        val item = showLongPressMenuForGrocery!!
+        val isPinned = pinnedGroceryIds.contains(item.id)
+        AlertDialog(
+            onDismissRequest = { showLongPressMenuForGrocery = null },
+            title = { Text(item.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            showLongPressMenuForGrocery = null
+                            editingGroceryItem = item
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Edit Details", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            viewModel.togglePinGrocery(item.id)
+                            showLongPressMenuForGrocery = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            showDeleteConfirmForGrocery = item
+                            showLongPressMenuForGrocery = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete Item", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLongPressMenuForGrocery = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showDeleteConfirmForGrocery != null) {
+        val item = showDeleteConfirmForGrocery!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmForGrocery = null },
+            title = { Text("Delete Item?") },
+            text = { Text("Are you sure you want to delete '${item.name}' from your grocery list?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteGroceryItem(item.id)
+                        showDeleteConfirmForGrocery = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmForGrocery = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (editingGroceryItem != null) {
         val gItem = editingGroceryItem!!
         var editName by remember(gItem) { mutableStateOf(gItem.name) }
@@ -4787,7 +5135,11 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
             else -> groceryItems
         }
 
-        if (filteredList.isEmpty()) {
+        val sortedGroceryList = remember(filteredList, pinnedGroceryIds) {
+            filteredList.sortedByDescending { pinnedGroceryIds.contains(it.id) }
+        }
+
+        if (sortedGroceryList.isEmpty()) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 shape = RoundedCornerShape(16.dp),
@@ -4827,7 +5179,8 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                filteredList.forEach { item ->
+                sortedGroceryList.forEach { item ->
+                    val isPinned = pinnedGroceryIds.contains(item.id)
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = if (item.completed) {
@@ -4843,7 +5196,10 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { editingGroceryItem = item }
+                            .combinedClickable(
+                                onClick = { editingGroceryItem = item },
+                                onLongClick = { showLongPressMenuForGrocery = item }
+                            )
                     ) {
                         Row(
                             modifier = Modifier
@@ -4876,17 +5232,28 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                 Column(
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Text(
-                                        text = item.name,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        textDecoration = if (item.completed) TextDecoration.LineThrough else null,
-                                        color = if (item.completed) {
-                                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                                        } else {
-                                            MaterialTheme.colorScheme.onBackground
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (isPinned) {
+                                            Icon(
+                                                imageVector = Icons.Default.PushPin,
+                                                contentDescription = "Pinned",
+                                                tint = BrandAmber,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
                                         }
-                                    )
+                                        Text(
+                                            text = item.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            textDecoration = if (item.completed) TextDecoration.LineThrough else null,
+                                            color = if (item.completed) {
+                                                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                                            } else {
+                                                MaterialTheme.colorScheme.onBackground
+                                            }
+                                        )
+                                    }
 
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -4942,19 +5309,6 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                         }
                                     }
                                 }
-                            }
-
-                            // Delete button
-                            IconButton(
-                                onClick = { viewModel.deleteGroceryItem(item.id) },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete item",
-                                    tint = BrandRose,
-                                    modifier = Modifier.size(18.dp)
-                                )
                             }
                         }
                     }

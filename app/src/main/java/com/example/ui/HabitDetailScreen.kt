@@ -517,11 +517,11 @@ fun HabitDetailScreen(
                     Box(
                         modifier = Modifier
                             .padding(bottom = 12.dp)
-                            .size(44.dp)
-                            .clip(CircleShape)
+                            .fillMaxWidth()
+                            .height(54.dp)
                             .pointerInput(Unit) {
                                 detectVerticalDragGestures { _, dragAmount ->
-                                    if (dragAmount < -10) {
+                                    if (dragAmount < -5f) {
                                         isExpandedSheet = true
                                     }
                                 }
@@ -529,12 +529,20 @@ fun HabitDetailScreen(
                             .clickable { isExpandedSheet = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Expand Details",
-                            tint = Color.White,
-                            modifier = Modifier.size(32.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = "Expand Details",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     }
                 }
             } else {
@@ -542,7 +550,14 @@ fun HabitDetailScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures { _, dragAmount ->
+                                if (dragAmount > 10f) {
+                                    isExpandedSheet = false
+                                }
+                            }
+                        },
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 32.dp)
                 ) {
@@ -551,10 +566,25 @@ fun HabitDetailScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
+                                .height(54.dp)
+                                .padding(vertical = 4.dp)
+                                .pointerInput(Unit) {
+                                    detectVerticalDragGestures { _, dragAmount ->
+                                        if (dragAmount > 5f) {
+                                            isExpandedSheet = false
+                                        }
+                                    }
+                                }
+                                .clickable { isExpandedSheet = false },
                             contentAlignment = Alignment.Center
                         ) {
-                            IconButton(onClick = { isExpandedSheet = false }) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.KeyboardArrowDown,
                                     contentDescription = "Collapse",

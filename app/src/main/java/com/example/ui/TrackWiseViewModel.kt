@@ -235,6 +235,24 @@ class TrackWiseViewModel(
 
 
     // --- UI App Preferences ---
+    private val _showEarlyToRiseSleepDialog = MutableStateFlow(false)
+    val showEarlyToRiseSleepDialog: StateFlow<Boolean> = _showEarlyToRiseSleepDialog.asStateFlow()
+
+    fun setShowEarlyToRiseSleepDialog(show: Boolean) {
+        _showEarlyToRiseSleepDialog.value = show
+    }
+
+    private val _pinnedFinanceLogIds = MutableStateFlow<Set<String>>(emptySet())
+    val pinnedFinanceLogIds: StateFlow<Set<String>> = _pinnedFinanceLogIds.asStateFlow()
+
+    fun togglePinFinanceLog(id: String) {
+        _pinnedFinanceLogIds.value = if (_pinnedFinanceLogIds.value.contains(id)) {
+            _pinnedFinanceLogIds.value - id
+        } else {
+            _pinnedFinanceLogIds.value + id
+        }
+    }
+
     private val _themeMode = MutableStateFlow("light") // "light", "dark", or "system"
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
 
@@ -1533,6 +1551,9 @@ class TrackWiseViewModel(
             } else {
                 days.add(todayStr)
                 autoDismissNotification(habit.id, habit.name)
+                if (habit.name.equals("Early to rise", ignoreCase = true)) {
+                    _showEarlyToRiseSleepDialog.value = true
+                }
             }
             
             // Recalculate streak
@@ -1588,6 +1609,9 @@ class TrackWiseViewModel(
             
             val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).toMutableList()
             days.add(todayStr)
+            if (habit.name.equals("Early to rise", ignoreCase = true)) {
+                _showEarlyToRiseSleepDialog.value = true
+            }
             
             // Recalculate streak
             var currentStreak = 0
@@ -2190,6 +2214,43 @@ class TrackWiseViewModel(
             repository.deleteNetWorthItem(id)
             triggerFakeSync()
         }
+    }
+
+    fun updateNetWorthItem(item: NetWorthItemEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertNetWorthItem(item)
+            triggerFakeSync()
+        }
+    }
+
+    private val _pinnedNetWorthIds = MutableStateFlow<Set<String>>(emptySet())
+    val pinnedNetWorthIds: StateFlow<Set<String>> = _pinnedNetWorthIds.asStateFlow()
+
+    fun togglePinNetWorthItem(id: String) {
+        _pinnedNetWorthIds.value = if (_pinnedNetWorthIds.value.contains(id)) _pinnedNetWorthIds.value - id else _pinnedNetWorthIds.value + id
+    }
+
+    private val _pinnedGroceryIds = MutableStateFlow<Set<String>>(emptySet())
+    val pinnedGroceryIds: StateFlow<Set<String>> = _pinnedGroceryIds.asStateFlow()
+
+    fun togglePinGroceryItem(id: String) {
+        _pinnedGroceryIds.value = if (_pinnedGroceryIds.value.contains(id)) _pinnedGroceryIds.value - id else _pinnedGroceryIds.value + id
+    }
+    fun togglePinGrocery(id: String) = togglePinGroceryItem(id)
+
+    private val _pinnedWishlistIds = MutableStateFlow<Set<String>>(emptySet())
+    val pinnedWishlistIds: StateFlow<Set<String>> = _pinnedWishlistIds.asStateFlow()
+
+    fun togglePinWishlistItem(id: String) {
+        _pinnedWishlistIds.value = if (_pinnedWishlistIds.value.contains(id)) _pinnedWishlistIds.value - id else _pinnedWishlistIds.value + id
+    }
+    fun togglePinWishlist(id: String) = togglePinWishlistItem(id)
+
+    private val _pinnedHabitBreakerIds = MutableStateFlow<Set<String>>(emptySet())
+    val pinnedHabitBreakerIds: StateFlow<Set<String>> = _pinnedHabitBreakerIds.asStateFlow()
+
+    fun togglePinHabitBreaker(id: String) {
+        _pinnedHabitBreakerIds.value = if (_pinnedHabitBreakerIds.value.contains(id)) _pinnedHabitBreakerIds.value - id else _pinnedHabitBreakerIds.value + id
     }
 
     fun populateDefaultNetWorthItemsIfEmpty() {
@@ -2856,13 +2917,6 @@ class TrackWiseViewModel(
     fun updateFinanceLog(log: FinanceLogEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertFinanceLog(log)
-            triggerFakeSync()
-        }
-    }
-
-    fun updateNetWorthItem(item: NetWorthItemEntity) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.insertNetWorthItem(item)
             triggerFakeSync()
         }
     }

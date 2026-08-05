@@ -330,10 +330,10 @@ class ReminderReceiver : BroadcastReceiver() {
         val habits = dao.getHabitsForUser(userId)
         habits.forEach { habit ->
             if (habit.remindMe) {
-                val rDate = habit.reminderDate?.take(10) ?: todayStr
+                val isDueToday = TrackWiseUtils.shouldShowHabitOnDate(habit, todayStr)
                 val rTime24 = parseTo24HourTime(habit.reminderTime)
-                if (rDate == todayStr && rTime24 != null && rTime24 <= currentTimeStr) {
-                    val key = "habit-${habit.id}-$rDate-$rTime24"
+                if (isDueToday && rTime24 != null && rTime24 <= currentTimeStr) {
+                    val key = "habit-${habit.id}-$todayStr-$rTime24"
                     if (!notifiedPrefs.getBoolean(key, false)) {
                         notifiedPrefs.edit().putBoolean(key, true).apply()
                         showNotification(

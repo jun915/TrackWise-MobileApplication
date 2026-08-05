@@ -80,6 +80,8 @@ fun HabitBreakerScreen(
     var selectedItemForLogUpdate by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
     var selectedItemForIconPicker by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
 
+    val pinnedHabitBreakerIds by viewModel.pinnedHabitBreakerIds.collectAsState()
+
     when (currentView) {
         HabitBreakerView.LIST -> {
             var tick by remember { mutableStateOf(0) }
@@ -88,6 +90,9 @@ fun HabitBreakerScreen(
                     kotlinx.coroutines.delay(1000)
                     tick++
                 }
+            }
+            val sortedBadHabits = remember(badHabits, pinnedHabitBreakerIds) {
+                badHabits.sortedByDescending { pinnedHabitBreakerIds.contains(it.id) }
             }
 
             Column(
@@ -166,9 +171,11 @@ fun HabitBreakerScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(top = 12.dp, bottom = 88.dp)
                     ) {
-                        items(badHabits, key = { it.id }) { item ->
+                        items(sortedBadHabits, key = { it.id }) { item ->
                             SwipeableAvoidCard(
                                 item = item,
+                                isPinned = pinnedHabitBreakerIds.contains(item.id),
+                                onTogglePin = { viewModel.togglePinHabitBreaker(item.id) },
                                 onLogAvoidance = { viewModel.logBadHabitAvoidance(item.id) },
                                 onLogSlipUp = { viewModel.logBadHabitOccurrence(item.id) },
                                 onDelete = { viewModel.removeBadHabit(item.id) },
@@ -309,6 +316,8 @@ fun HabitBreakerScreen(
 @Composable
 fun SwipeableAvoidCard(
     item: TrackWiseViewModel.BadHabitSpec,
+    isPinned: Boolean = false,
+    onTogglePin: () -> Unit = {},
     onLogAvoidance: () -> Unit,
     onLogSlipUp: () -> Unit,
     onDelete: () -> Unit,
@@ -376,6 +385,8 @@ fun SwipeableAvoidCard(
     ) {
         AvoidItemCard(
             item = item,
+            isPinned = isPinned,
+            onTogglePin = onTogglePin,
             onLogAvoidance = onLogAvoidance,
             onLogSlipUp = onLogSlipUp,
             onDelete = onDelete,
@@ -389,6 +400,8 @@ fun SwipeableAvoidCard(
 @Composable
 fun AvoidItemCard(
     item: TrackWiseViewModel.BadHabitSpec,
+    isPinned: Boolean = false,
+    onTogglePin: () -> Unit = {},
     onLogAvoidance: () -> Unit,
     onLogSlipUp: () -> Unit,
     onDelete: () -> Unit,
@@ -396,8 +409,46 @@ fun AvoidItemCard(
     tick: Int
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showLongPressMenu by remember { mutableStateOf(false) }
     val cleanTimerText = remember(item.logs, item.id, tick) {
         calculateCleanTimeText(item.logs, item.id)
+    }
+
+    if (showLongPressMenu) {
+        AlertDialog(
+            onDismissRequest = { showLongPressMenu = false },
+            title = { Text(item.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            onTogglePin()
+                            showLongPressMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(
+                        onClick = {
+                            showLongPressMenu = false
+                            showDeleteConfirm = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete Habit Breaker", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLongPressMenu = false }) { Text("Cancel") }
+            }
+        )
     }
 
     if (showDeleteConfirm) {
@@ -434,7 +485,7 @@ fun AvoidItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
-                onLongClick = { showDeleteConfirm = true },
+                onLongClick = { showLongPressMenu = true },
                 onClick = onCardClick
             )
             .testTag("avoid_card_${item.id}")
@@ -476,14 +527,25 @@ fun AvoidItemCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = item.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isPinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Pinned",
+                            tint = BrandAmber,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Text(
+                        text = item.name,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
                 // Row beneath title (starts below title, not icon)
                 Row(
