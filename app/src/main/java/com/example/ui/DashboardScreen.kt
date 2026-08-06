@@ -1675,8 +1675,7 @@ fun DailyHabitsWidget(
                             Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isDone) BrandOrange.copy(alpha = 0.05f)
-                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                    containerColor = MaterialTheme.colorScheme.surface
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()

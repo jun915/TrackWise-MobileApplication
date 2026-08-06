@@ -1509,6 +1509,18 @@ class TrackWiseViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val today = TrackWiseUtils.getTodayString()
             val finalStart = startDate ?: today
+            val bgOptions = listOf("window", "fitness", "mindfulness", "study", "finance", "nature", "creativity", "rest", "nutrition")
+            val selectedBg = when (category.lowercase()) {
+                "fitness", "sports", "exercise" -> "fitness"
+                "health", "nutrition", "diet" -> "nutrition"
+                "mindfulness", "meditation" -> "mindfulness"
+                "study", "learning", "education" -> "study"
+                "finance", "money" -> "finance"
+                "art", "creativity" -> "creativity"
+                "sleep", "rest" -> "rest"
+                "nature" -> "nature"
+                else -> bgOptions.random()
+            }
             val habit = HabitEntity(
                 id = "habit-${System.currentTimeMillis()}",
                 userId = user.id,
@@ -1534,7 +1546,8 @@ class TrackWiseViewModel(
                 goalType = goalType,
                 goalDays = goalDays,
                 section = section,
-                autoPopup = autoPopup
+                autoPopup = autoPopup,
+                backgroundImage = selectedBg
             )
             repository.insertHabit(habit)
             if (remindMe && !reminderTime.isNullOrBlank()) {

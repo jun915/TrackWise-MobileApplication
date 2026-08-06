@@ -153,7 +153,20 @@ fun ModernAddOccasionDialog(
         )
     }
     var selectedColorHex by remember { mutableStateOf(editingBirthday?.customTextColor ?: "#FF3B5C") }
-    var selectedBgPreset by remember { mutableStateOf(editingBirthday?.customBgImage ?: "solid_pink") }
+    var selectedBgPreset by remember {
+        mutableStateOf(
+            editingBirthday?.customBgImage ?: run {
+                val presets = listOf("solid_pink", "sunset", "ocean", "velvet")
+                when (selectedType.lowercase()) {
+                    "birthday" -> "solid_pink"
+                    "anniversary", "marriage anniversary" -> "velvet"
+                    "countdown" -> "ocean"
+                    "holiday" -> "sunset"
+                    else -> presets.random()
+                }
+            }
+        )
+    }
     var selectedFontStyle by remember { mutableStateOf(editingBirthday?.customFontStyle ?: "Default") }
     var giftNotesText by remember { mutableStateOf(editingBirthday?.giftIdea ?: "") }
 
@@ -223,26 +236,36 @@ fun ModernAddOccasionDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    IconButton(
-                        onClick = {
-                            if (currentStep == 2) currentStep = 1 else onDismissRequest()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                if (currentStep == 2) currentStep = 1 else onDismissRequest()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (currentStep == 2) Icons.Default.ArrowBack else Icons.Default.Close,
+                                contentDescription = "Back",
+                                tint = textColor
+                            )
                         }
-                    ) {
+                        Text(
+                            text = if (currentStep == 1) (if (isEdit) "Edit" else "Add") else "Appearance",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textColor,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                    IconButton(onClick = onDismissRequest) {
                         Icon(
-                            imageVector = if (currentStep == 2) Icons.Default.ArrowBack else Icons.Default.Close,
-                            contentDescription = "Close",
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Exit Popup",
                             tint = textColor
                         )
                     }
-                    Text(
-                        text = if (currentStep == 1) (if (isEdit) "Edit" else "Add") else "Appearance",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textColor,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
                 }
 
                 AnimatedContent(
@@ -691,8 +714,7 @@ fun ModernAddOccasionDialog(
                         "1 day early (09:00)",
                         "2 days early (09:00)",
                         "3 days early (09:00)",
-                        "1 week early (09:00)",
-                        "Custom"
+                        "1 week early (09:00)"
                     )
 
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -739,46 +761,9 @@ fun ModernAddOccasionDialog(
                                         tint = PinkAccent,
                                         modifier = Modifier.size(20.dp)
                                     )
-                                } else if (opt == "Custom") {
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronRight,
-                                        contentDescription = "More",
-                                        tint = textColor.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(18.dp)
-                                    )
                                 }
                             }
                         }
-                    }
-
-                    HorizontalDivider(color = textColor.copy(alpha = 0.1f))
-
-                    // Constant Reminder Switch Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "Constant Reminder",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = textColor
-                            )
-                            Text("👑", fontSize = 14.sp)
-                        }
-                        Switch(
-                            checked = isConstantReminder,
-                            onCheckedChange = { isConstantReminder = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = PinkAccent
-                            )
-                        )
                     }
 
                     Row(
@@ -1140,7 +1125,7 @@ fun ModernAddOccasionDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Choose Icon (Icons8 Flat Color Icons)",
+                            text = "Choose icon",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = textColor

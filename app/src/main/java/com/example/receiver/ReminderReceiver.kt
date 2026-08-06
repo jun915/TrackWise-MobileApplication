@@ -253,11 +253,19 @@ class ReminderReceiver : BroadcastReceiver() {
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+            val wakeLock = pm?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "TrackWise:ReminderWakeLock")
+            wakeLock?.acquire(10000L)
             try {
                 checkAndTriggerNotifications(context)
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
+                if (wakeLock?.isHeld == true) {
+                    try { wakeLock.release() } catch (_: Exception) {}
+                }
+                // Reschedule for next wakeup (works even in Doze mode / when app is closed)
+                scheduleBackgroundReminderAlarm(context)
                 pendingResult.finish()
             }
         }
@@ -583,16 +591,30 @@ class ReminderReceiver : BroadcastReceiver() {
             }
             val pendingIntent = PendingIntent.getBroadcast(context, 999, intent, flags)
 
-            val interval = 60000L // 1 minute
-            val triggerAt = System.currentTimeMillis() + 5000L // start in 5s
+            val triggerAt = System.currentTimeMillis() + 60000L // Next check in 1 minute
 
             try {
-                alarmManager.setRepeating(
-                    android.app.AlarmManager.RTC_WAKEUP,
-                    triggerAt,
-                    interval,
-                    pendingIntent
-                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            android.app.AlarmManager.RTC_WAKEUP,
+                            triggerAt,
+                            pendingIntent
+                        )
+                    } catch (e: Exception) {
+                        alarmManager.setAndAllowWhileIdle(
+                            android.app.AlarmManager.RTC_WAKEUP,
+                            triggerAt,
+                            pendingIntent
+                        )
+                    }
+                } else {
+                    alarmManager.set(
+                        android.app.AlarmManager.RTC_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                    )
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }

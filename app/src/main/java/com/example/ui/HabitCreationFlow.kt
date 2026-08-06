@@ -656,16 +656,7 @@ fun HabitCreationFlowDialog(
 
                                             Spacer(modifier = Modifier.height(10.dp))
 
-                                            Button(
-                                                onClick = { showQuotesPickerDialog = true },
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor.copy(alpha = 0.12f), contentColor = primaryColor),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Icon(Icons.Default.FormatQuote, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Browse 100 Motivational Quotes 💡", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                            }
+                                            /* Quotes ribbon removed */
                                         }
                                     }
                                 }

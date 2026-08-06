@@ -39,8 +39,8 @@ fun AuthScreen(
     modifier: Modifier = Modifier
 ) {
     var authMode by remember { mutableStateOf("login") } // "login", "signup", "forgot"
-    var email by remember { mutableStateOf("ju") }
-    var password by remember { mutableStateOf("1234567890") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     
@@ -375,36 +375,6 @@ fun AuthScreen(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-
-            // Bypass Login & Signup Button
-            OutlinedButton(
-                onClick = {
-                    viewModel.clearAuthError()
-                    viewModel.dismissSuccessMessage()
-                    showErrors = false
-                    viewModel.login("ju", "1234567890")
-                },
-                border = BorderStroke(1.5.dp, BrandViolet),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("bypass_auth_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FastForward,
-                    contentDescription = "Bypass Authentication",
-                    tint = BrandViolet,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Bypass Login & Signup",
-                    color = BrandViolet,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-            }
 
             // Toggle Text
             TextButton(
