@@ -497,7 +497,6 @@ fun AvoidItemCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            val icon = getHabitBreakerIcon(item.iconName, item.avoidType)
             val typeColor = when (item.avoidType.lowercase()) {
                 "person" -> BrandIndigo
                 "event" -> BrandOrange
@@ -514,11 +513,11 @@ fun AvoidItemCard(
                     .background(typeColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
+                HabitBreakerIconView(
+                    icon = item.iconName,
+                    avoidType = item.avoidType,
                     tint = typeColor,
-                    modifier = Modifier.size(18.dp)
+                    size = 18.dp
                 )
             }
 
@@ -1045,24 +1044,12 @@ fun FullPageAddAvoidItem(
             // Slidable Icon Selector
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Select Icon 🎨", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(iconsList) { (key, label) ->
-                        val isSelected = iconName == key
-                        Surface(
-                            color = if (isSelected) BrandRose else MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.clickable { iconName = key }
-                        ) {
-                            Text(
-                                text = label,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
+                FlatColorIconPicker(
+                    selectedIcon = iconName,
+                    onIconSelected = { iconName = it },
+                    accentColor = BrandRose,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             // Slidable Tags Selector
@@ -1368,6 +1355,38 @@ data class BadHabitTemplate(
     val priority: String = "Medium"
 )
 
+@Composable
+fun HabitBreakerIconView(
+    icon: String,
+    avoidType: String,
+    tint: Color = MaterialTheme.colorScheme.primary,
+    size: androidx.compose.ui.unit.Dp = 22.dp,
+    modifier: Modifier = Modifier
+) {
+    val cleanKey = icon.trim()
+    val isEmoji = cleanKey.any { it.code > 127 || it.isSurrogate() }
+    if (isEmoji) {
+        Box(
+            modifier = modifier.size(size),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = cleanKey,
+                fontSize = (size.value * 0.85f).sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    } else {
+        val vector = getHabitBreakerIcon(cleanKey, avoidType)
+        Icon(
+            imageVector = vector,
+            contentDescription = null,
+            tint = tint,
+            modifier = modifier.size(size)
+        )
+    }
+}
+
 fun getHabitBreakerIcon(iconName: String, avoidType: String): ImageVector {
     return when (iconName.lowercase()) {
         "smokefree", "smoke" -> Icons.Default.SmokeFree
@@ -1529,11 +1548,11 @@ fun HabitBreakerOptionsBottomSheet(
                             .background(typeColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = getHabitBreakerIcon(item.iconName, item.avoidType),
-                            contentDescription = null,
+                        HabitBreakerIconView(
+                            icon = item.iconName,
+                            avoidType = item.avoidType,
                             tint = typeColor,
-                            modifier = Modifier.size(24.dp)
+                            size = 24.dp
                         )
                     }
 
@@ -2012,32 +2031,15 @@ fun IconPickerBottomSheet(
         ) {
             Text("🎨 Choose Icon for ${item.name}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.height(220.dp)
-            ) {
-                items(iconsList) { (key, label) ->
-                    Surface(
-                        onClick = {
-                            onSelectIcon(key)
-                            onDismiss()
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (item.iconName == key) BrandRose else MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (item.iconName == key) Color.White else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
+            FlatColorIconPicker(
+                selectedIcon = item.iconName,
+                onIconSelected = { key ->
+                    onSelectIcon(key)
+                    onDismiss()
+                },
+                accentColor = BrandRose,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

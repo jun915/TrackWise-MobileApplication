@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -1121,27 +1122,6 @@ fun ModernAddOccasionDialog(
 
     // 8. ICON PICKER DIALOG
     if (showIconPickerDialog) {
-        var iconSearchQuery by remember { mutableStateOf("") }
-        val allMaterialIconKeys = remember {
-            listOf(
-                "cake", "favorite", "hourglass", "star", "gift", "party",
-                "balloon", "trophy", "bell", "flower", "flight", "music",
-                "coffee", "fire", "medal", "pets", "sports", "fitness",
-                "work", "school", "medical", "shopping", "money", "camera",
-                "phone", "laptop", "home", "car", "bike", "run", "pool",
-                "restaurant", "movie", "book", "gaming", "spa", "nature",
-                "beach", "sun", "moon", "flag", "brush", "palette",
-                "lightbulb", "smile", "compass", "map", "timer", "alarm",
-                "check", "lock", "shield", "travel", "sparkles", "drink",
-                "fastfood", "diamond", "email", "event", "group", "history",
-                "person", "place", "search", "thumbup", "verified"
-            )
-        }
-        val filteredIconKeys = remember(iconSearchQuery) {
-            if (iconSearchQuery.isBlank()) allMaterialIconKeys
-            else allMaterialIconKeys.filter { it.contains(iconSearchQuery, ignoreCase = true) }
-        }
-
         Dialog(onDismissRequest = { showIconPickerDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
@@ -1160,7 +1140,7 @@ fun ModernAddOccasionDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Choose Icon (Material Symbols)",
+                            text = "Choose Icon (Icons8 Flat Color Icons)",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = textColor
@@ -1170,54 +1150,15 @@ fun ModernAddOccasionDialog(
                         }
                     }
 
-                    // Search field
-                    OutlinedTextField(
-                        value = iconSearchQuery,
-                        onValueChange = { iconSearchQuery = it },
-                        placeholder = { Text("Search icons...", fontSize = 13.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        trailingIcon = {
-                            if (iconSearchQuery.isNotEmpty()) {
-                                IconButton(onClick = { iconSearchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
-                                }
-                            }
+                    FlatColorIconPicker(
+                        selectedIcon = selectedIcon,
+                        onIconSelected = { key ->
+                            selectedIcon = key
+                            showIconPickerDialog = false
                         },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        accentColor = PinkAccent,
+                        modifier = Modifier.fillMaxWidth()
                     )
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(260.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(filteredIconKeys) { key ->
-                            val isSel = selectedIcon == key
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isSel) PinkAccent else fieldBg)
-                                    .clickable {
-                                        selectedIcon = key
-                                        showIconPickerDialog = false
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = getVectorForIconKey(key),
-                                    contentDescription = key,
-                                    tint = if (isSel) Color.White else textColor,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -1672,11 +1613,10 @@ private fun AppearanceSelectionScreen(
                             .background(parsedColor.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = getVectorForIconKey(selectedIcon),
-                            contentDescription = null,
+                        HabitIconView(
+                            icon = selectedIcon,
                             tint = parsedColor,
-                            modifier = Modifier.size(32.dp)
+                            size = 32.dp
                         )
                     }
 
@@ -1712,7 +1652,7 @@ private fun AppearanceSelectionScreen(
             }
         }
 
-        // Section 1: Icon Chooser
+        // Section 1: Icon Chooser (New 4-Row Grid)
         Surface(
             shape = RoundedCornerShape(18.dp),
             color = cardBg,
@@ -1722,47 +1662,14 @@ private fun AppearanceSelectionScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Select Icon", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
-                    if (onOpenIconPicker != null) {
-                        TextButton(onClick = onOpenIconPicker) {
-                            Text("More Icons", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PinkAccent)
-                        }
-                    }
-                }
+                Text("Select Icon", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
 
-                val icons = listOf(
-                    "cake", "favorite", "hourglass", "star", "gift", "party",
-                    "balloon", "trophy", "bell", "flower", "flight", "music"
+                FlatColorIconPicker(
+                    selectedIcon = selectedIcon,
+                    onIconSelected = onIconSelected,
+                    accentColor = parsedColor,
+                    modifier = Modifier.fillMaxWidth()
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    icons.take(6).forEach { key ->
-                        val isSel = selectedIcon == key
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(if (isSel) parsedColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                                .clickable { onIconSelected(key) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = getVectorForIconKey(key),
-                                contentDescription = key,
-                                tint = if (isSel) Color.White else textColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
             }
         }
 
@@ -1993,13 +1900,91 @@ fun HabitIconView(
     modifier: Modifier = Modifier
 ) {
     val cleanKey = icon.trim()
-    val vector = getVectorForIconKey(cleanKey)
-    Icon(
-        imageVector = vector,
-        contentDescription = null,
-        tint = tint,
-        modifier = modifier.size(size)
-    )
+    val isEmoji = cleanKey.any { it.code > 127 || it.isSurrogate() }
+    if (isEmoji) {
+        androidx.compose.foundation.layout.Box(
+            modifier = modifier.size(size),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            androidx.compose.material3.Text(
+                text = cleanKey,
+                fontSize = (size.value * 0.85f).sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    } else {
+        val vector = getVectorForIconKey(cleanKey)
+        Icon(
+            imageVector = vector,
+            contentDescription = null,
+            tint = tint,
+            modifier = modifier.size(size)
+        )
+    }
+}
+
+@Composable
+fun FlatColorIconPicker(
+    selectedIcon: String,
+    onIconSelected: (String) -> Unit,
+    accentColor: Color = MaterialTheme.colorScheme.primary,
+    modifier: Modifier = Modifier
+) {
+    val iconsList = remember { com.example.utils.FLAT_COLOR_ICONS }
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val iconRows = 4
+        val chunked = remember(iconsList) { iconsList.chunked(iconRows) }
+        
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(210.dp)
+        ) {
+            items(chunked) { columnIcons ->
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    columnIcons.forEach { iconSpec ->
+                        val isSelected = selectedIcon == iconSpec.emoji
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (isSelected) accentColor.copy(alpha = 0.15f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                )
+                                .border(
+                                    width = if (isSelected) 2.dp else 0.dp,
+                                    color = if (isSelected) accentColor else Color.Transparent,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onIconSelected(iconSpec.emoji) }
+                        ) {
+                            Text(
+                                text = iconSpec.emoji,
+                                fontSize = 24.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(accentColor, CircleShape)
+                                        .align(Alignment.BottomEnd)
+                                        .offset(x = 1.dp, y = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fun getBrushForPreset(presetKey: String, accentColor: Color): Brush {

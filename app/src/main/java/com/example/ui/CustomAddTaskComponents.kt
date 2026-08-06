@@ -314,41 +314,7 @@ fun CustomAddTaskBottomSheet(
                     }
                 }
 
-                // C. Tag Label Icon
-                Box {
-                    IconButton(
-                        onClick = { tagMenuExpanded = true },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Label,
-                            contentDescription = "Tags",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
 
-                    DropdownMenu(
-                        expanded = tagMenuExpanded,
-                        onDismissRequest = { tagMenuExpanded = false },
-                        properties = PopupProperties(focusable = false),
-                        modifier = Modifier
-                            .background(MaterialTheme.colorScheme.surface)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                    ) {
-                        persistentTags.forEach { t ->
-                            DropdownMenuItem(
-                                text = { Text(t, fontSize = 13.sp) },
-                                onClick = {
-                                    if (!title.contains(t)) {
-                                        title = if (title.isBlank()) t else "$title $t"
-                                    }
-                                    tagMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
 
                 // D. List Selection Icon
                 Box {

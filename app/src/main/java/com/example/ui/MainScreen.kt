@@ -66,6 +66,13 @@ data class NavTabItemSpec(
     val subTab: Int = -1
 )
 
+data class HealthOptionSpec(
+    val index: Int,
+    val label: String,
+    val icon: ImageVector,
+    val color: Color
+)
+
 val ALL_NAV_TABS = listOf(
     NavTabItemSpec("dashboard", "Dashboard", Icons.Default.Dashboard, BrandViolet, "dashboard", -1),
     NavTabItemSpec("tasks", "Tasks", Icons.Default.Assignment, BrandViolet, "workspace", 0),
@@ -183,10 +190,51 @@ fun MainScreen(
             }
         )
     }
+
+    val showSportExerciseDialog by viewModel.showSportExerciseDialog.collectAsState()
+    val sportHabitCompletedName by viewModel.sportHabitCompletedName.collectAsState()
+    if (showSportExerciseDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.setShowSportExerciseDialog(false) },
+            title = {
+                Text(
+                    text = "Exercise Activity Tracking 🏋️",
+                    fontWeight = FontWeight.Bold,
+                    color = BrandViolet
+                )
+            },
+            text = {
+                Text("Great job completing '$sportHabitCompletedName'! Would you like to log an exercise activity?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.setShowSportExerciseDialog(false)
+                        navigateTo("health")
+                        viewModel.setHealthSubTab(1) // index 1 is Exercise
+                    }
+                ) {
+                    Text("Yes, log exercise", fontWeight = FontWeight.Bold, color = BrandViolet)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.setShowSportExerciseDialog(false) }
+                ) {
+                    Text("Maybe later")
+                }
+            }
+        )
+    }
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncMessage by viewModel.syncMessage.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+    val isWoman = remember(currentUser, userProfile) {
+        val g = (userProfile?.gender ?: currentUser?.gender ?: "").lowercase().trim()
+        g == "female" || g == "woman" || g == "women" || g == "girl"
+    }
 
     var isRefreshing by remember { mutableStateOf(false) }
     var pullOffset by remember { mutableStateOf(0f) }
@@ -302,7 +350,8 @@ fun MainScreen(
     val focusManager = LocalFocusManager.current
 
     val isShowAddFinanceSheet by viewModel.showAddFinanceSheet.collectAsState()
-    val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isShowAddFinanceSheet || isNetWorthSpeedDialOpen
+    val showHealthOptionsOverlay by viewModel.showHealthOptionsOverlay.collectAsState()
+    val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isShowAddFinanceSheet || isNetWorthSpeedDialOpen || showHealthOptionsOverlay
     val isSubViewActive = (activeTab == "finance" && (financeViewMode != "home" || isFinanceSearchActive))
 
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -327,6 +376,8 @@ fun MainScreen(
             isFinanceSpeedDialOpen = false
         } else if (isNetWorthSpeedDialOpen) {
             isNetWorthSpeedDialOpen = false
+        } else if (showHealthOptionsOverlay) {
+            viewModel.setShowHealthOptionsOverlay(false)
         } else if (isShowAddFinanceSheet) {
             viewModel.closeAddFinanceSheet()
         } else if (leftDrawerOpen) {
@@ -1018,7 +1069,7 @@ fun MainScreen(
         }
 
         // --- Full Screen Dim Backdrop for Speed Dial Options ---
-        if ((showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isNetWorthSpeedDialOpen) && activeDetailHabit == null && !needsOnboarding) {
+        if ((showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isNetWorthSpeedDialOpen || showHealthOptionsOverlay) && activeDetailHabit == null && !needsOnboarding) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1031,6 +1082,7 @@ fun MainScreen(
                         showOccasionSpeedDial = false
                         isFinanceSpeedDialOpen = false
                         isNetWorthSpeedDialOpen = false
+                        viewModel.setShowHealthOptionsOverlay(false)
                     }
             )
         }
@@ -1038,7 +1090,7 @@ fun MainScreen(
         // --- Floating Action Button & Speed Dials Rendered at Root level above the Scrims ---
         val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
         val showNetWorthAddSheet by viewModel.showNetWorthAddSheet.collectAsState()
-        if (activeDetailHabit == null && !needsOnboarding && !showNetWorthAddSheet && (!isShowAddFinanceSheet || activeTab != "finance")) {
+        if (activeDetailHabit == null && !needsOnboarding && !showNetWorthAddSheet && (!isShowAddFinanceSheet || activeTab != "finance") && !leftDrawerOpen) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1392,6 +1444,60 @@ fun MainScreen(
                                 }
                             }
 
+                            if (showHealthOptionsOverlay && activeTab == "health") {
+                                val healthSpeedDialOptions = remember(isWoman) {
+                                    val list = mutableListOf(
+                                        HealthOptionSpec(0, "Metrics Log", Icons.Default.Favorite, BrandViolet),
+                                        HealthOptionSpec(1, "Exercise", Icons.Default.DirectionsRun, BrandOrange),
+                                        HealthOptionSpec(2, "Symptom Log", Icons.Default.Info, Color(0xFFEF4444)),
+                                        HealthOptionSpec(3, "Sleep", Icons.Default.NightsStay, Color(0xFF8B5CF6)),
+                                        HealthOptionSpec(4, "Tablets", Icons.Default.CheckCircle, Color(0xFF10B981))
+                                    )
+                                    if (isWoman) {
+                                        list.add(HealthOptionSpec(5, "Period Tracker", Icons.Default.Face, BrandPink))
+                                    }
+                                    list
+                                }
+
+                                healthSpeedDialOptions.forEach { opt ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.clickable {
+                                            viewModel.setShowHealthOptionsOverlay(false)
+                                            viewModel.setHealthSubTab(opt.index)
+                                        }
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            tonalElevation = 4.dp,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = opt.label,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        FloatingActionButton(
+                                            onClick = {
+                                                viewModel.setShowHealthOptionsOverlay(false)
+                                                viewModel.setHealthSubTab(opt.index)
+                                            },
+                                            containerColor = opt.color,
+                                            contentColor = Color.White,
+                                            modifier = Modifier.size(44.dp),
+                                            shape = CircleShape
+                                        ) {
+                                            Icon(opt.icon, contentDescription = opt.label, modifier = Modifier.size(20.dp), tint = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+
                             FloatingActionButton(
                                 onClick = {
                                     if (activeTab == "habit_breaker") {
@@ -1402,6 +1508,9 @@ fun MainScreen(
                                     } else if (activeTab == "net_worth") {
                                         showMoreMenu = false
                                         isNetWorthSpeedDialOpen = !isNetWorthSpeedDialOpen
+                                    } else if (activeTab == "health") {
+                                        showMoreMenu = false
+                                        viewModel.setShowHealthOptionsOverlay(!viewModel.showHealthOptionsOverlay.value)
                                     } else {
                                         showMoreMenu = false
                                         showMainSpeedDial = !showMainSpeedDial
@@ -1426,6 +1535,7 @@ fun MainScreen(
                                 val isOpen = when (activeTab) {
                                     "finance" -> isFinanceSpeedDialOpen
                                     "net_worth" -> isNetWorthSpeedDialOpen
+                                    "health" -> viewModel.showHealthOptionsOverlay.collectAsState().value
                                     else -> showMainSpeedDial
                                 }
                                 Icon(
@@ -2135,17 +2245,15 @@ fun BottomTabItem(
     isActiveColor: Color = BrandViolet,
     onClick: () -> Unit
 ) {
-    val backgroundAlpha = if (isActive) 0.15f else 0.0f
-    val backgroundColor = isActiveColor.copy(alpha = backgroundAlpha)
-    
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(backgroundColor)
-            .clickable { onClick() }
-            .padding(horizontal = 4.dp, vertical = 8.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClick() }
+            .padding(horizontal = 4.dp, vertical = 6.dp)
     ) {
         Icon(
             imageVector = icon,
@@ -2157,7 +2265,7 @@ fun BottomTabItem(
             text = label,
             fontSize = 9.sp,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-            color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            color = if (isActive) isActiveColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             modifier = Modifier.padding(top = 2.dp)
         )
     }
@@ -2927,48 +3035,6 @@ fun LeftDrawerPane(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
                                 tint = if (activeTab == "folders") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-                }
-
-                // --- Hashtags Navigation Link ---
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (activeTab == "tags") BrandViolet.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onNavigate("tags")
-                                onClose()
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.LocalOffer, contentDescription = null, tint = BrandViolet)
-                                Text(
-                                    text = "HASHTAGS",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (activeTab == "tags") BrandViolet else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = if (activeTab == "tags") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     }

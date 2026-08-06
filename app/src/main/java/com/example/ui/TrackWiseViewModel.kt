@@ -242,6 +242,16 @@ class TrackWiseViewModel(
         _showEarlyToRiseSleepDialog.value = show
     }
 
+    private val _showSportExerciseDialog = MutableStateFlow(false)
+    val showSportExerciseDialog: StateFlow<Boolean> = _showSportExerciseDialog.asStateFlow()
+
+    private val _sportHabitCompletedName = MutableStateFlow("")
+    val sportHabitCompletedName: StateFlow<String> = _sportHabitCompletedName.asStateFlow()
+
+    fun setShowSportExerciseDialog(show: Boolean) {
+        _showSportExerciseDialog.value = show
+    }
+
     private val _pinnedFinanceLogIds = MutableStateFlow<Set<String>>(emptySet())
     val pinnedFinanceLogIds: StateFlow<Set<String>> = _pinnedFinanceLogIds.asStateFlow()
 
@@ -819,6 +829,13 @@ class TrackWiseViewModel(
 
     private val _healthSubTab = MutableStateFlow(0)
     val healthSubTab: StateFlow<Int> = _healthSubTab.asStateFlow()
+
+    private val _showHealthOptionsOverlay = MutableStateFlow(false)
+    val showHealthOptionsOverlay: StateFlow<Boolean> = _showHealthOptionsOverlay.asStateFlow()
+
+    fun setShowHealthOptionsOverlay(show: Boolean) {
+        _showHealthOptionsOverlay.value = show
+    }
 
     fun setHealthSubTab(tabIndex: Int) {
         _healthSubTab.value = tabIndex
@@ -1554,6 +1571,16 @@ class TrackWiseViewModel(
                 if (habit.name.equals("Early to rise", ignoreCase = true)) {
                     _showEarlyToRiseSleepDialog.value = true
                 }
+                val cat = habit.category.lowercase()
+                val name = habit.name.lowercase()
+                val sec = habit.section.lowercase()
+                if (cat.contains("sport") || cat.contains("fitness") || cat.contains("workout") || cat.contains("exercise") ||
+                    sec.contains("sport") || sec.contains("fitness") ||
+                    name.contains("workout") || name.contains("step") || name.contains("stretch") || name.contains("cycl") ||
+                    name.contains("run") || name.contains("gym") || name.contains("sport") || name.contains("exercise")) {
+                    _sportHabitCompletedName.value = habit.name
+                    _showSportExerciseDialog.value = true
+                }
             }
             
             // Recalculate streak
@@ -1611,6 +1638,16 @@ class TrackWiseViewModel(
             days.add(todayStr)
             if (habit.name.equals("Early to rise", ignoreCase = true)) {
                 _showEarlyToRiseSleepDialog.value = true
+            }
+            val cat = habit.category.lowercase()
+            val name = habit.name.lowercase()
+            val sec = habit.section.lowercase()
+            if (cat.contains("sport") || cat.contains("fitness") || cat.contains("workout") || cat.contains("exercise") ||
+                sec.contains("sport") || sec.contains("fitness") ||
+                name.contains("workout") || name.contains("step") || name.contains("stretch") || name.contains("cycl") ||
+                name.contains("run") || name.contains("gym") || name.contains("sport") || name.contains("exercise")) {
+                _sportHabitCompletedName.value = habit.name
+                _showSportExerciseDialog.value = true
             }
             
             // Recalculate streak

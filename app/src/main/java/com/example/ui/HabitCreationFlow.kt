@@ -1,6 +1,7 @@
 package com.example.ui
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -102,16 +103,105 @@ val ICON_OPTIONS = listOf(
 ).distinct()
 
 val MOTIVATIONAL_QUOTES = listOf(
-    "Believe in yourself.",
-    "Now or never.",
-    "Try a little harder to be a little better.",
+    "Believe in yourself and all that you are.",
     "Small daily improvements lead to stunning results.",
     "Consistency is the key to mastery.",
-    "Dream lofty dream.",
-    "Action is the foundational key to all success.",
     "Your future self will thank you for taking action today.",
+    "Action is the foundational key to all success.",
     "Every day is a fresh start.",
-    "Progress over perfection."
+    "Progress over perfection.",
+    "Now or never.",
+    "Try a little harder to be a little better.",
+    "Dream big, start small, act now.",
+    "Success is the sum of small efforts repeated daily.",
+    "Do something today that your future self will thank you for.",
+    "You don't have to be great to start, but you have to start to be great.",
+    "Focus on being productive instead of busy.",
+    "Discipline is choosing between what you want now and what you want most.",
+    "The secret of getting ahead is getting started.",
+    "Small steps in the right direction can turn out to be the biggest step of your life.",
+    "Energy flows where attention goes.",
+    "Be stronger than your excuses.",
+    "Great things never come from comfort zones.",
+    "Don't count the days, make the days count.",
+    "Your only limit is you.",
+    "Stay positive, work hard, make it happen.",
+    "Doubt kills more dreams than failure ever will.",
+    "Turn your obstacles into opportunities.",
+    "Believe you can and you're halfway there.",
+    "Excellence is not an act, but a habit.",
+    "What you do today can improve all your tomorrows.",
+    "Hard work beats talent when talent doesn't work hard.",
+    "The best way to predict the future is to create it.",
+    "Do what you can, with what you have, where you are.",
+    "A journey of a thousand miles begins with a single step.",
+    "Fall seven times, stand up eight.",
+    "Success isn't overnight. It's when every day you get a little better.",
+    "Make each day your masterpiece.",
+    "Push yourself, because no one else is going to do it for you.",
+    "You are capable of amazing things.",
+    "Wake up with determination, go to bed with satisfaction.",
+    "It always seems impossible until it's done.",
+    "Difficult roads often lead to beautiful destinations.",
+    "Be so good they can'ignore you.",
+    "Work hard in silence, let your success be your noise.",
+    "Your mind is a powerful thing. Fill it with positive thoughts.",
+    "Little by little, one travels far.",
+    "Don't watch the clock; do what it does. Keep going.",
+    "You do not find the happy life. You make it.",
+    "Build your own dreams, or someone else will hire you to build theirs.",
+    "Start where you are. Use what you have. Do what you can.",
+    "Courage is resistance to fear, mastery of fear, not absence of fear.",
+    "Aim for the moon. If you miss, you may hit a star.",
+    "Success is walking from failure to failure with no loss of enthusiasm.",
+    "The only way to do great work is to love what you do.",
+    "Opportunities don't happen, you create them.",
+    "Never give up on a dream just because of the time it will take to accomplish it.",
+    "Everything you've ever wanted is on the other side of fear.",
+    "Success starts with self-discipline.",
+    "Clear your mind of can't.",
+    "Believe in the power of yet.",
+    "Habits shape your future; cultivate good ones daily.",
+    "Focus on the journey, not the outcome.",
+    "Be the change that you wish to see in the world.",
+    "With self-discipline almost anything is possible.",
+    "Mindset is everything.",
+    "Keep your eyes on the stars, and your feet on the ground.",
+    "The difference between ordinary and extraordinary is that little extra.",
+    "Success belongs to those who prepare for it today.",
+    "Stay hungry, stay foolish.",
+    "Mastering yourself is true power.",
+    "One day or day one. You decide.",
+    "Don't wait for opportunity. Create it.",
+    "Greatness is a series of small decisions made consistently.",
+    "Self-care and self-discipline go hand in hand.",
+    "Transform your habits, transform your life.",
+    "Rise above the storm and you will find the sunshine.",
+    "Consistency turns motion into progress.",
+    "You are the author of your own story.",
+    "Choose progress over comfort.",
+    "Your habits determine your quality of life.",
+    "Focus on what you can control.",
+    "Small wins pave the way to monumental triumphs.",
+    "Stay committed to your decisions, but flexible in your approach.",
+    "Strength does not come from winning. Your struggles develop your strengths.",
+    "Be relentless in the pursuit of what sets your soul on fire.",
+    "Every accomplishment starts with the decision to try.",
+    "Don't let yesterday take up too much of today.",
+    "Show up for yourself every single day.",
+    "Your potential is endless.",
+    "Quality is not an act, it is a habit.",
+    "Be patient with yourself. Nothing in nature blooms all year.",
+    "Action cures anxiety and fear.",
+    "Small daily habits multiply over time.",
+    "Keep moving forward, no matter how slow.",
+    "You are capable of more than you know.",
+    "Focus, commit, and achieve.",
+    "Continuous improvement is better than delayed perfection.",
+    "The habit of persistence is the habit of victory.",
+    "Success is habit in action.",
+    "Nurture your goals with daily effort.",
+    "You are one habit away from a breakthrough."
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -138,6 +228,8 @@ fun HabitCreationFlowDialog(
         var selectedIcon by remember(habitToEdit) { mutableStateOf(habitToEdit?.icon ?: "😊") }
         var currentQuote by remember(habitToEdit) { mutableStateOf(habitToEdit?.quote ?: "") }
         var habitCategory by remember(habitToEdit) { mutableStateOf(habitToEdit?.category ?: "Suggested") }
+        var showQuotesPickerDialog by remember { mutableStateOf(false) }
+        var quotesSearchQuery by remember { mutableStateOf("") }
 
         // Step 2 state
         var selectedFrequencyOption by remember(habitToEdit) { 
@@ -496,59 +588,12 @@ fun HabitCreationFlowDialog(
 
                                             Spacer(modifier = Modifier.height(16.dp))
 
-                                            // Slider / LazyRow Grid of Icons (4 rows of columns)
-                                            val iconRows = 4
-                                            val chunkedIcons = remember { ICON_OPTIONS.chunked(iconRows) }
-                                            LazyRow(
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(240.dp)
-                                            ) {
-                                                items(chunkedIcons) { columnIcons ->
-                                                    Column(
-                                                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                                                    ) {
-                                                        columnIcons.forEach { iconStr ->
-                                                            val isSelected = selectedIcon == iconStr
-                                                            Box(
-                                                                contentAlignment = Alignment.Center,
-                                                                modifier = Modifier
-                                                                    .size(45.dp)
-                                                                    .clip(CircleShape)
-                                                                    .background(
-                                                                        if (isSelected) primaryColor.copy(alpha = 0.15f)
-                                                                        else MaterialTheme.colorScheme.surfaceVariant
-                                                                    )
-                                                                    .border(
-                                                                        width = if (isSelected) 2.dp else 0.dp,
-                                                                        color = if (isSelected) primaryColor else Color.Transparent,
-                                                                        shape = CircleShape
-                                                                    )
-                                                                    .clickable { selectedIcon = iconStr }
-                                                            ) {
-                                                                HabitIconView(
-                                                                    icon = iconStr,
-                                                                    tint = if (isSelected) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                                    size = 22.dp
-                                                                )
-                                                                if (isSelected) {
-                                                                    Icon(
-                                                                        imageVector = Icons.Default.Check,
-                                                                        contentDescription = null,
-                                                                        tint = primaryColor,
-                                                                        modifier = Modifier
-                                                                            .size(14.dp)
-                                                                            .align(Alignment.BottomEnd)
-                                                                            .offset(x = 2.dp, y = 2.dp)
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
+                                            FlatColorIconPicker(
+                                                selectedIcon = selectedIcon,
+                                                onIconSelected = { selectedIcon = it },
+                                                accentColor = primaryColor,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
                                         }
                                     }
                                 }
@@ -568,41 +613,58 @@ fun HabitCreationFlowDialog(
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Text(
-                                                    text = "Quote",
+                                                    text = "Motivational Quote 💡",
                                                     fontWeight = FontWeight.SemiBold,
                                                     fontSize = 14.sp,
                                                     color = textColor
                                                 )
-                                                IconButton(
-                                                    onClick = {
-                                                        currentQuote = MOTIVATIONAL_QUOTES.random()
-                                                    },
-                                                    modifier = Modifier.size(28.dp)
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Refresh,
-                                                        contentDescription = "Refresh Quote",
-                                                        tint = primaryColor,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
+                                                    IconButton(
+                                                        onClick = {
+                                                            currentQuote = MOTIVATIONAL_QUOTES.random()
+                                                        },
+                                                        modifier = Modifier.size(28.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Refresh,
+                                                            contentDescription = "Random Quote",
+                                                            tint = primaryColor,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    }
                                                 }
                                             }
 
                                             Spacer(modifier = Modifier.height(8.dp))
 
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .background(backgroundColor)
-                                                    .padding(14.dp)
-                                            ) {
-                                                Text(
-                                                    text = currentQuote.ifBlank { "Choose or enter a tag below..." },
-                                                    fontSize = 14.sp,
-                                                    color = onSurfaceColor,
-                                                    fontWeight = FontWeight.Medium
+                                            OutlinedTextField(
+                                                value = currentQuote,
+                                                onValueChange = { currentQuote = it },
+                                                placeholder = { Text("Select or type a motivational quote...", color = onSurfaceVariantColor, fontSize = 13.sp) },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                textStyle = TextStyle(fontSize = 13.sp, color = textColor),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = primaryColor,
+                                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                                    focusedContainerColor = backgroundColor,
+                                                    unfocusedContainerColor = backgroundColor
                                                 )
+                                            )
+
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            Button(
+                                                onClick = { showQuotesPickerDialog = true },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor.copy(alpha = 0.12f), contentColor = primaryColor),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Icon(Icons.Default.FormatQuote, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Browse 100 Motivational Quotes 💡", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                             }
                                         }
                                     }
@@ -939,77 +1001,6 @@ fun HabitCreationFlowDialog(
                                         }
                                     }
                                 }
-
-                                // Card 5: Select a #tag (Replaces auto pop-up switch with highly interactive tagging)
-                                item {
-                                    Card(
-                                        shape = RoundedCornerShape(16.dp),
-                                        colors = CardDefaults.cardColors(containerColor = surfaceColor),
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Column(modifier = Modifier.padding(16.dp)) {
-                                            Text(
-                                                text = "Select #tag",
-                                                fontWeight = FontWeight.SemiBold,
-                                                fontSize = 14.sp,
-                                                color = textColor
-                                            )
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            OutlinedTextField(
-                                                value = customTagInput,
-                                                onValueChange = { input ->
-                                                    customTagInput = if (input.startsWith("#") || input.isEmpty()) input else "#$input"
-                                                    currentQuote = customTagInput
-                                                },
-                                                placeholder = { Text("Type custom tag (e.g. #focus)", color = onSurfaceVariantColor, fontSize = 13.sp) },
-                                                singleLine = true,
-                                                textStyle = TextStyle(fontSize = 13.sp, color = textColor),
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = OutlinedTextFieldDefaults.colors(
-                                                    focusedBorderColor = primaryColor,
-                                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                                    focusedContainerColor = backgroundColor,
-                                                    unfocusedContainerColor = backgroundColor
-                                                )
-                                            )
-
-                                            Spacer(modifier = Modifier.height(12.dp))
-
-                                            val presetTags = listOf("#Health", "#Fitness", "#Routine", "#Mindset", "#Work", "#Personal", "#Study")
-                                            LazyRow(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                items(presetTags) { tag ->
-                                                    val isSelected = currentQuote == tag
-                                                    Surface(
-                                                        shape = RoundedCornerShape(12.dp),
-                                                        color = if (isSelected) primaryColor else MaterialTheme.colorScheme.surfaceVariant,
-                                                        modifier = Modifier.clickable {
-                                                            if (isSelected) {
-                                                                currentQuote = ""
-                                                                customTagInput = ""
-                                                            } else {
-                                                                currentQuote = tag
-                                                                customTagInput = tag
-                                                            }
-                                                        }
-                                                    ) {
-                                                        Text(
-                                                            text = tag,
-                                                            color = if (isSelected) Color.White else onSurfaceColor,
-                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                            fontSize = 12.sp,
-                                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
@@ -1306,6 +1297,90 @@ fun HabitCreationFlowDialog(
                 dismissButton = {
                     TextButton(onClick = { showDatePickerDialog = false }) {
                         Text("Cancel", color = onSurfaceVariantColor)
+                    }
+                }
+            )
+        }
+
+        if (showQuotesPickerDialog) {
+            AlertDialog(
+                onDismissRequest = { showQuotesPickerDialog = false },
+                title = {
+                    Text(
+                        text = "100 Motivational Quotes 💡",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = primaryColor
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = quotesSearchQuery,
+                            onValueChange = { quotesSearchQuery = it },
+                            placeholder = { Text("Search quotes...", fontSize = 13.sp) },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = primaryColor) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 10.dp),
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 13.sp)
+                        )
+
+                        val filteredQuotes = remember(quotesSearchQuery) {
+                            if (quotesSearchQuery.isBlank()) MOTIVATIONAL_QUOTES
+                            else MOTIVATIONAL_QUOTES.filter { it.contains(quotesSearchQuery, ignoreCase = true) }
+                        }
+
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(filteredQuotes) { quote ->
+                                val isSelected = currentQuote == quote
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) primaryColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    ),
+                                    border = if (isSelected) BorderStroke(1.dp, primaryColor) else null,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            currentQuote = quote
+                                            showQuotesPickerDialog = false
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.FormatQuote,
+                                            contentDescription = null,
+                                            tint = primaryColor,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = quote,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = textColor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showQuotesPickerDialog = false }) {
+                        Text("Close", color = primaryColor, fontWeight = FontWeight.Bold)
                     }
                 }
             )

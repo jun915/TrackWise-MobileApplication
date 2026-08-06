@@ -1,10 +1,14 @@
 package com.example.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -92,20 +96,21 @@ fun HealthScreen(
         weight / (height / 100.0).pow(2)
     } else 0.0
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                focusManager.clearFocus()
-            }
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                }
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
 
 
         // --- Rule-Based Clinical Health Analysis Tips (Section 10.1 & Part 16) ---
@@ -131,123 +136,6 @@ fun HealthScreen(
                 ) {
                     BMICard(bmi = bmi, weight = weight, height = height, modifier = Modifier.weight(1f).fillMaxHeight())
                     WaterTrackerCard(viewModel = viewModel, logs = waterLogs, modifier = Modifier.weight(1f).fillMaxHeight())
-                }
-            }
-        }
-
-        // --- Tabs Selection Dropdown ---
-        item {
-            var dropdownExpanded by remember { mutableStateOf(false) }
-            val activeTabLabel = tabs.getOrNull(activeSubTab) ?: "Metrics Log"
-            
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { dropdownExpanded = true }
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            val icon = when (activeTabLabel) {
-                                "Metrics Log" -> Icons.Default.Favorite
-                                "Exercise" -> Icons.Default.DirectionsRun
-                                "Symptom Log" -> Icons.Default.Info
-                                "Sleep" -> Icons.Default.NightsStay
-                                "Tablets" -> Icons.Default.CheckCircle
-                                "Period Tracker" -> Icons.Default.Face
-                                else -> Icons.Default.Star
-                            }
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = BrandViolet,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = activeTabLabel.uppercase(),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandViolet
-                            )
-                        }
-                        
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = "Select View",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            )
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = BrandViolet,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-
-                DropdownMenu(
-                    expanded = dropdownExpanded,
-                    onDismissRequest = { dropdownExpanded = false },
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .background(MaterialTheme.colorScheme.surface)
-                ) {
-                    tabs.forEachIndexed { index, label ->
-                        val selected = activeSubTab == index
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = label,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (selected) BrandViolet else MaterialTheme.colorScheme.onSurface
-                                )
-                            },
-                            onClick = {
-                                viewModel.setHealthSubTab(index)
-                                dropdownExpanded = false
-                            },
-                            leadingIcon = {
-                                val itemIcon = when (label) {
-                                    "Metrics Log" -> Icons.Default.Favorite
-                                    "Exercise" -> Icons.Default.DirectionsRun
-                                    "Symptom Log" -> Icons.Default.Info
-                                    "Sleep" -> Icons.Default.NightsStay
-                                    "Tablets" -> Icons.Default.CheckCircle
-                                    "Period Tracker" -> Icons.Default.Face
-                                    else -> Icons.Default.Star
-                                }
-                                Icon(
-                                    imageVector = itemIcon,
-                                    contentDescription = null,
-                                    tint = if (selected) BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        )
-                    }
                 }
             }
         }
@@ -278,6 +166,8 @@ fun HealthScreen(
                 }
             }
         }
+    }
+
     }
 }
 

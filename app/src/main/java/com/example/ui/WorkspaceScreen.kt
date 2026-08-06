@@ -3473,8 +3473,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                             }
                             items(allPresets) { imageUrl ->
                                 val isSelected = customBgImage == imageUrl
+                                val optimizedThumb = com.example.ui.theme.BackgroundPresets.getOptimizedUnsplashUrl(imageUrl, isThumb = true)
                                 AsyncImage(
-                                    model = imageUrl,
+                                    model = optimizedThumb,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
@@ -4048,8 +4049,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // Background image
                     if (!activeBday.customBgImage.isNullOrEmpty()) {
+                        val optimizedBg = com.example.ui.theme.BackgroundPresets.getOptimizedUnsplashUrl(activeBday.customBgImage!!, width = 1080, quality = 75)
                         AsyncImage(
-                            model = activeBday.customBgImage,
+                            model = optimizedBg,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
@@ -4433,8 +4435,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
 
                             items(BackgroundPresets.allPresets) { imageUrl ->
                                 val isSelected = activeBday.customBgImage == imageUrl
+                                val optimizedThumb = BackgroundPresets.getOptimizedUnsplashUrl(imageUrl, isThumb = true)
                                 AsyncImage(
-                                    model = imageUrl,
+                                    model = optimizedThumb,
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier

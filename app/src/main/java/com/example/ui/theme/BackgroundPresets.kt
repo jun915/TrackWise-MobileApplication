@@ -141,6 +141,16 @@ object BackgroundPresets {
     )
 
     val allPresets = (abstractImages + landscapes + cityscapes + spaceImages + darkAesthetic + textures).distinct()
+
+    fun getOptimizedUnsplashUrl(url: String, width: Int = 1080, quality: Int = 75, isThumb: Boolean = false): String {
+        if (!url.contains("images.unsplash.com")) return url
+        val baseUrl = url.substringBefore("?")
+        return if (isThumb) {
+            "$baseUrl?w=200&h=200&fit=crop&q=60&fm=webp"
+        } else {
+            "$baseUrl?w=$width&q=$quality&fm=webp"
+        }
+    }
 }
 
 @Composable
@@ -197,8 +207,9 @@ fun AppBackground(
                 }
 
                 if (imageSource.isNotEmpty()) {
+                    val optimizedSource = BackgroundPresets.getOptimizedUnsplashUrl(imageSource, width = 1080, quality = 75)
                     AsyncImage(
-                        model = imageSource,
+                        model = optimizedSource,
                         contentDescription = "App Background Image",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
