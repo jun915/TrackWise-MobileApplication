@@ -99,6 +99,7 @@ fun DashboardScreen(
             TrackWiseUtils.shouldShowTaskOnDate(it, todayStr)
         }
         .sortedWith(compareBy<TaskEntity> { !it.notes.contains("[PINNED]") }
+            .thenBy { TrackWiseUtils.getPinTimestamp(it.notes) }
             .thenBy { it.reminderTime == null }
             .thenBy { it.reminderTime ?: "" }
             .thenBy { it.title }
@@ -112,6 +113,7 @@ fun DashboardScreen(
             (it.deadline < todayStr || it.priority == "high")
         }
         .sortedWith(compareBy<TaskEntity> { !it.notes.contains("[PINNED]") }
+            .thenBy { TrackWiseUtils.getPinTimestamp(it.notes) }
             .thenBy { it.deadline }
             .thenByDescending { it.priority == "high" }
             .thenBy { it.title }
@@ -482,7 +484,15 @@ fun DashboardScreen(
                     onToggleTask = { viewModel.toggleTaskCompletion(it) },
                     onDeleteTask = { viewModel.deleteTask(it.id) },
                     onArchiveTask = { viewModel.updateTask(it.copy(notes = it.notes + "[ARCHIVED]")) },
-                    onPinTask = { viewModel.updateTask(it.copy(notes = if (it.notes.contains("[PINNED]")) it.notes.replace("[PINNED]", "") else it.notes + "[PINNED]")) },
+                    onPinTask = { task ->
+                        val isPinned = task.notes.contains("[PINNED]")
+                        val newNotes = if (isPinned) {
+                            task.notes.replace(Regex("\\[PINNED.*?\\]"), "").trim()
+                        } else {
+                            (task.notes + " [PINNED:${System.currentTimeMillis()}]").trim()
+                        }
+                        viewModel.updateTask(task.copy(notes = newNotes))
+                    },
                     onPostponeTask = { activePostponeTask = it }
                 )
             }
@@ -1222,27 +1232,35 @@ fun TodayItemsWidget(
                                         }
 
                                         // Right: Complete Toggle Circle button
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .border(
-                                                    2.dp,
-                                                    if (task.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                                    CircleShape
-                                                )
-                                                .background(
-                                                    if (task.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
-                                                    CircleShape
-                                                ),
-                                            contentAlignment = Alignment.Center
+                                        com.example.utils.CompletionBurstWrapper(
+                                            onClick = { onToggleTask(task) },
+                                            dotColor = BrandGreen,
+                                            dotCount = 6,
+                                            initialRadiusDp = 12.dp,
+                                            burstRadiusMaxDp = 26.dp
                                         ) {
-                                            if (task.completed) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = null,
-                                                    tint = BrandGreen,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .border(
+                                                        2.dp,
+                                                        if (task.completed) BrandGreen else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                        CircleShape
+                                                    )
+                                                    .background(
+                                                        if (task.completed) BrandGreen.copy(alpha = 0.2f) else Color.Transparent,
+                                                        CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (task.completed) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = BrandGreen,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1502,27 +1520,35 @@ fun PriorityItemsWidget(
                                         }
 
                                         // Right: Complete Toggle Circle button (colored BrandRose)
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .border(
-                                                    2.dp,
-                                                    if (task.completed) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                                    CircleShape
-                                                )
-                                                .background(
-                                                    if (task.completed) BrandRose.copy(alpha = 0.2f) else Color.Transparent,
-                                                    CircleShape
-                                                ),
-                                            contentAlignment = Alignment.Center
+                                        com.example.utils.CompletionBurstWrapper(
+                                            onClick = { onToggleTask(task) },
+                                            dotColor = BrandRose,
+                                            dotCount = 6,
+                                            initialRadiusDp = 12.dp,
+                                            burstRadiusMaxDp = 26.dp
                                         ) {
-                                            if (task.completed) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = null,
-                                                    tint = BrandRose,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .border(
+                                                        2.dp,
+                                                        if (task.completed) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                        CircleShape
+                                                    )
+                                                    .background(
+                                                        if (task.completed) BrandRose.copy(alpha = 0.2f) else Color.Transparent,
+                                                        CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (task.completed) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = BrandRose,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1692,25 +1718,31 @@ fun DailyHabitsWidget(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     // Left: Habit icon / checkmark
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clickable { onToggleHabit(habit) },
-                                        contentAlignment = Alignment.Center
+                                    com.example.utils.CompletionBurstWrapper(
+                                        onClick = { onToggleHabit(habit) },
+                                        dotColor = BrandOrange,
+                                        dotCount = 6,
+                                        initialRadiusDp = 14.dp,
+                                        burstRadiusMaxDp = 28.dp
                                     ) {
-                                        if (isDone) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = "Done",
-                                                tint = BrandOrange,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        } else {
-                                            HabitIconView(
-                                                icon = habit.icon,
-                                                tint = BrandOrange,
-                                                size = 22.dp
-                                            )
+                                        Box(
+                                            modifier = Modifier.size(28.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isDone) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "Done",
+                                                    tint = BrandOrange,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            } else {
+                                                HabitIconView(
+                                                    icon = habit.icon,
+                                                    tint = BrandOrange,
+                                                    size = 22.dp
+                                                )
+                                            }
                                         }
                                     }
 

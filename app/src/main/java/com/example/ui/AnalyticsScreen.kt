@@ -388,7 +388,7 @@ fun AnalyticsScreen(
                         // Chart 3: Task Completion Frequency Tracker
                         item {
                             AnimatedTileContainer {
-                                CompletionsTrackerCard(tasks = tasks, habits = emptyList())
+                                CompletionsTrackerCard(tasks = tasks, habits = emptyList(), overrideTitle = "COMPLETED TASKS")
                             }
                         }
 
@@ -425,7 +425,7 @@ fun AnalyticsScreen(
                         // Chart 3: Habit Completion Weekly Tracker
                         item {
                             AnimatedTileContainer {
-                                CompletionsTrackerCard(tasks = emptyList(), habits = habits)
+                                CompletionsTrackerCard(tasks = emptyList(), habits = habits, overrideTitle = "COMPLETED HABITS")
                             }
                         }
 
@@ -1042,7 +1042,7 @@ fun HabitStreakCard(habits: List<HabitEntity>) {
 // 2. Completed Tasks + Habits Day of Week / Month / Year Chart
 // ==========================================
 @Composable
-fun CompletionsTrackerCard(tasks: List<TaskEntity>, habits: List<HabitEntity>) {
+fun CompletionsTrackerCard(tasks: List<TaskEntity>, habits: List<HabitEntity>, overrideTitle: String? = null) {
     var period by remember { mutableStateOf("week") } // "week", "month", "year"
 
     // Parse completions
@@ -1147,8 +1147,13 @@ fun CompletionsTrackerCard(tasks: List<TaskEntity>, habits: List<HabitEntity>) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val chartTitle = overrideTitle ?: when {
+                        tasks.isNotEmpty() && habits.isEmpty() -> "COMPLETED TASKS"
+                        tasks.isEmpty() && habits.isNotEmpty() -> "COMPLETED HABITS"
+                        else -> "COMPLETED TASKS + HABITS"
+                    }
                     Icon(Icons.Default.DoneAll, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
-                    Text("COMPLETED TASKS + HABITS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    Text(chartTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
                 }
 
                 // Small Row of Period Toggles

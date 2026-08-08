@@ -246,7 +246,7 @@ fun ModernAddOccasionDialog(
                             }
                         ) {
                             Icon(
-                                imageVector = if (currentStep == 2) Icons.Default.ArrowBack else Icons.Default.Close,
+                                imageVector = Icons.Default.ArrowBack,
                                 contentDescription = "Back",
                                 tint = textColor
                             )
@@ -450,52 +450,54 @@ fun ModernAddOccasionDialog(
                                         )
                                     }
 
-                                    HorizontalDivider(color = textColor.copy(alpha = 0.08f), thickness = 0.8.dp)
+                                    if (!selectedType.equals("Countdown", ignoreCase = true)) {
+                                        HorizontalDivider(color = textColor.copy(alpha = 0.08f), thickness = 0.8.dp)
 
-                                    // Row 3: Show in Smart List
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { showSmartListPickerDialog = true }
-                                            .padding(horizontal = 18.dp, vertical = 14.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
+                                        // Row 3: Show in Smart List
                                         Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { showSmartListPickerDialog = true }
+                                                .padding(horizontal = 18.dp, vertical = 14.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Text(
-                                                text = "Show in Smart List",
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = textColor
-                                            )
-                                            Icon(
-                                                imageVector = Icons.Default.HelpOutline,
-                                                contentDescription = "Help",
-                                                tint = textColor.copy(alpha = 0.4f),
-                                                modifier = Modifier
-                                                    .size(18.dp)
-                                                    .clickable { showSmartListInfoDialog = true }
-                                            )
-                                        }
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Show in Smart List",
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = textColor
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.HelpOutline,
+                                                    contentDescription = "Help",
+                                                    tint = textColor.copy(alpha = 0.4f),
+                                                    modifier = Modifier
+                                                        .size(18.dp)
+                                                        .clickable { showSmartListInfoDialog = true }
+                                                )
+                                            }
 
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Text(
-                                                text = smartListOption,
-                                                fontSize = 14.sp,
-                                                color = textColor.copy(alpha = 0.6f)
-                                            )
-                                            Icon(
-                                                imageVector = Icons.Default.ChevronRight,
-                                                contentDescription = null,
-                                                tint = textColor.copy(alpha = 0.4f),
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = smartListOption,
+                                                    fontSize = 14.sp,
+                                                    color = textColor.copy(alpha = 0.6f)
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.ChevronRight,
+                                                    contentDescription = null,
+                                                    tint = textColor.copy(alpha = 0.4f),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }

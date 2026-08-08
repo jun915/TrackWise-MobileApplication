@@ -978,26 +978,14 @@ fun CalendarDayView(
 
                     // Find tasks for this hour slot
                     val hourTasks = timedTasks.filter { task ->
-                        val time = task.reminderTime
-                        if (time != null) {
-                            val parts = time.split(":")
-                            if (parts.size >= 2) {
-                                val hour = parts[0].toIntOrNull()
-                                hour == h
-                            } else false
-                        } else false
+                        val parsedHour = TrackWiseUtils.parseHourFromTimeString(task.reminderTime)
+                        parsedHour == h
                     }
 
                     // Find habits for this hour slot
                     val hourHabits = todayHabits.filter { habit ->
-                        val time = habit.reminderTime ?: habit.dueTime
-                        if (!time.isNullOrBlank()) {
-                            val parts = time.split(":")
-                            if (parts.size >= 2) {
-                                val hour = parts[0].toIntOrNull()
-                                hour == h
-                            } else false
-                        } else false
+                        val parsedHour = TrackWiseUtils.parseHourFromTimeString(habit.reminderTime ?: habit.dueTime)
+                        parsedHour == h
                     }
 
                     Row(

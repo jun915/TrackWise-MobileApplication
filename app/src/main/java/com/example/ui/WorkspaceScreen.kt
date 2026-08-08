@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.BirthdayEntity
+import com.example.data.GroceryItemEntity
 import com.example.data.HabitEntity
 import com.example.data.TaskEntity
 import com.example.data.WishItemEntity
@@ -595,7 +596,11 @@ fun TaskSection(
                 } else {
                     true
                 }
-            }.sortedByDescending { it.notes.contains("[PINNED]") }
+            }.sortedWith(
+                compareBy<TaskEntity> { !it.notes.contains("[PINNED]") }
+                    .thenBy { TrackWiseUtils.getPinTimestamp(it.notes) }
+                    .thenBy { it.title }
+            )
         }
 
         if (selectedFolder != null || selectedTag != null) {
@@ -721,7 +726,13 @@ fun TaskSection(
                                     onDeleteTask = { viewModel.deleteTask(task.id) },
                                     onArchiveTask = { viewModel.updateTask(task.copy(notes = task.notes + "[ARCHIVED]")) },
                                     onPinTask = {
-                                        viewModel.updateTask(task.copy(notes = if (task.notes.contains("[PINNED]")) task.notes.replace("[PINNED]", "") else task.notes + " [PINNED]"))
+                                        val isPinned = task.notes.contains("[PINNED]")
+                                        val newNotes = if (isPinned) {
+                                            task.notes.replace(Regex("\\[PINNED.*?\\]"), "").trim()
+                                        } else {
+                                            (task.notes + " [PINNED:${System.currentTimeMillis()}]").trim()
+                                        }
+                                        viewModel.updateTask(task.copy(notes = newNotes))
                                     },
                                     onPostponeTask = {
                                         try {
@@ -862,30 +873,37 @@ fun TaskCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
-                // Task Checkbox (Radio button is bit smaller and always aligned to title)
-                Box(
-                    modifier = Modifier
-                        .padding(top = 4.dp)
-                        .size(16.dp)
-                        .border(
-                            1.5.dp,
-                            if (task.completed) priorityColor.copy(alpha = 0.5f) else priorityColor,
-                            CircleShape
-                        )
-                        .background(
-                            if (task.completed) priorityColor.copy(alpha = 0.2f) else Color.Transparent,
-                            CircleShape
-                        )
-                        .clickable { viewModel.toggleTaskCompletion(task) },
-                    contentAlignment = Alignment.Center
+                // Task Checkbox (Radio button with 6-dot burst animation)
+                com.example.utils.CompletionBurstWrapper(
+                    onClick = { viewModel.toggleTaskCompletion(task) },
+                    dotColor = priorityColor,
+                    dotCount = 6,
+                    initialRadiusDp = 10.dp,
+                    burstRadiusMaxDp = 24.dp,
+                    modifier = Modifier.padding(top = 4.dp)
                 ) {
-                    if (task.completed) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = priorityColor,
-                            modifier = Modifier.size(10.dp)
-                        )
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .border(
+                                1.5.dp,
+                                if (task.completed) priorityColor.copy(alpha = 0.5f) else priorityColor,
+                                CircleShape
+                            )
+                            .background(
+                                if (task.completed) priorityColor.copy(alpha = 0.2f) else Color.Transparent,
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (task.completed) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = priorityColor,
+                                modifier = Modifier.size(10.dp)
+                            )
+                        }
                     }
                 }
 
@@ -1461,7 +1479,11 @@ fun HabitSection(
             } else {
                 habits
             }
-            list.sortedByDescending { it.notes.contains("[PINNED]") }
+            list.sortedWith(
+                compareBy<HabitEntity> { !it.notes.contains("[PINNED]") }
+                    .thenBy { TrackWiseUtils.getPinTimestamp(it.notes) }
+                    .thenBy { it.name }
+            )
         }
 
         if (selectedFolder != null) {
@@ -1632,7 +1654,11 @@ fun HabitCard(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         onClick = {
-                            val newNotes = if (isPinned) habit.notes.replace("[PINNED]", "").trim() else (habit.notes + " [PINNED]").trim()
+                            val newNotes = if (isPinned) {
+                                habit.notes.replace(Regex("\\[PINNED.*?\\]"), "").trim()
+                            } else {
+                                (habit.notes + " [PINNED:${System.currentTimeMillis()}]").trim()
+                            }
                             viewModel.updateHabit(habit.copy(notes = newNotes))
                             showLongPressMenu = false
                         },
@@ -2008,16 +2034,22 @@ fun HabitCard(
                         Icon(Icons.Default.Add, contentDescription = "Increase", tint = BrandOrange, modifier = Modifier.size(18.dp))
                     }
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable { viewModel.toggleHabitToday(habit) },
-                        contentAlignment = Alignment.Center
+                    com.example.utils.CompletionBurstWrapper(
+                        onClick = { viewModel.toggleHabitToday(habit) },
+                        dotColor = BrandOrange,
+                        dotCount = 6,
+                        initialRadiusDp = 14.dp,
+                        burstRadiusMaxDp = 30.dp
                     ) {
-                        if (isCompletedToday) {
-                            Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
-                        } else {
-                            HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
+                        Box(
+                            modifier = Modifier.size(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isCompletedToday) {
+                                Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
+                            } else {
+                                HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
+                            }
                         }
                     }
                 }
@@ -2578,7 +2610,10 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
             }
         } else {
             val sortedItems = remember(items, pinnedWishlistIds) {
-                items.sortedByDescending { pinnedWishlistIds.contains(it.id) }
+                items.sortedWith(
+                    compareBy<WishItemEntity> { !pinnedWishlistIds.contains(it.id) }
+                        .thenBy { if (pinnedWishlistIds.contains(it.id)) pinnedWishlistIds.indexOf(it.id) else Int.MAX_VALUE }
+                )
             }
             sortedItems.forEachIndexed { index, item ->
                 val isPinned = pinnedWishlistIds.contains(item.id)
@@ -2962,7 +2997,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         onClick = {
-                            viewModel.updateBirthday(bday.copy(isPinned = !bday.isPinned))
+                            viewModel.togglePinBirthday(bday.id)
                             showLongPressMenuForBday = null
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -3852,8 +3887,10 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                     }
                 }
             } else {
+                val pinnedBirthdayIds by viewModel.pinnedBirthdayIds.collectAsState()
                 val sortedBirthdays = birthdays.sortedWith(
-                    compareByDescending<com.example.data.BirthdayEntity> { it.isPinned }
+                    compareBy<com.example.data.BirthdayEntity> { !pinnedBirthdayIds.contains(it.id) && !it.isPinned }
+                        .thenBy { if (pinnedBirthdayIds.contains(it.id)) pinnedBirthdayIds.indexOf(it.id) else Int.MAX_VALUE }
                         .thenBy { calculateOccasionDays(it) }
                 )
 
@@ -5139,7 +5176,10 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
         }
 
         val sortedGroceryList = remember(filteredList, pinnedGroceryIds) {
-            filteredList.sortedByDescending { pinnedGroceryIds.contains(it.id) }
+            filteredList.sortedWith(
+                compareBy<GroceryItemEntity> { !pinnedGroceryIds.contains(it.id) }
+                    .thenBy { if (pinnedGroceryIds.contains(it.id)) pinnedGroceryIds.indexOf(it.id) else Int.MAX_VALUE }
+            )
         }
 
         if (sortedGroceryList.isEmpty()) {

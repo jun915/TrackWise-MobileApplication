@@ -252,8 +252,8 @@ class TrackWiseViewModel(
         _showSportExerciseDialog.value = show
     }
 
-    private val _pinnedFinanceLogIds = MutableStateFlow<Set<String>>(emptySet())
-    val pinnedFinanceLogIds: StateFlow<Set<String>> = _pinnedFinanceLogIds.asStateFlow()
+    private val _pinnedFinanceLogIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedFinanceLogIds: StateFlow<List<String>> = _pinnedFinanceLogIds.asStateFlow()
 
     fun togglePinFinanceLog(id: String) {
         _pinnedFinanceLogIds.value = if (_pinnedFinanceLogIds.value.contains(id)) {
@@ -266,7 +266,7 @@ class TrackWiseViewModel(
     private val _themeMode = MutableStateFlow("light") // "light", "dark", or "system"
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
 
-    private val _taskSound = MutableStateFlow("Chime")
+    private val _taskSound = MutableStateFlow("Chime Gentle")
     val taskSound: StateFlow<String> = _taskSound.asStateFlow()
 
     private val _alarmSound = MutableStateFlow("Reflection")
@@ -1521,6 +1521,12 @@ class TrackWiseViewModel(
                 "nature" -> "nature"
                 else -> bgOptions.random()
             }
+            val cleanSection = if (section.contains(",")) {
+                val parts = section.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                val filtered = parts.filter { !it.equals("Others", ignoreCase = true) }
+                if (filtered.isNotEmpty()) filtered.joinToString(",") else section
+            } else section
+
             val habit = HabitEntity(
                 id = "habit-${System.currentTimeMillis()}",
                 userId = user.id,
@@ -1545,7 +1551,7 @@ class TrackWiseViewModel(
                 quote = quote,
                 goalType = goalType,
                 goalDays = goalDays,
-                section = section,
+                section = cleanSection,
                 autoPopup = autoPopup,
                 backgroundImage = selectedBg
             )
@@ -1580,6 +1586,7 @@ class TrackWiseViewModel(
                 days.remove(todayStr)
             } else {
                 days.add(todayStr)
+                playTaskCompletionSound()
                 autoDismissNotification(habit.id, habit.name)
                 if (habit.name.equals("Early to rise", ignoreCase = true)) {
                     _showEarlyToRiseSleepDialog.value = true
@@ -1964,6 +1971,7 @@ class TrackWiseViewModel(
             val updated = item.copy(purchased = !item.purchased)
             repository.insertWishItem(updated)
             if (updated.purchased) {
+                playTaskCompletionSound()
                 autoDismissNotification(item.id, item.title)
             }
             triggerFakeSync()
@@ -2008,6 +2016,9 @@ class TrackWiseViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val updated = item.copy(completed = !item.completed)
             repository.insertGroceryItem(updated)
+            if (updated.completed) {
+                playTaskCompletionSound()
+            }
             triggerFakeSync()
         }
     }
@@ -2063,6 +2074,7 @@ class TrackWiseViewModel(
                 list.remove(dateStr)
             } else {
                 list.add(dateStr)
+                playTaskCompletionSound()
             }
 
             // Serialize back
@@ -2273,34 +2285,49 @@ class TrackWiseViewModel(
         }
     }
 
-    private val _pinnedNetWorthIds = MutableStateFlow<Set<String>>(emptySet())
-    val pinnedNetWorthIds: StateFlow<Set<String>> = _pinnedNetWorthIds.asStateFlow()
+    private val _pinnedNetWorthIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedNetWorthIds: StateFlow<List<String>> = _pinnedNetWorthIds.asStateFlow()
 
     fun togglePinNetWorthItem(id: String) {
         _pinnedNetWorthIds.value = if (_pinnedNetWorthIds.value.contains(id)) _pinnedNetWorthIds.value - id else _pinnedNetWorthIds.value + id
     }
 
-    private val _pinnedGroceryIds = MutableStateFlow<Set<String>>(emptySet())
-    val pinnedGroceryIds: StateFlow<Set<String>> = _pinnedGroceryIds.asStateFlow()
+    private val _pinnedGroceryIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedGroceryIds: StateFlow<List<String>> = _pinnedGroceryIds.asStateFlow()
 
     fun togglePinGroceryItem(id: String) {
         _pinnedGroceryIds.value = if (_pinnedGroceryIds.value.contains(id)) _pinnedGroceryIds.value - id else _pinnedGroceryIds.value + id
     }
     fun togglePinGrocery(id: String) = togglePinGroceryItem(id)
 
-    private val _pinnedWishlistIds = MutableStateFlow<Set<String>>(emptySet())
-    val pinnedWishlistIds: StateFlow<Set<String>> = _pinnedWishlistIds.asStateFlow()
+    private val _pinnedWishlistIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedWishlistIds: StateFlow<List<String>> = _pinnedWishlistIds.asStateFlow()
 
     fun togglePinWishlistItem(id: String) {
         _pinnedWishlistIds.value = if (_pinnedWishlistIds.value.contains(id)) _pinnedWishlistIds.value - id else _pinnedWishlistIds.value + id
     }
     fun togglePinWishlist(id: String) = togglePinWishlistItem(id)
 
-    private val _pinnedHabitBreakerIds = MutableStateFlow<Set<String>>(emptySet())
-    val pinnedHabitBreakerIds: StateFlow<Set<String>> = _pinnedHabitBreakerIds.asStateFlow()
+    private val _pinnedHabitBreakerIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedHabitBreakerIds: StateFlow<List<String>> = _pinnedHabitBreakerIds.asStateFlow()
 
     fun togglePinHabitBreaker(id: String) {
         _pinnedHabitBreakerIds.value = if (_pinnedHabitBreakerIds.value.contains(id)) _pinnedHabitBreakerIds.value - id else _pinnedHabitBreakerIds.value + id
+    }
+
+    private val _pinnedBirthdayIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedBirthdayIds: StateFlow<List<String>> = _pinnedBirthdayIds.asStateFlow()
+
+    fun togglePinBirthday(id: String) {
+        _pinnedBirthdayIds.value = if (_pinnedBirthdayIds.value.contains(id)) {
+            _pinnedBirthdayIds.value - id
+        } else {
+            _pinnedBirthdayIds.value + id
+        }
+        val current = allBirthdays.value.find { it.id == id }
+        if (current != null) {
+            updateBirthday(current.copy(isPinned = !current.isPinned))
+        }
     }
 
     fun populateDefaultNetWorthItemsIfEmpty() {
@@ -2634,34 +2661,105 @@ class TrackWiseViewModel(
         }
     }
 
-    // --- Sound Selection Actions ---
+    // --- Sound & Vibration Selection Actions ---
     private var isAlarmPlaying = false
 
+    fun triggerLightVibration() {
+        try {
+            val context = getApplication<Application>().applicationContext
+            val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                vm.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            }
+            if (vibrator.hasVibrator()) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    vibrator.vibrate(android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_CLICK))
+                } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(20L, 35))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(20L)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun playTaskCompletionSound() {
+        triggerLightVibration()
         val sound = _taskSound.value
         if (sound == "None") return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Route to STREAM_MUSIC with max volume so it always plays even if notifications are muted
                 val tg = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
                 when (sound) {
-                    "Chime" -> {
-                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
-                        delay(150)
-                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
-                    }
-                    "Ding" -> {
+                    "Chime Gentle", "Chime" -> {
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
+                        delay(120)
                         tg.startTone(ToneGenerator.TONE_PROP_BEEP, 180)
                     }
-                    "Bell" -> {
-                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
-                        delay(120)
-                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
-                        delay(120)
-                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 300)
+                    "Victory Bell" -> {
+                        tg.startTone(ToneGenerator.TONE_DTMF_1, 90)
+                        delay(90)
+                        tg.startTone(ToneGenerator.TONE_DTMF_5, 90)
+                        delay(90)
+                        tg.startTone(ToneGenerator.TONE_DTMF_9, 220)
+                    }
+                    "Success Pop" -> {
+                        tg.startTone(ToneGenerator.TONE_CDMA_PIP, 50)
+                        delay(60)
+                        tg.startTone(ToneGenerator.TONE_DTMF_8, 120)
+                    }
+                    "Digital Sparkle" -> {
+                        val sparkle = listOf(ToneGenerator.TONE_DTMF_2, ToneGenerator.TONE_DTMF_4, ToneGenerator.TONE_DTMF_6, ToneGenerator.TONE_DTMF_8)
+                        sparkle.forEach { note ->
+                            tg.startTone(note, 60)
+                            delay(70)
+                        }
+                    }
+                    "Marimba Ring" -> {
+                        val marimba = listOf(ToneGenerator.TONE_CDMA_KEYPAD_VOLUME_KEY_LITE, ToneGenerator.TONE_CDMA_PIP, ToneGenerator.TONE_DTMF_5)
+                        marimba.forEach { note ->
+                            tg.startTone(note, 80)
+                            delay(90)
+                        }
+                    }
+                    "Zen Bowl" -> {
+                        tg.startTone(ToneGenerator.TONE_SUP_RINGTONE, 300)
+                    }
+                    "Level Up" -> {
+                        val levelNotes = listOf(ToneGenerator.TONE_DTMF_1, ToneGenerator.TONE_DTMF_3, ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_DTMF_8, ToneGenerator.TONE_DTMF_0)
+                        levelNotes.forEach { note ->
+                            tg.startTone(note, 60)
+                            delay(70)
+                        }
+                    }
+                    "Crystal Harp" -> {
+                        val harp = listOf(ToneGenerator.TONE_DTMF_A, ToneGenerator.TONE_DTMF_B, ToneGenerator.TONE_DTMF_C, ToneGenerator.TONE_DTMF_D)
+                        harp.forEach { note ->
+                            tg.startTone(note, 80)
+                            delay(100)
+                        }
+                    }
+                    "Subtle Click" -> {
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 40)
+                    }
+                    "Acoustic Fanfare" -> {
+                        tg.startTone(ToneGenerator.TONE_DTMF_3, 100)
+                        delay(90)
+                        tg.startTone(ToneGenerator.TONE_DTMF_6, 100)
+                        delay(90)
+                        tg.startTone(ToneGenerator.TONE_DTMF_9, 240)
+                    }
+                    else -> {
+                        tg.startTone(ToneGenerator.TONE_PROP_BEEP, 120)
                     }
                 }
-                delay(600)
+                delay(500)
                 tg.release()
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -2751,11 +2849,15 @@ class TrackWiseViewModel(
 
     fun setTaskSound(sound: String) {
         _taskSound.value = sound
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("task_sound", sound).apply()
         playTaskCompletionSound()
     }
 
     fun setAlarmSound(sound: String) {
         _alarmSound.value = sound
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("alarm_sound", sound).apply()
         // Play quick alarm preview
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -3012,6 +3114,11 @@ class TrackWiseViewModel(
         prefsJson.put("custom_tags_list", _customTags.value.joinToString(","))
         prefsJson.put("bottom_bar_tab_ids", _bottomBarTabIds.value.joinToString(","))
         prefsJson.put("deleted_folders_set", _deletedFolders.value.joinToString(","))
+        prefsJson.put("task_sound", _taskSound.value)
+        prefsJson.put("alarm_sound", _alarmSound.value)
+        val sessionPrefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefsJson.put("bad_habits_json_v2", sessionPrefs.getString("bad_habits_json_v2", "") ?: "")
+        prefsJson.put("pinned_finance_log_ids", _pinnedFinanceLogIds.value.joinToString(","))
         rootJson.put("appPreferences", prefsJson)
 
         // User info
@@ -3569,6 +3676,23 @@ class TrackWiseViewModel(
                     if (prefsObj.has("custom_tags_list")) {
                         val tags = prefsObj.getString("custom_tags_list").split(",").map { it.trim() }.filter { it.isNotEmpty() }
                         tags.forEach { addCustomTag(it) }
+                    }
+                    if (prefsObj.has("task_sound")) setTaskSound(prefsObj.getString("task_sound"))
+                    if (prefsObj.has("alarm_sound")) setAlarmSound(prefsObj.getString("alarm_sound"))
+                    if (prefsObj.has("bad_habits_json_v2")) {
+                        val bh = prefsObj.getString("bad_habits_json_v2")
+                        if (!bh.isNullOrBlank()) {
+                            val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+                            prefs.edit().putString("bad_habits_json_v2", bh).apply()
+                            loadBadHabits()
+                        }
+                    }
+                    if (prefsObj.has("pinned_finance_log_ids")) {
+                        val pinned = prefsObj.getString("pinned_finance_log_ids")
+                        val list = pinned.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        _pinnedFinanceLogIds.value = list
+                        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putString("pinned_finance_log_ids", pinned).apply()
                     }
                 }
 
@@ -4179,6 +4303,8 @@ class TrackWiseViewModel(
             _deletedTags.value = deletedTagsStr.split(",")
         }
         loadBadHabits()
+        _taskSound.value = prefs.getString("task_sound", "Chime Gentle") ?: "Chime Gentle"
+        _alarmSound.value = prefs.getString("alarm_sound", "Reflection") ?: "Reflection"
         
         if (savedUserId != null) {
             val lastActiveTime = prefs.getLong("last_active_timestamp", System.currentTimeMillis())

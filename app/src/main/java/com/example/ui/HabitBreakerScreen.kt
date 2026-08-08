@@ -91,8 +91,12 @@ fun HabitBreakerScreen(
                     tick++
                 }
             }
-            val sortedBadHabits = remember(badHabits, pinnedHabitBreakerIds) {
-                badHabits.sortedByDescending { pinnedHabitBreakerIds.contains(it.id) }
+            val sortedBadHabits = remember(badHabits, pinnedHabitBreakerIds, tick) {
+                badHabits.sortedWith(
+                    compareBy<TrackWiseViewModel.BadHabitSpec> { !pinnedHabitBreakerIds.contains(it.id) }
+                        .thenBy { if (pinnedHabitBreakerIds.contains(it.id)) pinnedHabitBreakerIds.indexOf(it.id) else Int.MAX_VALUE }
+                        .thenBy { calculateCleanTimerMs(it.logs, it.id) }
+                )
             }
 
             Column(
@@ -1412,6 +1416,23 @@ fun getHabitBreakerIcon(iconName: String, avoidType: String): ImageVector {
             else -> Icons.Default.Block
         }
     }
+}
+
+fun calculateCleanTimerMs(logs: List<String>, id: String): Long {
+    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+    val now = Date().time
+    val lastSlipTimestamp = if (logs.isNotEmpty()) {
+        val lastLog = logs.last()
+        try {
+            sdf.parse(lastLog)?.time ?: now
+        } catch (e: Exception) {
+            now
+        }
+    } else {
+        val idTime = id.removePrefix("bad_habit_").toLongOrNull()
+        idTime ?: (now - 86400000L)
+    }
+    return maxOf(0L, now - lastSlipTimestamp)
 }
 
 fun calculateCleanTimeText(logs: List<String>, id: String): String {

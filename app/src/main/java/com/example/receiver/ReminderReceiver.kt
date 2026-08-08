@@ -297,6 +297,8 @@ class ReminderReceiver : BroadcastReceiver() {
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
                     description = "System notifications for TrackWise app events"
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 100, 50, 100)
                 }
                 notificationManager.createNotificationChannel(channel)
             }
@@ -307,28 +309,29 @@ class ReminderReceiver : BroadcastReceiver() {
 
         val notifiedPrefs = context.getSharedPreferences("notified_reminders", Context.MODE_PRIVATE)
 
-        // 1. Tasks Check
+        // 1. Tasks Check (Multi-Reminder Option Support)
         val tasks = dao.getTasksForUser(userId)
         tasks.forEach { task ->
             if (task.remindMe && !task.completed) {
-                val rDate = task.reminderDate?.take(10) ?: task.deadline.take(10)
-                val rTime24 = parseTo24HourTime(task.reminderTime)
-                if (rDate == todayStr && rTime24 != null && rTime24 <= currentTimeStr) {
-                    val key = "task-${task.id}-$rDate-$rTime24"
-                    if (!notifiedPrefs.getBoolean(key, false)) {
-                        notifiedPrefs.edit().putBoolean(key, true).apply()
-                        showNotification(
-                            context,
-                            notificationManager,
-                            "Task Reminder: ${task.title}",
-                            "Deadline: ${task.deadline}. Don't forget to complete it!",
-                            "workspace",
-                            0, // Tasks tab
-                            key.hashCode(),
-                            smallIcon,
-                            channelId,
-                            taskId = task.id
-                        )
+                val triggers = calculateTaskReminderTriggers(task)
+                triggers.forEach { trigger ->
+                    if (trigger.triggerDate == todayStr && trigger.triggerTime24 <= currentTimeStr) {
+                        val key = "task-${task.id}-${trigger.optionLabel}-${trigger.triggerDate}-${trigger.triggerTime24}"
+                        if (!notifiedPrefs.getBoolean(key, false)) {
+                            notifiedPrefs.edit().putBoolean(key, true).apply()
+                            showNotification(
+                                context,
+                                notificationManager,
+                                "Task Reminder (${trigger.optionLabel}): ${task.title}",
+                                "Deadline: ${task.deadline} ${task.reminderTime ?: ""}. Don't forget to complete it!",
+                                "workspace",
+                                0, // Tasks tab
+                                key.hashCode(),
+                                smallIcon,
+                                channelId,
+                                taskId = task.id
+                            )
+                        }
                     }
                 }
             }
@@ -535,6 +538,7 @@ class ReminderReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(false)
             .setOngoing(true)
+            .setVibrate(longArrayOf(0, 100, 50, 100))
             .setContentIntent(pendingIntent)
 
         if (taskId != null || tabletId != null || habitId != null) {
@@ -548,6 +552,26 @@ class ReminderReceiver : BroadcastReceiver() {
         val notification = builder.build()
 
         notificationManager.notify(notificationId, notification)
+
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            }
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(100)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     companion object {
@@ -620,4 +644,65 @@ class ReminderReceiver : BroadcastReceiver() {
             }
         }
     }
+}
+
+data class ReminderTrigger(
+    val triggerDate: String,
+    val triggerTime24: String,
+    val optionLabel: String
+)
+
+fun calculateTaskReminderTriggers(task: com.example.data.TaskEntity): List<ReminderTrigger> {
+    val triggers = mutableListOf<ReminderTrigger>()
+    val deadline = task.deadline.take(10)
+    val rTimeStr = task.reminderTime ?: "09:00"
+    
+    val sdfFull = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+    val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    val sdfTime = SimpleDateFormat("HH:mm", Locale.US)
+    
+    val baseTime24 = ReminderReceiver.parseTo24HourTime(rTimeStr) ?: "09:00"
+    val baseDateTime = try {
+        sdfFull.parse("$deadline $baseTime24")
+    } catch (e: Exception) {
+        null
+    }
+    
+    val rawOptionsStr = task.reminderDate ?: "On the day"
+    val optionsList = rawOptionsStr.split(",").map { it.trim() }.filter { it.isNotBlank() && it != "None" }
+    
+    val optionsToProcess = if (optionsList.isEmpty()) listOf("On the day") else optionsList
+    
+    optionsToProcess.forEach { opt ->
+        if (baseDateTime == null) {
+            triggers.add(ReminderTrigger(deadline, baseTime24, opt))
+            return@forEach
+        }
+        val cal = Calendar.getInstance()
+        cal.time = baseDateTime
+        
+        when {
+            opt.contains("On the day") || opt.contains("At time of event") -> {
+                // No offset
+            }
+            opt.contains("5 mins") -> cal.add(Calendar.MINUTE, -5)
+            opt.contains("15 mins") -> cal.add(Calendar.MINUTE, -15)
+            opt.contains("30 mins") -> cal.add(Calendar.MINUTE, -30)
+            opt.contains("1 hour") -> cal.add(Calendar.MINUTE, -60)
+            opt.contains("2 hours") -> cal.add(Calendar.MINUTE, -120)
+            opt.contains("1 day") -> cal.add(Calendar.DAY_OF_YEAR, -1)
+            opt.contains("2 days") -> cal.add(Calendar.DAY_OF_YEAR, -2)
+            opt.contains("3 days") -> cal.add(Calendar.DAY_OF_YEAR, -3)
+            opt.contains("1 week") -> cal.add(Calendar.DAY_OF_YEAR, -7)
+            opt.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> {
+                triggers.add(ReminderTrigger(opt, baseTime24, "Custom"))
+                return@forEach
+            }
+        }
+        val tDate = sdfDate.format(cal.time)
+        val tTime = sdfTime.format(cal.time)
+        triggers.add(ReminderTrigger(tDate, tTime, opt))
+    }
+    
+    return triggers
 }

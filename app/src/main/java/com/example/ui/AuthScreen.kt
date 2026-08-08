@@ -50,7 +50,7 @@ fun AuthScreen(
     val fullNameError = if (fullName.isBlank()) "Full name is required" else null
     val emailError = if (email.isBlank()) {
         "Email address is required"
-    } else if (email.lowercase().trim() == "ju") {
+    } else if (email.lowercase().trim() == "ju" || email.lowercase().trim() == "syed" || email.lowercase().trim() == "syed@syed.com") {
         null
     } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
         "Please enter a valid email address"
@@ -348,7 +348,15 @@ fun AuthScreen(
                                 }
                             }
                             else -> {
-                                val loginEmailError = if (email.isBlank()) "Email address is required" else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) "Please enter a valid email address" else null
+                                val cleanEm = email.lowercase().trim()
+                                val loginEmailError = if (email.isBlank()) {
+                                    "Email address is required"
+                                } else if (cleanEm == "ju" || cleanEm == "syed" || cleanEm == "syed@syed.com") {
+                                    null
+                                } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                                    "Please enter a valid email address"
+                                } else null
+                                
                                 val loginPasswordError = if (password.isBlank()) "Password is required" else null
                                 if (loginEmailError == null && loginPasswordError == null) {
                                     viewModel.login(email, password)
@@ -399,6 +407,32 @@ fun AuthScreen(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+            if (authMode == "login") {
+                Surface(
+                    onClick = {
+                        email = "syed@syed.com"
+                        password = "Syed@123"
+                        showErrors = false
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = BrandViolet.copy(alpha = 0.08f),
+                    border = BorderStroke(1.dp, BrandViolet.copy(alpha = 0.2f)),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "💡 Quick Login: syed@syed.com / Syed@123",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = BrandViolet
+                        )
+                    }
+                }
+            }
             Text(
                 text = "Your data is stored locally on this device, isolated per account.",
                 fontSize = 11.sp,

@@ -1,5 +1,42 @@
 package com.example.utils
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import kotlin.math.cos
+import kotlin.math.sin
 import com.example.data.SubTask
 import com.example.data.TaskEntity
 import java.text.SimpleDateFormat
@@ -97,6 +134,33 @@ object TrackWiseUtils {
 
     fun getTodayString(): String {
         return formatDate(Date())
+    }
+
+    fun getPinTimestamp(notes: String): Long {
+        if (!notes.contains("[PINNED]")) return Long.MAX_VALUE
+        val match = Regex("\\[PINNED:(\\d+)\\]").find(notes)
+        return match?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+    }
+
+    fun parseHourFromTimeString(time: String?): Int? {
+        if (time.isNullOrBlank()) return null
+        val trimmed = time.trim()
+        val isPm = trimmed.contains("PM", ignoreCase = true)
+        val isAm = trimmed.contains("AM", ignoreCase = true)
+        
+        val cleanStr = trimmed.replace("AM", "", ignoreCase = true)
+                              .replace("PM", "", ignoreCase = true)
+                              .trim()
+        val parts = cleanStr.split(":")
+        if (parts.isNotEmpty()) {
+            val rawHour = parts[0].trim().toIntOrNull() ?: return null
+            return when {
+                isPm -> if (rawHour < 12) rawHour + 12 else rawHour
+                isAm -> if (rawHour == 12) 0 else rawHour
+                else -> rawHour
+            }
+        }
+        return null
     }
 
     fun getDaysUntil(storedDate: String): Int {
@@ -1095,4 +1159,118 @@ val FLAT_COLOR_ICONS = listOf(
     FlatColorIconSpec("🔓", "unlock free open safety access key entry accessible permission secure custom"),
     FlatColorIconSpec("🛡️", "shield safety armor guard defend warrior protection security blue knight safe")
 )
+
+fun Modifier.bounceClick(
+    minScale: Float = 0.95f,
+    onClick: (() -> Unit)? = null
+): Modifier = composed {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) minScale else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "bounceScale"
+    )
+
+    this
+        .scale(scale)
+        .then(
+            if (onClick != null) {
+                Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+            } else Modifier
+        )
+        .pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    isPressed = true
+                    tryAwaitRelease()
+                    isPressed = false
+                }
+            )
+        }
+}
+
+@Composable
+fun CompletionBurstWrapper(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    dotColor: Color = MaterialTheme.colorScheme.primary,
+    dotCount: Int = 6,
+    initialRadiusDp: Dp = 10.dp,
+    burstRadiusMaxDp: Dp = 26.dp,
+    dotRadiusDp: Dp = 3.dp,
+    content: @Composable () -> Unit
+) {
+    var triggerCount by remember { mutableStateOf(0) }
+    val progress = remember { Animatable(0f) }
+    val buttonScale = remember { Animatable(1f) }
+
+    LaunchedEffect(triggerCount) {
+        if (triggerCount > 0) {
+            launch {
+                buttonScale.snapTo(0.82f)
+                buttonScale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
+            }
+            launch {
+                progress.snapTo(0f)
+                progress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 400, easing = LinearOutSlowInEasing)
+                )
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .scale(buttonScale.value)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                triggerCount++
+                onClick()
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+
+        if (progress.value > 0f && progress.value < 1f) {
+            val p = progress.value
+            Canvas(modifier = Modifier.matchParentSize()) {
+                val center = center
+                val startDist = initialRadiusDp.toPx()
+                val maxDist = burstRadiusMaxDp.toPx()
+                val currentDist = startDist + (maxDist - startDist) * p
+                val currentDotRadius = dotRadiusDp.toPx() * (1f - p * 0.4f)
+                val alpha = (1f - p).coerceIn(0f, 1f)
+
+                for (i in 0 until dotCount) {
+                    val angleRad = Math.toRadians(i * (360.0 / dotCount))
+                    val x = center.x + currentDist * cos(angleRad).toFloat()
+                    val y = center.y + currentDist * sin(angleRad).toFloat()
+
+                    drawCircle(
+                        color = dotColor.copy(alpha = alpha),
+                        radius = currentDotRadius,
+                        center = Offset(x, y)
+                    )
+                }
+            }
+        }
+    }
+}
+
 

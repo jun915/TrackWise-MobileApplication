@@ -428,7 +428,8 @@ fun CustomAddTaskBottomSheet(
                         }
 
                         val notesWithPin = if (isPinned) {
-                            if (finalNotes.isEmpty()) "[PINNED]" else "$finalNotes [PINNED]"
+                            val timestamp = System.currentTimeMillis()
+                            if (finalNotes.isEmpty()) "[PINNED:$timestamp]" else "$finalNotes [PINNED:$timestamp]"
                         } else {
                             finalNotes
                         }
@@ -1866,51 +1867,88 @@ fun CustomDatePickerSheet(
         }
     }
 
-    // Reminder Option Selector Dialog
+    // Reminder Option Selector Dialog (Multi-Select)
     if (showReminderDialog) {
         val today = com.example.utils.TrackWiseUtils.getTodayString()
-        val allOptions = listOf("None", "On the day", "1 day early", "2 days early", "3 days early", "1 week early", "Custom")
+        val allOptions = listOf(
+            "None",
+            "On the day (At time of event)",
+            "5 mins before",
+            "15 mins before",
+            "30 mins before",
+            "1 hour before",
+            "2 hours before",
+            "1 day early",
+            "2 days early",
+            "1 week early",
+            "Custom"
+        )
         val reminderOptions = allOptions.filter { opt ->
-            if (opt == "None" || opt == "Custom") {
+            if (opt == "None" || opt == "Custom" || opt.contains("mins") || opt.contains("hour")) {
                 true
             } else {
                 val remDate = getReminderDate(selectedDateStr, opt)
                 remDate != null && remDate >= today
             }
         }
-        var localReminderSelection by remember { mutableStateOf(selectedReminder) }
-
-        LaunchedEffect(reminderOptions) {
-            if (localReminderSelection !in reminderOptions) {
-                localReminderSelection = "None"
-            }
+        
+        // Parse initial selected items set from comma-separated string
+        var selectedSet by remember {
+            val initialList = selectedReminder.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            mutableStateOf(if (initialList.contains("None") || initialList.isEmpty()) setOf("None") else initialList.toSet())
         }
 
         AlertDialog(
             onDismissRequest = { showReminderDialog = false },
-            title = { Text("Reminder", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            title = {
+                Column {
+                    Text("Select Reminders", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Choose multiple notification alerts for this task", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                }
+            },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 350.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     reminderOptions.forEach { opt ->
+                        val isChecked = selectedSet.contains(opt)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { 
-                                    localReminderSelection = opt 
-                                    if (opt == "Custom") {
-                                        showCustomReminderDatePicker = true
+                                .clickable {
+                                    if (opt == "None") {
+                                        selectedSet = setOf("None")
+                                    } else {
+                                        val newSet = selectedSet.toMutableSet()
+                                        newSet.remove("None")
+                                        if (isChecked) {
+                                            newSet.remove(opt)
+                                            if (newSet.isEmpty()) newSet.add("None")
+                                        } else {
+                                            newSet.add(opt)
+                                            if (opt == "Custom") {
+                                                showCustomReminderDatePicker = true
+                                            }
+                                        }
+                                        selectedSet = newSet
                                     }
                                 }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(opt, fontSize = 14.sp)
-                            if (localReminderSelection == opt) {
-                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = BrandCyan, modifier = Modifier.size(16.dp))
+                            Text(opt, fontSize = 14.sp, fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Normal)
+                            if (isChecked) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = BrandCyan,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                     }
@@ -1919,7 +1957,8 @@ fun CustomDatePickerSheet(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        selectedReminder = localReminderSelection
+                        val resultList = selectedSet.filter { it != "None" }
+                        selectedReminder = if (resultList.isEmpty()) "None" else resultList.joinToString(", ")
                         showReminderDialog = false
                     }
                 ) {

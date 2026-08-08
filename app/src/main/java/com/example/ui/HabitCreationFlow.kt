@@ -1077,7 +1077,11 @@ fun HabitCreationFlowDialog(
                                             quote = currentQuote,
                                             goalType = goalType,
                                             goalDays = goalDays,
-                                            section = if (selectedFolders.isEmpty()) "Inbox" else selectedFolders.joinToString(",")
+                                            section = if (selectedFolders.isEmpty()) "Inbox" else {
+                                                val validFolders = selectedFolders.filter { it.isNotBlank() }
+                                                val cleanedFolders = if (validFolders.size > 1) validFolders.filter { !it.equals("Others", ignoreCase = true) } else validFolders
+                                                if (cleanedFolders.isEmpty()) "Inbox" else cleanedFolders.joinToString(",")
+                                            }
                                         )
                                         viewModel.updateHabit(updated)
                                     } else {
@@ -1097,7 +1101,11 @@ fun HabitCreationFlowDialog(
                                             quote = currentQuote,
                                             goalType = goalType,
                                             goalDays = goalDays,
-                                            section = if (selectedFolders.isEmpty()) "Inbox" else selectedFolders.joinToString(","),
+                                            section = if (selectedFolders.isEmpty()) "Inbox" else {
+                                                val validFolders = selectedFolders.filter { it.isNotBlank() }
+                                                val cleanedFolders = if (validFolders.size > 1) validFolders.filter { !it.equals("Others", ignoreCase = true) } else validFolders
+                                                if (cleanedFolders.isEmpty()) "Inbox" else cleanedFolders.joinToString(",")
+                                            },
                                             autoPopup = false
                                         )
                                     }

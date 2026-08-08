@@ -391,10 +391,12 @@ fun TaskFoldersScreen(
                                                         val currentSections = habit.section.split(",").map { it.trim() }.filter { it.isNotBlank() }.toMutableList()
                                                         if (isAssigned) {
                                                             currentSections.removeAll { it.equals(folder, ignoreCase = true) }
+                                                            if (currentSections.isEmpty()) currentSections.add("Inbox")
                                                         } else {
                                                             if (!currentSections.any { it.equals(folder, ignoreCase = true) }) {
                                                                 currentSections.add(folder)
                                                             }
+                                                            currentSections.removeAll { it.equals("Others", ignoreCase = true) }
                                                         }
                                                         viewModel.updateHabit(habit.copy(section = currentSections.joinToString(",")))
                                                     }
@@ -429,8 +431,10 @@ fun TaskFoldersScreen(
                                                             if (!currentSections.any { it.equals(folder, ignoreCase = true) }) {
                                                                 currentSections.add(folder)
                                                             }
+                                                            currentSections.removeAll { it.equals("Others", ignoreCase = true) }
                                                         } else {
                                                             currentSections.removeAll { it.equals(folder, ignoreCase = true) }
+                                                            if (currentSections.isEmpty()) currentSections.add("Inbox")
                                                         }
                                                         viewModel.updateHabit(habit.copy(section = currentSections.joinToString(",")))
                                                     },
@@ -1258,16 +1262,22 @@ fun HashtagDetailView(
                                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                                 modifier = Modifier.weight(1f)
                                             ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(28.dp)
-                                                        .clickable { viewModel.toggleHabitToday(habit) },
-                                                    contentAlignment = Alignment.Center
+                                                com.example.utils.CompletionBurstWrapper(
+                                                    onClick = { viewModel.toggleHabitToday(habit) },
+                                                    dotColor = BrandOrange,
+                                                    dotCount = 6,
+                                                    initialRadiusDp = 14.dp,
+                                                    burstRadiusMaxDp = 28.dp
                                                 ) {
-                                                    if (isCompletedToday) {
-                                                        Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(22.dp))
-                                                    } else {
-                                                        HabitIconView(icon = habit.icon, tint = BrandOrange, size = 22.dp)
+                                                    Box(
+                                                        modifier = Modifier.size(28.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (isCompletedToday) {
+                                                            Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(22.dp))
+                                                        } else {
+                                                            HabitIconView(icon = habit.icon, tint = BrandOrange, size = 22.dp)
+                                                        }
                                                     }
                                                 }
 
@@ -1533,14 +1543,12 @@ fun FolderDetailView(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                                            .clickable { onHabitClick(habit) }
                                     ) {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(14.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -1574,11 +1582,6 @@ fun FolderDetailView(
                                                 }
                                             }
 
-                                            Icon(
-                                                imageVector = Icons.Default.ChevronRight,
-                                                contentDescription = "Open detail",
-                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                                            )
                                         }
                                     }
                                 }

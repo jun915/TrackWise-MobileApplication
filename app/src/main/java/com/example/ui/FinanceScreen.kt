@@ -709,7 +709,7 @@ fun MonthYearPickerDialog(
 @Composable
 fun MoneyTrackerHomeView(
     monthLogs: List<FinanceLogEntity>,
-    pinnedFinanceLogIds: Set<String> = emptySet(),
+    pinnedFinanceLogIds: List<String> = emptyList(),
     onSelectLog: (FinanceLogEntity) -> Unit,
     onTogglePinLog: (String) -> Unit = {},
     onEditLog: (FinanceLogEntity) -> Unit = {},
@@ -800,7 +800,10 @@ fun MoneyTrackerHomeView(
             val list = groupedLogs.toList()
             itemsIndexed(list) { index, (dateStr, logs) ->
                 val sortedLogs = remember(logs, pinnedFinanceLogIds) {
-                    logs.sortedByDescending { pinnedFinanceLogIds.contains(it.id) }
+                    logs.sortedWith(
+                        compareBy<FinanceLogEntity> { !pinnedFinanceLogIds.contains(it.id) }
+                            .thenBy { if (pinnedFinanceLogIds.contains(it.id)) pinnedFinanceLogIds.indexOf(it.id) else Int.MAX_VALUE }
+                    )
                 }
                 StaggeredItem(index = index) {
                     val dateExpense = logs.filter { it.type == "expense" }.sumOf { it.amount }
@@ -3036,7 +3039,10 @@ fun NetWorthManagerView(
             }
         } else {
             // Assets List
-            val assetsList = netWorthItems.filter { it.type == "asset" }.sortedByDescending { pinnedNetWorthIds.contains(it.id) }
+            val assetsList = netWorthItems.filter { it.type == "asset" }.sortedWith(
+                compareBy<NetWorthItemEntity> { !pinnedNetWorthIds.contains(it.id) }
+                    .thenBy { if (pinnedNetWorthIds.contains(it.id)) pinnedNetWorthIds.indexOf(it.id) else Int.MAX_VALUE }
+            )
             if (assetsList.isNotEmpty()) {
                 item {
                     Text(
@@ -3062,7 +3068,10 @@ fun NetWorthManagerView(
             }
 
             // Liabilities/Loans List
-            val debtsList = netWorthItems.filter { it.type != "asset" }.sortedByDescending { pinnedNetWorthIds.contains(it.id) }
+            val debtsList = netWorthItems.filter { it.type != "asset" }.sortedWith(
+                compareBy<NetWorthItemEntity> { !pinnedNetWorthIds.contains(it.id) }
+                    .thenBy { if (pinnedNetWorthIds.contains(it.id)) pinnedNetWorthIds.indexOf(it.id) else Int.MAX_VALUE }
+            )
             if (debtsList.isNotEmpty()) {
                 item {
                     Text(

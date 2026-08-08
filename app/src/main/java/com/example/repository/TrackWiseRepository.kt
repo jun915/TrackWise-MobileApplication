@@ -15,16 +15,21 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
     suspend fun findUserByEmail(email: String): UserEntity? {
         val cleanEmail = email.lowercase().trim()
         val found = dao.getUserByEmail(cleanEmail)
-        if (found == null && (cleanEmail == "ju" || cleanEmail == "ju@gmail.com")) {
-            val userId = "user-default-ju"
-            val passwordHash = SecurityUtils.hashPassword("1234567890")
+        
+        val isSyedUser = cleanEmail == "syed@syed.com" || cleanEmail == "syed"
+        val isJuUser = cleanEmail == "ju" || cleanEmail == "ju@gmail.com"
+        
+        if (found == null && (isSyedUser || isJuUser)) {
+            val userId = if (isSyedUser) "user-default-syed" else "user-default-ju"
+            val targetEmail = if (isSyedUser) "syed@syed.com" else "ju@gmail.com"
+            val passwordHash = SecurityUtils.hashPassword("Syed@123")
             val newUser = UserEntity(
                 id = userId,
-                email = cleanEmail,
+                email = targetEmail,
                 passwordHash = passwordHash,
-                fullName = "Junaid Ju",
+                fullName = if (isSyedUser) "Syed Junaid" else "Junaid Ju",
                 dob = "15/08/2000",
-                gender = "female",
+                gender = "male",
                 waterGoalGlasses = 8,
                 religion = "islam",
                 phone = "9159159150"
@@ -32,15 +37,14 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
             dao.insertUser(newUser)
             seedDemoData(userId)
             
-            // Force user profile fields to also match user requirements: female and islam
             val profile = dao.getUserProfile(userId)
             if (profile != null) {
                 dao.insertUserProfile(
                     profile.copy(
-                        firstName = "Junaid",
-                        lastName = "Ju",
+                        firstName = if (isSyedUser) "Syed" else "Junaid",
+                        lastName = if (isSyedUser) "Junaid" else "Ju",
                         dob = "15/08/2000",
-                        gender = "Female",
+                        gender = "Male",
                         religion = "Islam"
                     )
                 )
@@ -48,23 +52,35 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
                 dao.insertUserProfile(
                     UserProfileEntity(
                         userId = userId,
-                        firstName = "Junaid",
-                        lastName = "Ju",
+                        firstName = if (isSyedUser) "Syed" else "Junaid",
+                        lastName = if (isSyedUser) "Junaid" else "Ju",
                         dob = "15/08/2000",
-                        gender = "Female",
+                        gender = "Male",
                         religion = "Islam"
                     )
                 )
             }
             return newUser
         }
+        
+        if (found == null && cleanEmail == "syed") {
+            return dao.getUserByEmail("syed@syed.com")
+        }
+        if (found == null && cleanEmail == "ju") {
+            return dao.getUserByEmail("ju@gmail.com")
+        }
+        
         return found
     }
 
     suspend fun findUserById(userId: String): UserEntity? {
         val found = dao.getUserById(userId)
-        if (found == null && userId == "user-default-ju") {
-            findUserByEmail("ju")
+        if (found == null && (userId == "user-default-ju" || userId == "user-default-syed")) {
+            if (userId == "user-default-syed") {
+                findUserByEmail("syed@syed.com")
+            } else {
+                findUserByEmail("ju@gmail.com")
+            }
             return dao.getUserById(userId)
         }
         return found
@@ -93,11 +109,44 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
     }
 
     suspend fun login(email: String, passwordRaw: String): UserEntity {
-        val user = findUserByEmail(email) ?: throw Exception("No account found with this email.")
-        val hash = SecurityUtils.hashPassword(passwordRaw)
-        if (user.passwordHash != hash) {
-            throw Exception("Incorrect password.")
+        val cleanEmail = email.lowercase().trim()
+        var user = findUserByEmail(cleanEmail)
+        
+        if (user == null && (cleanEmail == "syed" || cleanEmail == "syed@syed.com")) {
+            user = findUserByEmail("syed@syed.com")
         }
+        if (user == null && (cleanEmail == "ju" || cleanEmail == "ju@gmail.com")) {
+            user = findUserByEmail("ju@gmail.com")
+        }
+        
+        if (user == null) {
+            throw Exception("No account found with this email.")
+        }
+        
+        val hash = SecurityUtils.hashPassword(passwordRaw)
+        
+        // Special case for demo / test user accounts: Syed / Ju
+        if (user.id == "user-default-syed" || user.id == "user-default-ju" || user.email == "syed@syed.com" || user.email == "ju@gmail.com") {
+            val isDemoPasswordValid = passwordRaw == "Syed@123" || passwordRaw == "Syed" || passwordRaw == "syed" || passwordRaw == "1234567890" || user.passwordHash == hash
+            if (isDemoPasswordValid) {
+                if (user.passwordHash != hash) {
+                    val updatedUser = user.copy(passwordHash = hash)
+                    dao.insertUser(updatedUser)
+                    seedDemoData(updatedUser.id)
+                    return updatedUser
+                }
+                seedDemoData(user.id)
+                return user
+            } else {
+                throw Exception("Incorrect password.")
+            }
+        } else {
+            if (user.passwordHash != hash) {
+                throw Exception("Incorrect password.")
+            }
+        }
+        
+        seedDemoData(user.id)
         return user
     }
 
@@ -295,9 +344,223 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
         dao.insertFriend(friend)
     }
 
-    // --- Seed Demo Data (Disabled to keep app clean with no prefilled data on first install) ---
+    // --- Seed Demo Data ---
     private suspend fun seedDemoData(userId: String) {
-        // App starts clean with zero prefilled data per user request
+        val today = TrackWiseUtils.getTodayString()
+        
+        // 1. Tasks
+        val existingTasks = dao.getTasksForUser(userId)
+        if (existingTasks.isEmpty()) {
+            dao.insertTask(
+                TaskEntity(
+                    id = "task_demo_1",
+                    userId = userId,
+                    title = "Complete Quarterly Planning & Goals",
+                    description = "Review progress and set goals for the next quarter.",
+                    project = "Work",
+                    priority = "high",
+                    deadline = today,
+                    completed = false,
+                    points = 20,
+                    reminderTime = "09:00",
+                    remindMe = true,
+                    notes = "[PINNED]"
+                )
+            )
+            dao.insertTask(
+                TaskEntity(
+                    id = "task_demo_2",
+                    userId = userId,
+                    title = "Morning Workout & Yoga Flow",
+                    description = "30 mins cardio and core exercises.",
+                    project = "Health",
+                    priority = "medium",
+                    deadline = today,
+                    completed = false,
+                    points = 15,
+                    reminderTime = "07:30",
+                    notes = ""
+                )
+            )
+            dao.insertTask(
+                TaskEntity(
+                    id = "task_demo_3",
+                    userId = userId,
+                    title = "Read 20 pages of Book",
+                    description = "Focus on personal development reading.",
+                    project = "Learning",
+                    priority = "low",
+                    deadline = today,
+                    completed = false,
+                    points = 10,
+                    notes = ""
+                )
+            )
+        }
+
+        // 2. Habits
+        val existingHabits = dao.getHabitsForUser(userId)
+        if (existingHabits.isEmpty()) {
+            dao.insertHabit(
+                HabitEntity(
+                    id = "habit_demo_1",
+                    userId = userId,
+                    name = "Hydration: Drink 8 Glasses",
+                    category = "Wellness",
+                    frequency = "daily",
+                    createdAt = today,
+                    isMultipleTimesPerDay = true,
+                    multipleTimesTarget = 8,
+                    reminderTime = "08:00 AM",
+                    icon = "💧",
+                    quote = "Stay hydrated, stay energized!",
+                    notes = "[PINNED]"
+                )
+            )
+            dao.insertHabit(
+                HabitEntity(
+                    id = "habit_demo_2",
+                    userId = userId,
+                    name = "Daily Mindfulness Meditation",
+                    category = "Mindfulness",
+                    frequency = "daily",
+                    createdAt = today,
+                    reminderTime = "10:00 PM",
+                    icon = "🧘",
+                    quote = "Peace comes from within."
+                )
+            )
+        }
+
+        // 3. Finance Logs
+        val existingFinance = dao.getFinanceLogsForUser(userId)
+        if (existingFinance.isEmpty()) {
+            dao.insertFinanceLog(
+                FinanceLogEntity(
+                    id = "fin_demo_1",
+                    userId = userId,
+                    date = today,
+                    type = "income",
+                    category = "Salary",
+                    title = "Monthly Salary Deposit",
+                    amount = 4500.0,
+                    notes = "Monthly payroll income"
+                )
+            )
+            dao.insertFinanceLog(
+                FinanceLogEntity(
+                    id = "fin_demo_2",
+                    userId = userId,
+                    date = today,
+                    type = "expense",
+                    category = "Groceries & Supermarket",
+                    title = "Organic Grocery Shopping",
+                    amount = 135.50,
+                    notes = "Weekly grocery run"
+                )
+            )
+            dao.insertFinanceLog(
+                FinanceLogEntity(
+                    id = "fin_demo_3",
+                    userId = userId,
+                    date = today,
+                    type = "expense",
+                    category = "Dining Out & Food Delivery",
+                    title = "Lunch with Team",
+                    amount = 32.0,
+                    notes = "Coffee and lunch"
+                )
+            )
+        }
+
+        // 4. Net Worth Items
+        val existingNetWorth = dao.getNetWorthItems(userId)
+        if (existingNetWorth.isEmpty()) {
+            dao.insertNetWorthItem(
+                NetWorthItemEntity(
+                    id = "nw_demo_1",
+                    userId = userId,
+                    name = "Bank Savings Account",
+                    type = "asset",
+                    amount = 6500.0
+                )
+            )
+            dao.insertNetWorthItem(
+                NetWorthItemEntity(
+                    id = "nw_demo_2",
+                    userId = userId,
+                    name = "Mutual Funds Portfolio",
+                    type = "asset",
+                    amount = 15000.0
+                )
+            )
+        }
+
+        // 5. Grocery Items
+        val existingGroceries = dao.getGroceryItemsForUserFlow(userId).firstOrNull() ?: emptyList()
+        if (existingGroceries.isEmpty()) {
+            dao.insertGroceryItem(
+                GroceryItemEntity(
+                    id = "groc_demo_1",
+                    userId = userId,
+                    name = "Almond Milk",
+                    quantity = "2 cartons",
+                    category = "Dairy",
+                    price = 4.50
+                )
+            )
+            dao.insertGroceryItem(
+                GroceryItemEntity(
+                    id = "groc_demo_2",
+                    userId = userId,
+                    name = "Fresh Apples",
+                    quantity = "1 kg",
+                    category = "Fruits",
+                    price = 3.20
+                )
+            )
+            dao.insertGroceryItem(
+                GroceryItemEntity(
+                    id = "groc_demo_3",
+                    userId = userId,
+                    name = "Whole Wheat Bread",
+                    quantity = "1 loaf",
+                    category = "Bakery",
+                    price = 2.80
+                )
+            )
+        }
+
+        // 6. Wishlist Items
+        val existingWishlist = dao.getWishlistForUserFlow(userId).firstOrNull() ?: emptyList()
+        if (existingWishlist.isEmpty()) {
+            dao.insertWishItem(
+                WishItemEntity(
+                    id = "wish_demo_1",
+                    userId = userId,
+                    title = "Wireless Noise-Canceling Headphones",
+                    price = 199.99,
+                    priority = "high",
+                    purchased = false
+                )
+            )
+        }
+
+        // 7. Birthdays / Occasions
+        val existingBirthdays = dao.getBirthdaysForUserFlow(userId).firstOrNull() ?: emptyList()
+        if (existingBirthdays.isEmpty()) {
+            dao.insertBirthday(
+                BirthdayEntity(
+                    id = "bday_demo_1",
+                    userId = userId,
+                    name = "Mom's Birthday",
+                    date = "2026-08-25",
+                    category = "Birthday|Family",
+                    giftIdea = "Custom photo album & flower bouquet",
+                    remindMe = true
+                )
+            )
+        }
     }
 
     // --- Alarms ---

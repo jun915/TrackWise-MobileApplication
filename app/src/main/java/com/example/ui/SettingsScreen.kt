@@ -876,7 +876,19 @@ fun SoundsSection(viewModel: TrackWiseViewModel) {
                     onDismissRequest = { taskSoundExpanded = false },
                     modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                 ) {
-                    listOf("Chime", "Ding", "Bell", "None").forEach { snd ->
+                    listOf(
+                        "Chime Gentle",
+                        "Victory Bell",
+                        "Success Pop",
+                        "Digital Sparkle",
+                        "Marimba Ring",
+                        "Zen Bowl",
+                        "Level Up",
+                        "Crystal Harp",
+                        "Subtle Click",
+                        "Acoustic Fanfare",
+                        "None"
+                    ).forEach { snd ->
                         DropdownMenuItem(
                             text = { Text(snd, fontSize = 13.sp) },
                             onClick = {
