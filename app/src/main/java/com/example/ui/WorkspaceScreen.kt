@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.example.ui
 
 import androidx.compose.foundation.pager.HorizontalPager
@@ -584,8 +586,11 @@ fun TaskSection(
         }
 
         // Tasks Grid/List
-        val filteredTasks = remember(tasks, selectedFolder, selectedTag) {
+        val dismissedTaskIdsToday by viewModel.dismissedTaskIdsToday.collectAsState()
+        val pinnedTaskIds by viewModel.pinnedTaskIds.collectAsState()
+        val filteredTasks = remember(tasks, selectedFolder, selectedTag, dismissedTaskIdsToday, pinnedTaskIds) {
             tasks.filter { task ->
+                if (dismissedTaskIdsToday.contains(task.id)) return@filter false
                 if (selectedFolder != null) {
                     task.project.equals(selectedFolder, ignoreCase = true)
                 } else if (selectedTag != null) {
@@ -597,7 +602,7 @@ fun TaskSection(
                     true
                 }
             }.sortedWith(
-                compareBy<TaskEntity> { !it.notes.contains("[PINNED]") }
+                compareBy<TaskEntity> { !pinnedTaskIds.contains(it.id) && !it.notes.contains("[PINNED]") }
                     .thenBy { TrackWiseUtils.getPinTimestamp(it.notes) }
                     .thenBy { it.title }
             )
@@ -747,7 +752,8 @@ fun TaskSection(
                                         } catch (e: Exception) {
                                             e.printStackTrace()
                                         }
-                                    }
+                                    },
+                                    onDismissForToday = { viewModel.dismissTaskForToday(task.id) }
                                 ) {
                                     TaskCard(task = task, viewModel = viewModel, onAddSubtaskClick = onAddSubtaskClick)
                                 }
@@ -779,42 +785,25 @@ fun TaskCard(
     var newSubtaskDueTime by remember { mutableStateOf(task.dueTime ?: "") }
 
     var showLongPressMenu by remember { mutableStateOf(false) }
-    val isPinned = task.notes.contains("[PINNED]")
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val pinnedTaskIds by viewModel.pinnedTaskIds.collectAsState()
+    val isPinned = pinnedTaskIds.contains(task.id) || task.notes.contains("[PINNED]")
 
-    if (showLongPressMenu) {
+    if (showDeleteConfirm) {
         AlertDialog(
-            onDismissRequest = { showLongPressMenu = false },
-            title = { Text(task.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            val newNotes = if (isPinned) task.notes.replace("[PINNED]", "").trim() else (task.notes + " [PINNED]").trim()
-                            viewModel.updateTask(task.copy(notes = newNotes))
-                            showLongPressMenu = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            viewModel.deleteTask(task.id)
-                            showLongPressMenu = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete Task", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Confirm Delete", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete this task (${task.title})? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    viewModel.deleteTask(task.id)
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
-            confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showLongPressMenu = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
             }
         )
     }
@@ -856,18 +845,19 @@ fun TaskCard(
         }
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(gradientBrush, RoundedCornerShape(16.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-            .combinedClickable(
-                onClick = { viewModel.openEditTaskSheet(task) },
-                onLongClick = { showLongPressMenu = true }
-            )
-    ) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(gradientBrush, RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+                .combinedClickable(
+                    onClick = { viewModel.openEditTaskSheet(task) },
+                    onLongClick = { showLongPressMenu = true }
+                )
+        ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1177,6 +1167,56 @@ fun TaskCard(
             }
         }
     }
+
+        DropdownMenu(
+            expanded = showLongPressMenu,
+            onDismissRequest = { showLongPressMenu = false }
+        ) {
+            val pinnedTaskIds by viewModel.pinnedTaskIds.collectAsState()
+            val isPinned = pinnedTaskIds.contains(task.id) || task.notes.contains("[PINNED]")
+
+            DropdownMenuItem(
+                text = { Text(if (isPinned) "Unpin Task" else "Pin to Top") },
+                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber) },
+                onClick = {
+                    showLongPressMenu = false
+                    val isPinnedNotes = task.notes.contains("[PINNED]")
+                    val newNotes = if (isPinnedNotes) {
+                        task.notes.replace(Regex("\\[PINNED.*?\\]"), "").trim()
+                    } else {
+                        (task.notes + " [PINNED:${System.currentTimeMillis()}]").trim()
+                    }
+                    viewModel.updateTask(task.copy(notes = newNotes))
+                    viewModel.togglePinTask(task.id)
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Edit Task") },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                onClick = {
+                    showLongPressMenu = false
+                    viewModel.openEditTaskSheet(task)
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(if (task.completed) "Mark Incomplete" else "Mark Complete") },
+                leadingIcon = { Icon(if (task.completed) Icons.Default.Close else Icons.Default.Check, contentDescription = null, tint = BrandGreen) },
+                onClick = {
+                    showLongPressMenu = false
+                    viewModel.toggleTaskCompletion(task)
+                }
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+            DropdownMenuItem(
+                text = { Text("Delete Task", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                onClick = {
+                    showLongPressMenu = false
+                    showDeleteConfirm = true
+                }
+            )
+        }
+    }
 }
 
 // ==================== 2. HABITS SECTION ====================
@@ -1470,14 +1510,17 @@ fun HabitSection(
         }
 
         val selectedFolder by viewModel.selectedTaskFolder.collectAsState()
+        val dismissedHabitKeys by viewModel.dismissedHabitKeys.collectAsState()
         
-        val filteredHabits = remember(habits, selectedFolder) {
+        val filteredHabits = remember(habits, selectedFolder, dismissedHabitKeys) {
             val list = if (selectedFolder != null) {
                 habits.filter { habit ->
                     habit.section.split(",").map { it.trim().lowercase() }.contains(selectedFolder!!.lowercase())
                 }
             } else {
                 habits
+            }.filter { habit ->
+                !viewModel.isHabitDismissedForCurrentPeriod(habit.id, habit.frequency)
             }
             list.sortedWith(
                 compareBy<HabitEntity> { !it.notes.contains("[PINNED]") }
@@ -1609,6 +1652,9 @@ fun HabitSection(
                                         if (isCurrentlyCompleted != completed) {
                                             viewModel.toggleHabitToday(habit)
                                         }
+                                    },
+                                    onDismissForToday = {
+                                        viewModel.dismissHabitForCurrentPeriod(habit.id, habit.frequency)
                                     }
                                 ) {
                                     HabitCard(
@@ -1644,46 +1690,25 @@ fun HabitCard(
     }
 
     var showLongPressMenu by remember { mutableStateOf(false) }
-    val isPinned = habit.notes.contains("[PINNED]")
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val pinnedHabitIds by viewModel.pinnedHabitIds.collectAsState()
+    val isPinned = pinnedHabitIds.contains(habit.id) || habit.notes.contains("[PINNED]")
 
-    if (showLongPressMenu) {
+    if (showDeleteConfirm) {
         AlertDialog(
-            onDismissRequest = { showLongPressMenu = false },
-            title = { Text(habit.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            val newNotes = if (isPinned) {
-                                habit.notes.replace(Regex("\\[PINNED.*?\\]"), "").trim()
-                            } else {
-                                (habit.notes + " [PINNED:${System.currentTimeMillis()}]").trim()
-                            }
-                            viewModel.updateHabit(habit.copy(notes = newNotes))
-                            showLongPressMenu = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            viewModel.deleteHabit(habit.id)
-                            showLongPressMenu = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete Habit", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Confirm Delete", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete this habit (${habit.name})? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    viewModel.deleteHabit(habit.id)
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
-            confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showLongPressMenu = false }) { Text("Cancel") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
             }
         )
     }
@@ -1989,60 +2014,36 @@ fun HabitCard(
         Brush.linearGradient(colors = listOf(Color.White, Color(0xFFF8FAFC)))
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(gradientBrush, RoundedCornerShape(16.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-            .combinedClickable(
-                onClick = { onHabitClick(habit) },
-                onLongClick = { showLongPressMenu = true }
-            )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (habit.isMultipleTimesPerDay) {
-                    IconButton(
-                        onClick = { viewModel.decrementHabitToday(habit) },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = BrandOrange, modifier = Modifier.size(18.dp))
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clickable { viewModel.incrementHabitToday(habit) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isCompletedToday) {
-                            Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
-                        } else {
-                            HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(gradientBrush, RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+                .combinedClickable(
+                    onClick = { onHabitClick(habit) },
+                    onLongClick = { showLongPressMenu = true }
+                )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (habit.isMultipleTimesPerDay) {
+                        IconButton(
+                            onClick = { viewModel.decrementHabitToday(habit) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = BrandOrange, modifier = Modifier.size(18.dp))
                         }
-                    }
-
-                    IconButton(
-                        onClick = { viewModel.incrementHabitToday(habit) },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Increase", tint = BrandOrange, modifier = Modifier.size(18.dp))
-                    }
-                } else {
-                    com.example.utils.CompletionBurstWrapper(
-                        onClick = { viewModel.toggleHabitToday(habit) },
-                        dotColor = BrandOrange,
-                        dotCount = 6,
-                        initialRadiusDp = 14.dp,
-                        burstRadiusMaxDp = 30.dp
-                    ) {
+                        
                         Box(
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clickable { viewModel.incrementHabitToday(habit) },
                             contentAlignment = Alignment.Center
                         ) {
                             if (isCompletedToday) {
@@ -2051,70 +2052,132 @@ fun HabitCard(
                                 HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
                             }
                         }
+
+                        IconButton(
+                            onClick = { viewModel.incrementHabitToday(habit) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Increase", tint = BrandOrange, modifier = Modifier.size(18.dp))
+                        }
+                    } else {
+                        com.example.utils.CompletionBurstWrapper(
+                            onClick = { viewModel.toggleHabitToday(habit) },
+                            dotColor = BrandOrange,
+                            dotCount = 6,
+                            initialRadiusDp = 14.dp,
+                            burstRadiusMaxDp = 30.dp
+                        ) {
+                            Box(
+                                modifier = Modifier.size(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isCompletedToday) {
+                                    Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
+                                } else {
+                                    HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
+                                }
+                            }
+                        }
                     }
-                }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = habit.name,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        textDecoration = if (isCompletedToday) TextDecoration.LineThrough else TextDecoration.None,
-                        color = if (isCompletedToday) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(top = 2.dp)
+                    Column(
+                        modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = habit.category,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                            text = habit.name,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            textDecoration = if (isCompletedToday) TextDecoration.LineThrough else TextDecoration.None,
+                            color = if (isCompletedToday) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onBackground
                         )
-                        if (habit.isTimeBound && !habit.timeBoundDuration.isNullOrBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
                             Text(
-                                text = "• ⏰ ${habit.timeBoundDuration}",
+                                text = habit.category,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = BrandOrange
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                             )
-                        }
-                        if (habit.isMultipleTimesPerDay) {
-                            Text(
-                                text = "• 🎯 Target: ${habit.multipleTimesTarget}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = BrandOrange
-                            )
-                        }
-                        if (habit.repeatType != "none") {
-                            Text(
-                                text = "• 🔁",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = BrandGreen
-                            )
+                            if (habit.isTimeBound && !habit.timeBoundDuration.isNullOrBlank()) {
+                                Text(
+                                    text = "• ⏰ ${habit.timeBoundDuration}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandOrange
+                                )
+                            }
+                            if (habit.isMultipleTimesPerDay) {
+                                Text(
+                                    text = "• 🎯 Target: ${habit.multipleTimesTarget}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandOrange
+                                )
+                            }
+                            if (habit.repeatType != "none") {
+                                Text(
+                                    text = "• 🔁",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandGreen
+                                )
+                            }
                         }
                     }
-                }
 
-                // Streaks & Badges indicators
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
-                    Text(
-                        text = "${habit.streak}d",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandOrange,
-                        modifier = Modifier.padding(start = 2.dp)
-                    )
+                    // Streaks & Badges indicators
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(16.dp))
+                        Text(
+                            text = "${habit.streak}d",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandOrange,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    }
                 }
             }
+        }
+
+        DropdownMenu(
+            expanded = showLongPressMenu,
+            onDismissRequest = { showLongPressMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Edit Details") },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                onClick = {
+                    showLongPressMenu = false
+                    viewModel.setHabitToEdit(habit)
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(if (isPinned) "Unpin from Top" else "Pin to Top") },
+                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber) },
+                onClick = {
+                    viewModel.togglePinHabit(habit.id)
+                    val newNotes = if (habit.notes.contains("[PINNED]")) {
+                        habit.notes.replace(Regex("\\[PINNED.*?\\]"), "").trim()
+                    } else {
+                        (habit.notes + " [PINNED:${System.currentTimeMillis()}]").trim()
+                    }
+                    viewModel.updateHabit(habit.copy(notes = newNotes))
+                    showLongPressMenu = false
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Delete Habit", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                onClick = {
+                    showLongPressMenu = false
+                    showDeleteConfirm = true
+                }
+            )
         }
     }
 }
@@ -2124,6 +2187,7 @@ fun HabitCard(
 fun SwipeableHabitCard(
     habit: com.example.data.HabitEntity,
     onToggleCompleted: (Boolean) -> Unit,
+    onDismissForToday: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val dismissState = androidx.compose.material3.rememberSwipeToDismissBoxState(
@@ -2135,7 +2199,11 @@ fun SwipeableHabitCard(
                     false
                 }
                 androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> {
-                    onToggleCompleted(false)
+                    if (onDismissForToday != null) {
+                        onDismissForToday()
+                    } else {
+                        onToggleCompleted(false)
+                    }
                     false
                 }
                 androidx.compose.material3.SwipeToDismissBoxValue.Settled -> false
@@ -2154,12 +2222,12 @@ fun SwipeableHabitCard(
             }
             val icon = when (direction) {
                 androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> Icons.Default.CheckCircle
-                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> Icons.Default.Cancel
+                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> Icons.Default.VisibilityOff
                 else -> Icons.Default.Block
             }
             val text = when (direction) {
                 androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> "✨ Done for Today!"
-                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> "⚠️ Not Completed Today"
+                androidx.compose.material3.SwipeToDismissBoxValue.EndToStart -> "👋 Dismissed for Today"
                 else -> ""
             }
 
@@ -2988,44 +3056,6 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
     var showDeleteConfirmForBday by remember { mutableStateOf<com.example.data.BirthdayEntity?>(null) }
     var showGlobalFontDialog by remember { mutableStateOf(false) }
     var globalFontStyle by remember { mutableStateOf("Default") }
-
-    if (showLongPressMenuForBday != null) {
-        val bday = showLongPressMenuForBday!!
-        AlertDialog(
-            onDismissRequest = { showLongPressMenuForBday = null },
-            title = { Text(bday.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            viewModel.togglePinBirthday(bday.id)
-                            showLongPressMenuForBday = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (bday.isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            showDeleteConfirmForBday = bday
-                            showLongPressMenuForBday = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete Occasion", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showLongPressMenuForBday = null }) { Text("Cancel") }
-            }
-        )
-    }
 
     if (showDeleteConfirmForBday != null) {
         val bday = showDeleteConfirmForBday!!
@@ -3915,120 +3945,153 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         else -> Icons.Default.Cake
                     }
 
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                width = if (daysLeft == 0) 2.dp else if (bday.isPinned) 1.5.dp else 1.dp,
-                                color = if (daysLeft == 0) BrandAmber else if (bday.isPinned) BrandAmber.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(16.dp)
-                            )
-                            .combinedClickable(
-                                onClick = { detailedBirthday = bday },
-                                onLongClick = { showLongPressMenuForBday = bday }
-                            )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = if (daysLeft == 0) 2.dp else if (bday.isPinned) 1.5.dp else 1.dp,
+                                    color = if (daysLeft == 0) BrandAmber else if (bday.isPinned) BrandAmber.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .combinedClickable(
+                                    onClick = { detailedBirthday = bday },
+                                    onLongClick = { showLongPressMenuForBday = bday }
+                                )
                         ) {
-                            Icon(occasionIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(24.dp))
-                            
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column(
-                                modifier = Modifier.weight(1f)
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
+                                Icon(occasionIcon, contentDescription = null, tint = catColor, modifier = Modifier.size(24.dp))
+                                
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    if (bday.isPinned) {
-                                        Icon(
-                                            imageVector = Icons.Default.PushPin,
-                                            contentDescription = "Pinned",
-                                            tint = BrandAmber,
-                                            modifier = Modifier.size(14.dp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (bday.isPinned) {
+                                            Icon(
+                                                imageVector = Icons.Default.PushPin,
+                                                contentDescription = "Pinned",
+                                                tint = BrandAmber,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                        }
+                                        Text(
+                                            text = bday.name,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onBackground,
+                                            modifier = Modifier.weight(1f)
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
                                     }
-                                    Text(
-                                        text = bday.name,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onBackground,
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                val displayDaysText = when {
+                                    daysLeft == 0 -> {
+                                        if (bdayType == "Death Anniversary") "TODAY 🕯"
+                                        else if (bdayType == "Marriage Anniversary") "TODAY 💖"
+                                        else if (bdayType == "Holiday") "TODAY 🎄"
+                                        else if (bdayType == "Countdown") "TODAY 🚀"
+                                        else "TODAY 🎂"
+                                    }
+                                    daysLeft == 1 -> "Tomorrow"
+                                    bday.countingMode == "Count Up" -> "$daysLeft Days ago"
+                                    bday.countingMode == "Count Down" -> "$daysLeft Days left"
+                                    else -> "In $daysLeft days"
+                                }
+                                val boxBg = when {
+                                    daysLeft == 0 -> BrandAmber.copy(alpha = 0.12f)
+                                    daysLeft <= 7 -> BrandRose.copy(alpha = 0.12f)
+                                    else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                                }
+                                val boxText = when {
+                                    daysLeft == 0 -> BrandAmber
+                                    daysLeft <= 7 -> BrandRose
+                                    else -> MaterialTheme.colorScheme.onSecondaryContainer
+                                }
+
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    if (daysLeft == 0) {
+                                        val emoji = when (bdayType) {
+                                            "Death Anniversary" -> "🕯"
+                                            "Marriage Anniversary" -> "💖"
+                                            "Holiday" -> "🎄"
+                                            "Countdown" -> "🚀"
+                                            else -> "🎂"
+                                        }
+                                        Text(
+                                            text = "$emoji TODAY",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = boxText
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "$daysLeft",
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = boxText,
+                                            lineHeight = 24.sp
+                                        )
+                                        val label = when {
+                                            daysLeft == 1 -> "TOMORROW"
+                                            bday.countingMode == "Count Up" -> "DAYS AGO"
+                                            else -> "DAYS LEFT"
+                                        }
+                                        Text(
+                                            text = label,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = boxText.copy(alpha = 0.85f),
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
                                 }
                             }
+                        }
 
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            val displayDaysText = when {
-                                daysLeft == 0 -> {
-                                    if (bdayType == "Death Anniversary") "TODAY 🕯"
-                                    else if (bdayType == "Marriage Anniversary") "TODAY 💖"
-                                    else if (bdayType == "Holiday") "TODAY 🎄"
-                                    else if (bdayType == "Countdown") "TODAY 🚀"
-                                    else "TODAY 🎂"
+                        DropdownMenu(
+                            expanded = showLongPressMenuForBday?.id == bday.id,
+                            onDismissRequest = { showLongPressMenuForBday = null }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Details") },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                onClick = {
+                                    val currentBday = bday
+                                    showLongPressMenuForBday = null
+                                    editingBirthday = currentBday
                                 }
-                                daysLeft == 1 -> "Tomorrow"
-                                bday.countingMode == "Count Up" -> "$daysLeft Days ago"
-                                bday.countingMode == "Count Down" -> "$daysLeft Days left"
-                                else -> "In $daysLeft days"
-                            }
-                            val boxBg = when {
-                                daysLeft == 0 -> BrandAmber.copy(alpha = 0.12f)
-                                daysLeft <= 7 -> BrandRose.copy(alpha = 0.12f)
-                                else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
-                            }
-                            val boxText = when {
-                                daysLeft == 0 -> BrandAmber
-                                daysLeft <= 7 -> BrandRose
-                                else -> MaterialTheme.colorScheme.onSecondaryContainer
-                            }
-
-                            Column(
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                if (daysLeft == 0) {
-                                    val emoji = when (bdayType) {
-                                        "Death Anniversary" -> "🕯"
-                                        "Marriage Anniversary" -> "💖"
-                                        "Holiday" -> "🎄"
-                                        "Countdown" -> "🚀"
-                                        else -> "🎂"
-                                    }
-                                    Text(
-                                        text = "$emoji TODAY",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = boxText
-                                    )
-                                } else {
-                                    Text(
-                                        text = "$daysLeft",
-                                        fontSize = 24.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = boxText,
-                                        lineHeight = 24.sp
-                                    )
-                                    val label = when {
-                                        daysLeft == 1 -> "TOMORROW"
-                                        bday.countingMode == "Count Up" -> "DAYS AGO"
-                                        else -> "DAYS LEFT"
-                                    }
-                                    Text(
-                                        text = label,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = boxText.copy(alpha = 0.85f),
-                                        letterSpacing = 0.5.sp
-                                    )
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (bday.isPinned) "Unpin from Top" else "Pin to Top") },
+                                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber) },
+                                onClick = {
+                                    viewModel.togglePinBirthday(bday.id)
+                                    showLongPressMenuForBday = null
                                 }
-                            }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete Occasion", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showDeleteConfirmForBday = bday
+                                    showLongPressMenuForBday = null
+                                }
+                            )
                         }
                     }
                 }

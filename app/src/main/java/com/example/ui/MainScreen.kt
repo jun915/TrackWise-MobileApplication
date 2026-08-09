@@ -75,6 +75,7 @@ data class HealthOptionSpec(
 
 val ALL_NAV_TABS = listOf(
     NavTabItemSpec("dashboard", "Dashboard", Icons.Default.Dashboard, BrandViolet, "dashboard", -1),
+    NavTabItemSpec("notes", "Notes", Icons.Default.Book, BrandOrange, "notes", -1),
     NavTabItemSpec("tasks", "Tasks", Icons.Default.Assignment, BrandViolet, "workspace", 0),
     NavTabItemSpec("habits", "Habits", Icons.Default.Repeat, BrandPink, "workspace", 1),
     NavTabItemSpec("countdown", "Countdown", Icons.Default.HourglassEmpty, BrandOrange, "workspace", 3),
@@ -104,19 +105,43 @@ fun MainScreen(
     var financePresetTab by remember { mutableStateOf("expense") }
 
     fun navigateTo(tab: String) {
-        if (tab == "habit_breaker") {
+        var resolvedTab = tab
+        if (tab == "hijri_calendar" || tab == "hijri") {
+            resolvedTab = "calendar"
+            viewModel.setCalendarOverlay("islamic")
+        } else if (tab == "tasks") {
+            resolvedTab = "workspace"
+            viewModel.setWorkspaceSubTab(0)
+        } else if (tab == "habits") {
+            resolvedTab = "workspace"
+            viewModel.setWorkspaceSubTab(1)
+        } else if (tab == "wishlist") {
+            resolvedTab = "workspace"
+            viewModel.setWorkspaceSubTab(2)
+        } else if (tab == "countdown" || tab == "occasions") {
+            resolvedTab = "workspace"
+            viewModel.setWorkspaceSubTab(3)
+        } else if (tab == "focus") {
+            resolvedTab = "workspace"
+            viewModel.setWorkspaceSubTab(4)
+        } else if (tab == "grocery") {
+            resolvedTab = "workspace"
+            viewModel.setWorkspaceSubTab(5)
+        }
+
+        if (resolvedTab == "habit_breaker") {
             viewModel.setHabitBreakerViewState("list")
         }
-        if (activeTab != tab) {
+        if (activeTab != resolvedTab) {
             val currentList = navigationHistory.toMutableList()
-            if (tab == "dashboard") {
+            if (resolvedTab == "dashboard") {
                 navigationHistory = listOf("dashboard")
             } else {
-                val existingIdx = currentList.indexOf(tab)
+                val existingIdx = currentList.indexOf(resolvedTab)
                 if (existingIdx != -1) {
                     navigationHistory = currentList.subList(0, existingIdx + 1)
                 } else {
-                    currentList.add(tab)
+                    currentList.add(resolvedTab)
                     navigationHistory = currentList
                 }
             }
@@ -541,6 +566,7 @@ fun MainScreen(
                         "archive" -> ArchiveScreen(viewModel = viewModel, onBack = { navigateBack() })
                         "seerah" -> SeerahScreen(viewModel = viewModel, onBack = { navigateBack() })
                         "habit_breaker" -> HabitBreakerScreen(viewModel = viewModel, onBack = { navigateBack() })
+                        "notes" -> NotesScreen(viewModel = viewModel, onBack = { navigateBack() })
                     }
                 }
 
@@ -585,6 +611,51 @@ fun MainScreen(
                 }
 
 
+
+                // Global Task & Habit Undo Popup (Opaque Pill)
+                val undoActionState by viewModel.undoActionState.collectAsState()
+                AnimatedVisibility(
+                    visible = undoActionState != null,
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 88.dp)
+                ) {
+                    if (undoActionState != null) {
+                        val state = undoActionState!!
+                        Surface(
+                            onClick = {
+                                viewModel.undoLastAction()
+                            },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.inverseSurface,
+                            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                            shadowElevation = 10.dp,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Undo,
+                                    contentDescription = "Undo",
+                                    tint = BrandAmber,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "${if (state.type == "task") "Task" else "Habit"} ${if (state.isCompleted) "completed" else "updated"} • UNDO",
+                                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.sp,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                    }
+                }
 
                 // In-App Toast alerts (Section 13.4)
                 successMessage?.let { msg ->
@@ -1078,11 +1149,12 @@ fun MainScreen(
         }
 
         // --- Full Screen Dim Backdrop for Speed Dial Options ---
-        if ((showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isNetWorthSpeedDialOpen || showHealthOptionsOverlay) && activeDetailHabit == null && !needsOnboarding) {
+        val isNotesSpeedDialOpen by viewModel.isNotesSpeedDialOpen.collectAsState()
+        if ((showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isNetWorthSpeedDialOpen || showHealthOptionsOverlay || isNotesSpeedDialOpen) && activeDetailHabit == null && !needsOnboarding) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.50f))
+                    .background(Color.Black.copy(alpha = 0.55f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -1092,6 +1164,7 @@ fun MainScreen(
                         isFinanceSpeedDialOpen = false
                         isNetWorthSpeedDialOpen = false
                         viewModel.setShowHealthOptionsOverlay(false)
+                        viewModel.setNotesSpeedDialOpen(false)
                     }
             )
         }
@@ -1507,10 +1580,94 @@ fun MainScreen(
                                 }
                             }
 
+                            val isNotesSpeedDialOpen by viewModel.isNotesSpeedDialOpen.collectAsState()
+                            val selectedNotebook by viewModel.selectedNotebook.collectAsState()
+                            val notesViewMode by viewModel.notesViewMode.collectAsState()
+
+                            if (isNotesSpeedDialOpen && activeTab == "notes") {
+                                val notesOptions = if (selectedNotebook == null) {
+                                    listOf(
+                                        Triple("new_notebook", "New Notebook", Icons.Default.Book),
+                                        Triple("search_notebooks", "Search Notebooks", Icons.Default.Search)
+                                    )
+                                } else {
+                                    listOf(
+                                        Triple("new_note", "New Note", Icons.Default.NoteAdd),
+                                        Triple("search_notes", "Search Notes", Icons.Default.Search),
+                                        Triple(
+                                            "toggle_layout",
+                                            if (notesViewMode == "grid") "List View" else "Matrix View",
+                                            if (notesViewMode == "grid") Icons.Default.ViewAgenda else Icons.Default.GridView
+                                        )
+                                    )
+                                }
+
+                                notesOptions.forEach { (key, label, icon) ->
+                                    val color = when (key) {
+                                        "new_notebook", "new_note" -> BrandViolet
+                                        "search_notebooks", "search_notes" -> Color(0xFF06B6D4)
+                                        "toggle_layout" -> Color(0xFF8B5CF6)
+                                        else -> Color(0xFFEF4444)
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.clickable {
+                                            viewModel.setNotesSpeedDialOpen(false)
+                                            when (key) {
+                                                "new_notebook" -> viewModel.setShowCreateNotebookDialog(true)
+                                                "search_notebooks" -> viewModel.toggleNotebookSearchActive()
+                                                "new_note" -> viewModel.createAndOpenNewNote()
+                                                "search_notes" -> viewModel.toggleNoteSearchActive()
+                                                "toggle_layout" -> viewModel.setNotesViewMode(if (notesViewMode == "grid") "list" else "grid")
+                                                "back_to_notebooks" -> viewModel.selectNotebook(null)
+                                            }
+                                        }
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            tonalElevation = 4.dp,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        FloatingActionButton(
+                                            onClick = {
+                                                viewModel.setNotesSpeedDialOpen(false)
+                                                when (key) {
+                                                    "new_notebook" -> viewModel.setShowCreateNotebookDialog(true)
+                                                    "search_notebooks" -> viewModel.toggleNotebookSearchActive()
+                                                    "new_note" -> viewModel.createAndOpenNewNote()
+                                                    "search_notes" -> viewModel.toggleNoteSearchActive()
+                                                    "toggle_layout" -> viewModel.setNotesViewMode(if (notesViewMode == "grid") "list" else "grid")
+                                                    "back_to_notebooks" -> viewModel.selectNotebook(null)
+                                                }
+                                            },
+                                            containerColor = color,
+                                            contentColor = Color.White,
+                                            modifier = Modifier.size(44.dp),
+                                            shape = CircleShape
+                                        ) {
+                                            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp), tint = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+
                             FloatingActionButton(
                                 onClick = {
                                     if (activeTab == "habit_breaker") {
                                         viewModel.setHabitBreakerViewState("gallery")
+                                    } else if (activeTab == "notes") {
+                                        showMoreMenu = false
+                                        viewModel.onMainFabClickInNotes()
                                     } else if (activeTab == "finance") {
                                         showMoreMenu = false
                                         isFinanceSpeedDialOpen = !isFinanceSpeedDialOpen
@@ -1545,6 +1702,7 @@ fun MainScreen(
                                     "finance" -> isFinanceSpeedDialOpen
                                     "net_worth" -> isNetWorthSpeedDialOpen
                                     "health" -> viewModel.showHealthOptionsOverlay.collectAsState().value
+                                    "notes" -> viewModel.isNotesSpeedDialOpen.collectAsState().value
                                     else -> showMainSpeedDial
                                 }
                                 Icon(
@@ -1935,6 +2093,7 @@ fun HeaderToolbar(
         "archive" -> "Archive"
         "seerah" -> "Seerah"
         "habit_breaker" -> "Habit Breaker"
+        "notes" -> "Notebooks"
         else -> "TrackWise"
     }
 
@@ -2881,6 +3040,48 @@ fun LeftDrawerPane(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // --- Notebooks & Notes Navigation Link ---
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeTab == "notes") BrandOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigate("notes")
+                                onClose()
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Book, contentDescription = null, tint = BrandOrange)
+                                Text(
+                                    text = "NOTEBOOKS & NOTES",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (activeTab == "notes") BrandOrange else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = if (activeTab == "notes") BrandOrange else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+
                 // --- Friends & Achievements Navigation Link (Moved to top) ---
                 item {
                     Card(

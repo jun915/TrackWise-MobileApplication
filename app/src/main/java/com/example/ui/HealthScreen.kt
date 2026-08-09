@@ -1,9 +1,13 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.example.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -29,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.*
@@ -40,6 +45,73 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+
+@Composable
+fun HealthLogItemOptionsDialog(
+    title: String,
+    isPinned: Boolean = false,
+    onEdit: () -> Unit,
+    onTogglePin: () -> Unit = {},
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                showDeleteConfirm = false
+                onDismiss()
+            },
+            title = { Text("Confirm Delete", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete this entry ($title)? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete()
+                    showDeleteConfirm = false
+                    onDismiss()
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDismiss()
+                }) { Text("Cancel") }
+            }
+        )
+    }
+
+    DropdownMenu(
+        expanded = !showDeleteConfirm,
+        onDismissRequest = onDismiss
+    ) {
+        DropdownMenuItem(
+            text = { Text("Edit Details") },
+            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            onClick = {
+                onDismiss()
+                onEdit()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text(if (isPinned) "Unpin from Top" else "Pin to Top") },
+            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber) },
+            onClick = {
+                onTogglePin()
+                onDismiss()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Delete Entry", color = MaterialTheme.colorScheme.error) },
+            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            onClick = {
+                showDeleteConfirm = true
+            }
+        )
+    }
+}
 
 @Composable
 fun HealthScreen(
@@ -566,20 +638,44 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
                 Text("Save Weight Entry", color = Color.White)
             }
 
+            val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
+            var optionsEntry by remember { mutableStateOf<WeightEntryEntity?>(null) }
+            if (optionsEntry != null) {
+                val entry = optionsEntry!!
+                HealthLogItemOptionsDialog(
+                    title = "${entry.date} · ${entry.weightKg} kg",
+                    isPinned = pinnedHealthLogIds.contains(entry.id),
+                    onEdit = { editingWeightEntry = entry },
+                    onTogglePin = { viewModel.togglePinHealthLog(entry.id) },
+                    onDelete = { viewModel.deleteWeightEntry(entry.id) },
+                    onDismiss = { optionsEntry = null }
+                )
+            }
+
             // Histoy List
             if (entries.isNotEmpty()) {
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                entries.take(3).forEach { entry ->
+                entries.take(5).forEach { entry ->
+                    val isPinned = pinnedHealthLogIds.contains(entry.id)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { editingWeightEntry = entry },
+                            .combinedClickable(
+                                onClick = { editingWeightEntry = entry },
+                                onLongClick = { optionsEntry = entry }
+                            )
+                            .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${entry.date} · ${entry.weightKg} kg", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        IconButton(onClick = { viewModel.deleteWeightEntry(entry.id) }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose, modifier = Modifier.size(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isPinned) {
+                                Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = BrandAmber, modifier = Modifier.size(12.dp))
+                            }
+                            Text("${entry.date} · ${entry.weightKg} kg", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        IconButton(onClick = { optionsEntry = entry }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -1072,22 +1168,47 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                 Text("Save Vital Log", color = Color.White)
             }
 
+            val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
+            var optionsReading by remember { mutableStateOf<VitalReadingEntity?>(null) }
+            if (optionsReading != null) {
+                val read = optionsReading!!
+                val displayVal = if (read.type == "blood_sugar") "${read.value} mg/dL" else read.value
+                HealthLogItemOptionsDialog(
+                    title = "${read.date} ${read.time} · $displayVal",
+                    isPinned = pinnedHealthLogIds.contains(read.id),
+                    onEdit = { editingVitalReading = read },
+                    onTogglePin = { viewModel.togglePinHealthLog(read.id) },
+                    onDelete = { viewModel.deleteVitalReading(read.id) },
+                    onDismiss = { optionsReading = null }
+                )
+            }
+
             // Readings history
             val filteredReadings = readings.filter { it.type == vitalType }
             if (filteredReadings.isNotEmpty()) {
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                filteredReadings.take(3).forEach { read ->
+                filteredReadings.take(5).forEach { read ->
+                    val isPinned = pinnedHealthLogIds.contains(read.id)
+                    val displayValue = if (read.type == "blood_sugar") "${read.value} mg/dL" else read.value
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { editingVitalReading = read },
+                            .combinedClickable(
+                                onClick = { editingVitalReading = read },
+                                onLongClick = { optionsReading = read }
+                            )
+                            .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val displayValue = if (read.type == "blood_sugar") "${read.value} mg/dL" else read.value
-                        Text("${read.date} ${read.time} · $displayValue (${read.context?.uppercase()})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        IconButton(onClick = { viewModel.deleteVitalReading(read.id) }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose, modifier = Modifier.size(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isPinned) {
+                                Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = BrandAmber, modifier = Modifier.size(12.dp))
+                            }
+                            Text("${read.date} ${read.time} · $displayValue (${read.context?.uppercase()})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        IconButton(onClick = { optionsReading = read }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -1387,19 +1508,43 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                 Text("Log Activity Session", color = Color.White)
             }
 
+            val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
+            var optionsLog by remember { mutableStateOf<ExerciseLogEntity?>(null) }
+            if (optionsLog != null) {
+                val log = optionsLog!!
+                HealthLogItemOptionsDialog(
+                    title = "${log.date} · ${log.exerciseType} (${log.durationMinutes} mins)",
+                    isPinned = pinnedHealthLogIds.contains(log.id),
+                    onEdit = { editingExerciseLog = log },
+                    onTogglePin = { viewModel.togglePinHealthLog(log.id) },
+                    onDelete = { viewModel.deleteExerciseLog(log.id) },
+                    onDismiss = { optionsLog = null }
+                )
+            }
+
             if (logs.isNotEmpty()) {
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                logs.take(3).forEach { log ->
+                logs.take(5).forEach { log ->
+                    val isPinned = pinnedHealthLogIds.contains(log.id)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { editingExerciseLog = log },
+                            .combinedClickable(
+                                onClick = { editingExerciseLog = log },
+                                onLongClick = { optionsLog = log }
+                            )
+                            .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${log.date} · ${log.exerciseType} (${log.durationMinutes} mins)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        IconButton(onClick = { viewModel.deleteExerciseLog(log.id) }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose, modifier = Modifier.size(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isPinned) {
+                                Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = BrandAmber, modifier = Modifier.size(12.dp))
+                            }
+                            Text("${log.date} · ${log.exerciseType} (${log.durationMinutes} mins)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        IconButton(onClick = { optionsLog = log }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -1604,19 +1749,43 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
                 Text("Log Symptom", color = Color.White)
             }
 
+            val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
+            var optionsLog by remember { mutableStateOf<HealthIssueLogEntity?>(null) }
+            if (optionsLog != null) {
+                val log = optionsLog!!
+                HealthLogItemOptionsDialog(
+                    title = "${log.date} · ${log.issueName} (${log.severity.uppercase()})",
+                    isPinned = pinnedHealthLogIds.contains(log.id),
+                    onEdit = { editingHealthIssueLog = log },
+                    onTogglePin = { viewModel.togglePinHealthLog(log.id) },
+                    onDelete = { viewModel.deleteHealthIssueLog(log.id) },
+                    onDismiss = { optionsLog = null }
+                )
+            }
+
             if (logs.isNotEmpty()) {
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                logs.take(3).forEach { log ->
+                logs.take(5).forEach { log ->
+                    val isPinned = pinnedHealthLogIds.contains(log.id)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { editingHealthIssueLog = log },
+                            .combinedClickable(
+                                onClick = { editingHealthIssueLog = log },
+                                onLongClick = { optionsLog = log }
+                            )
+                            .padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${log.date} · ${log.issueName} (${log.severity.uppercase()})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        IconButton(onClick = { viewModel.deleteHealthIssueLog(log.id) }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = BrandRose, modifier = Modifier.size(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isPinned) {
+                                Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = BrandAmber, modifier = Modifier.size(12.dp))
+                            }
+                            Text("${log.date} · ${log.issueName} (${log.severity.uppercase()})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        IconButton(onClick = { optionsLog = log }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -1876,6 +2045,20 @@ fun SleepLogSection(
                 Text("Log Sleep", color = Color.White, fontWeight = FontWeight.Bold)
             }
 
+            val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
+            var optionsLog by remember { mutableStateOf<SleepLogEntity?>(null) }
+            if (optionsLog != null) {
+                val log = optionsLog!!
+                HealthLogItemOptionsDialog(
+                    title = "${log.date} · ${log.hoursSlept} hrs",
+                    isPinned = pinnedHealthLogIds.contains(log.id),
+                    onEdit = { editingSleepLog = log },
+                    onTogglePin = { viewModel.togglePinHealthLog(log.id) },
+                    onDelete = { viewModel.deleteSleepLog(log.id) },
+                    onDismiss = { optionsLog = null }
+                )
+            }
+
             if (sleepLogs.isNotEmpty()) {
                 Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 Text(
@@ -1886,24 +2069,30 @@ fun SleepLogSection(
                 )
 
                 sleepLogs.forEach { log ->
+                    val isPinned = pinnedHealthLogIds.contains(log.id)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                            .combinedClickable(
+                                onClick = { editingSleepLog = log },
+                                onLongClick = { optionsLog = log }
+                            )
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { editingSleepLog = log }
+                            modifier = Modifier.weight(1f)
                         ) {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                if (isPinned) {
+                                    Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = BrandAmber, modifier = Modifier.size(12.dp))
+                                }
                                 Text(
                                     text = log.date,
                                     fontSize = 12.sp,
@@ -1931,8 +2120,8 @@ fun SleepLogSection(
                             )
                         }
 
-                        IconButton(onClick = { viewModel.deleteSleepLog(log.id) }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete sleep entry", tint = BrandRose, modifier = Modifier.size(16.dp))
+                        IconButton(onClick = { optionsLog = log }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -2263,6 +2452,20 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                 }
             }
 
+            val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
+            var optionsReminder by remember { mutableStateOf<TabletReminderEntity?>(null) }
+            if (optionsReminder != null) {
+                val rem = optionsReminder!!
+                HealthLogItemOptionsDialog(
+                    title = "${rem.tabletName} (${rem.dosage})",
+                    isPinned = pinnedHealthLogIds.contains(rem.id),
+                    onEdit = { editingTabletReminder = rem },
+                    onTogglePin = { viewModel.togglePinHealthLog(rem.id) },
+                    onDelete = { viewModel.deleteTabletReminder(rem.id) },
+                    onDismiss = { optionsReminder = null }
+                )
+            }
+
             // List & Weekly Analytics
             if (tabletReminders.isEmpty()) {
                 Column(
@@ -2280,6 +2483,7 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     tabletReminders.forEachIndexed { index, reminder ->
+                        val isPinned = pinnedHealthLogIds.contains(reminder.id)
                         StaggeredItem(index = index) {
                             // Deserialization helper for taken dates
                             val takenDatesList = try {
@@ -2300,21 +2504,26 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                                     .fillMaxWidth()
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                    .combinedClickable(
+                                        onClick = { editingTabletReminder = reminder },
+                                        onLongClick = { optionsReminder = reminder }
+                                    )
                                     .padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                // Row 1: Tablet Name, Dosage, Time, Delete
+                                // Row 1: Tablet Name, Dosage, Time, Options
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.Top
                                 ) {
                                     Column(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clickable { editingTabletReminder = reminder }
+                                        modifier = Modifier.weight(1f)
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            if (isPinned) {
+                                                Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = BrandAmber, modifier = Modifier.size(12.dp))
+                                            }
                                             Text(reminder.tabletName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                             Box(
                                                 modifier = Modifier
@@ -2341,10 +2550,10 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                                     }
 
                                     IconButton(
-                                        onClick = { viewModel.deleteTabletReminder(reminder.id) },
+                                        onClick = { optionsReminder = reminder },
                                         modifier = Modifier.size(24.dp)
                                     ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete medication", tint = BrandRose, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                                     }
                                 }
 
@@ -2754,6 +2963,31 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
             }
 
             // Cycle history list
+            val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
+            var optionsCycle by remember { mutableStateOf<PeriodCycleEntity?>(null) }
+            if (optionsCycle != null) {
+                val cyc = optionsCycle!!
+                HealthLogItemOptionsDialog(
+                    title = "Period Start: ${cyc.startDate}",
+                    isPinned = pinnedHealthLogIds.contains(cyc.id),
+                    onEdit = {
+                        editingCycleId = cyc.id
+                        startDate = cyc.startDate
+                        durationDays = cyc.durationDays.toString()
+                        cycleLengthDays = cyc.cycleLengthDays.toString()
+                        notes = cyc.notes ?: ""
+                        selectedSymptoms.clear()
+                        if (cyc.symptoms.isNotBlank()) {
+                            selectedSymptoms.addAll(cyc.symptoms.split(","))
+                        }
+                        showForm = true
+                    },
+                    onTogglePin = { viewModel.togglePinHealthLog(cyc.id) },
+                    onDelete = { viewModel.deletePeriodCycle(cyc.id) },
+                    onDismiss = { optionsCycle = null }
+                )
+            }
+
             if (periodCycles.isEmpty()) {
                 Text(
                     text = "No period cycles logged. Log your first period start above!",
@@ -2766,19 +3000,14 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Logged Cycle History", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                     periodCycles.forEach { cycle ->
+                        val isPinned = pinnedHealthLogIds.contains(cycle.id)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
                                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-                                .padding(10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
+                                .combinedClickable(
+                                    onClick = {
                                         editingCycleId = cycle.id
                                         startDate = cycle.startDate
                                         durationDays = cycle.durationDays.toString()
@@ -2789,9 +3018,22 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
                                             selectedSymptoms.addAll(cycle.symptoms.split(","))
                                         }
                                         showForm = true
-                                    }
+                                    },
+                                    onLongClick = { optionsCycle = cycle }
+                                )
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Text("Period Start: ${cycle.startDate}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (isPinned) {
+                                        Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = BrandAmber, modifier = Modifier.size(12.dp))
+                                    }
+                                    Text("Period Start: ${cycle.startDate}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                }
                                 Text(
                                     text = "Bleeding: ${cycle.durationDays} days · Cycle: ${cycle.cycleLengthDays} days",
                                     fontSize = 11.sp,
@@ -2822,8 +3064,8 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
                                     )
                                 }
                             }
-                            IconButton(onClick = { viewModel.deletePeriodCycle(cycle.id) }, modifier = Modifier.size(28.dp)) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete cycle", tint = BrandRose, modifier = Modifier.size(16.dp))
+                            IconButton(onClick = { optionsCycle = cycle }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                             }
                         }
                     }

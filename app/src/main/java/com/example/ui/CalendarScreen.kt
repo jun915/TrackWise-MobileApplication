@@ -62,6 +62,12 @@ fun CalendarScreen(
     }
 
     var activeView by remember { mutableStateOf("day") } // "day", "week", "month"
+
+    LaunchedEffect(overlay) {
+        if (overlay == "islamic") {
+            activeView = "month"
+        }
+    }
     var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
 
     val todayDateStr = TrackWiseUtils.formatDate(Calendar.getInstance().time, "yyyy-MM-dd")
@@ -220,7 +226,12 @@ fun CalendarScreen(
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (overlay == mode) BrandCyan.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                                         .border(1.dp, if (overlay == mode) BrandCyan else Color.Transparent, RoundedCornerShape(8.dp))
-                                        .clickable { viewModel.setCalendarOverlay(mode) }
+                                        .clickable { 
+                                            viewModel.setCalendarOverlay(mode)
+                                            if (mode == "islamic") {
+                                                activeView = "month"
+                                            }
+                                        }
                                         .padding(8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
@@ -430,6 +441,7 @@ fun CalendarScreen(
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(BrandCyan.copy(alpha = 0.08f))
                                     .border(1.dp, BrandCyan.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                    .clickable { activeView = "month" }
                                     .padding(12.dp)
                             ) {
                                 Row(

@@ -671,6 +671,30 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
         return dao.getNetWorthItemByName(userId, name)
     }
 
+    // --- Notebooks & Notes ---
+    fun getNotebooksFlow(userId: String): Flow<List<NotebookEntity>> = dao.getNotebooksForUserFlow(userId)
+
+    suspend fun insertNotebook(notebook: NotebookEntity) {
+        dao.insertNotebook(notebook)
+    }
+
+    suspend fun deleteNotebook(notebookId: String) {
+        dao.deleteNotesByNotebookId(notebookId)
+        dao.deleteNotebookById(notebookId)
+    }
+
+    fun getNotesForNotebookFlow(notebookId: String): Flow<List<NoteEntity>> = dao.getNotesForNotebookFlow(notebookId)
+
+    fun getAllNotesFlow(userId: String): Flow<List<NoteEntity>> = dao.getAllNotesForUserFlow(userId)
+
+    suspend fun insertNote(note: NoteEntity) {
+        dao.insertNote(note)
+    }
+
+    suspend fun deleteNote(noteId: String) {
+        dao.deleteNoteById(noteId)
+    }
+
     suspend fun clearUserData(userId: String) {
         dao.clearUserData(userId)
     }

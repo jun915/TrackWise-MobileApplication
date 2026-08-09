@@ -717,54 +717,76 @@ fun MoneyTrackerHomeView(
 ) {
     var longPressLog by remember { mutableStateOf<FinanceLogEntity?>(null) }
 
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
     if (longPressLog != null) {
         val log = longPressLog!!
         val isPinned = pinnedFinanceLogIds.contains(log.id)
-        AlertDialog(
-            onDismissRequest = { longPressLog = null },
-            title = { Text(log.category, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            longPressLog = null
-                            onEditLog(log)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Edit Transaction", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                title = { Text("Confirm Delete", fontWeight = FontWeight.Bold) },
+                text = { Text("Are you sure you want to delete this transaction (${log.category} - ${log.amount})? This action cannot be undone.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDeleteConfirm = false
+                        val currentLog = longPressLog
+                        longPressLog = null
+                        if (currentLog != null) onDeleteLog(currentLog)
+                    }) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                     }
-                    TextButton(
-                        onClick = {
-                            onTogglePinLog(log.id)
-                            longPressLog = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PushPin, contentDescription = null, tint = Color(0xFFF59E0B))
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            longPressLog = null
-                            onDeleteLog(log)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete Transaction", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { longPressLog = null }) { Text("Cancel") }
-            }
-        )
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = { longPressLog = null },
+                title = { Text(log.category, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                longPressLog = null
+                                onEditLog(log)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Edit Transaction", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(
+                            onClick = {
+                                onTogglePinLog(log.id)
+                                longPressLog = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.PushPin, contentDescription = null, tint = Color(0xFFF59E0B))
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(
+                            onClick = {
+                                showDeleteConfirm = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Delete Transaction", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { longPressLog = null }) { Text("Cancel") }
+                }
+            )
+        }
     }
 
     if (monthLogs.isEmpty()) {

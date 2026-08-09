@@ -445,17 +445,17 @@ fun AnalyticsScreen(
                     }
 
                     "Habit Breaker" -> {
-                        // Chart 1: Slip-ups Monitor Card
+                        // Chart 1: Habit Breaker Insights Card
                         item {
                             AnimatedTileContainer {
-                                BadHabitsAnalyticsCard(badHabits = badHabits)
+                                HabitBreakerInsightsCard(badHabits = badHabits)
                             }
                         }
 
-                        // Chart 2: Sobriety/Clean Duration Bar Chart
+                        // Chart 2: Slip-ups Monitor Card
                         item {
                             AnimatedTileContainer {
-                                SobrietyCleanStreaksCard(badHabits = badHabits)
+                                BadHabitsAnalyticsCard(badHabits = badHabits)
                             }
                         }
 
@@ -5070,6 +5070,245 @@ data class PriorityStats(
     val tasks: List<TaskEntity>,
     val color: Color
 )
+
+@Composable
+fun HabitBreakerInsightsCard(
+    badHabits: List<TrackWiseViewModel.BadHabitSpec>
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(BrandRose.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Block,
+                            contentDescription = null,
+                            tint = BrandRose,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "HABIT BREAKER INSIGHTS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandRose,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "Slip-ups & streak activity breakdown",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (badHabits.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(14.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No bad habits added yet",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                val dayFormat = java.text.SimpleDateFormat("E", java.util.Locale.US)
+                val last7Days = remember(badHabits) {
+                    (0..6).map { i ->
+                        val cal = java.util.Calendar.getInstance()
+                        cal.add(java.util.Calendar.DAY_OF_YEAR, -i)
+                        val dateStr = sdf.format(cal.time)
+                        val dayLabel = dayFormat.format(cal.time).substring(0, 1)
+                        dateStr to dayLabel
+                    }.reversed()
+                }
+
+                val dailyCounts = remember(badHabits, last7Days) {
+                    last7Days.map { (dateStr, _) ->
+                        badHabits.sumOf { habit ->
+                            habit.logs.count { it.startsWith(dateStr) }
+                        }
+                    }
+                }
+
+                val maxCount = remember(dailyCounts) { (dailyCounts.maxOrNull() ?: 1).coerceAtLeast(1) }
+
+                // Slip-ups Trend Bar Chart
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    last7Days.forEachIndexed { idx, (_, label) ->
+                        val count = dailyCounts[idx]
+                        val barHeightFactor = count.toFloat() / maxCount.toFloat()
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (count > 0) {
+                                Text(
+                                    text = count.toString(),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandRose
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight(0.7f)
+                                    .width(16.dp)
+                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .background(
+                                        if (count > 0) BrandRose.copy(alpha = 0.85f)
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
+                                    )
+                                    .fillMaxHeight(barHeightFactor.coerceAtLeast(0.08f))
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = label,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "ACTIVE BAD HABITS & STATUS",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    letterSpacing = 0.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    badHabits.take(4).forEach { habit ->
+                        val lastSlipDateStr = habit.logs.map { it.take(10) }.maxOrNull()
+                        val cleanDays = remember(lastSlipDateStr) {
+                            if (lastSlipDateStr == null) {
+                                "Clean"
+                            } else {
+                                try {
+                                    val lastDate = sdf.parse(lastSlipDateStr)
+                                    val todayDate = sdf.parse(sdf.format(java.util.Date()))
+                                    val diff = todayDate.time - lastDate.time
+                                    val days = (diff / (1000 * 60 * 60 * 24)).toInt()
+                                    if (days <= 0) "Slipped Today" else "$days d clean"
+                                } catch (e: Exception) {
+                                    "Active"
+                                }
+                            }
+                        }
+
+                        val isClean = cleanDays != "Slipped Today"
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = habit.name,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isClean) BrandGreen else BrandRose)
+                                    )
+                                    Text(
+                                        text = cleanDays,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isClean) BrandGreen else BrandRose
+                                    )
+                                }
+                            }
+
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = BrandRose.copy(alpha = 0.08f)
+                                )
+                            ) {
+                                Text(
+                                    text = "${habit.logs.size} slip-up${if (habit.logs.size == 1) "" else "s"}",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = BrandRose,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun BadHabitsAnalyticsCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {

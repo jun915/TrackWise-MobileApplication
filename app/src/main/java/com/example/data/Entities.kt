@@ -331,6 +331,34 @@ data class NetWorthItemEntity(
     val amount: Double
 )
 
+@Entity(tableName = "notebooks")
+data class NotebookEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val title: String,
+    val coverPreset: String = "preset_1",
+    val coverColor: String = "#FF9800",
+    val customCoverUri: String? = null,
+    val createdAt: String,
+    val updatedAt: String
+)
+
+@Entity(tableName = "notes")
+data class NoteEntity(
+    @PrimaryKey val id: String,
+    val notebookId: String,
+    val userId: String,
+    val title: String,
+    val content: String = "",
+    val cardColor: String = "#FFF59D",
+    val createdAt: String,
+    val updatedAt: String,
+    val reminderDate: String? = null,
+    val reminderTime: String? = null,
+    val isPinned: Boolean = false
+)
+
+
 
 
 

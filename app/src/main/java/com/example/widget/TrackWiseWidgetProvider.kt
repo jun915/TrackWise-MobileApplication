@@ -98,10 +98,29 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                 // Apply overall widget background and dividers
                 views.setInt(R.id.widget_root, "setBackgroundResource", widgetBgRes)
                 views.setTextColor(R.id.widget_app_title, textPrimaryColor)
+                views.setTextViewText(R.id.widget_app_title, "TrackWise")
                 views.setInt(R.id.widget_divider, "setBackgroundColor", dividerColor)
 
-                // Set Click Intent to launch Main App
-                views.setOnClickPendingIntent(R.id.widget_root, getActivityPendingIntent(context, "workspace"))
+                // Set Click Intents for each section to launch corresponding app tab
+                views.setOnClickPendingIntent(R.id.widget_root, getActivityPendingIntent(context, "dashboard"))
+                views.setOnClickPendingIntent(R.id.widget_app_title, getActivityPendingIntent(context, "dashboard"))
+                views.setOnClickPendingIntent(R.id.widget_finance_balance, getActivityPendingIntent(context, "finance"))
+                views.setOnClickPendingIntent(R.id.layout_events_container, getActivityPendingIntent(context, "occasions"))
+                views.setOnClickPendingIntent(R.id.txt_events_header, getActivityPendingIntent(context, "occasions"))
+                views.setOnClickPendingIntent(R.id.txt_event_1, getActivityPendingIntent(context, "occasions"))
+                views.setOnClickPendingIntent(R.id.txt_event_2, getActivityPendingIntent(context, "occasions"))
+                views.setOnClickPendingIntent(R.id.layout_habits_container, getActivityPendingIntent(context, "habits"))
+                views.setOnClickPendingIntent(R.id.txt_habits_header, getActivityPendingIntent(context, "habits"))
+                views.setOnClickPendingIntent(R.id.txt_habit_1, getActivityPendingIntent(context, "habits"))
+                views.setOnClickPendingIntent(R.id.txt_habit_2, getActivityPendingIntent(context, "habits"))
+                views.setOnClickPendingIntent(R.id.layout_tasks_container, getActivityPendingIntent(context, "tasks"))
+                views.setOnClickPendingIntent(R.id.txt_tasks_header, getActivityPendingIntent(context, "tasks"))
+                views.setOnClickPendingIntent(R.id.txt_task_1, getActivityPendingIntent(context, "tasks"))
+                views.setOnClickPendingIntent(R.id.txt_task_2, getActivityPendingIntent(context, "tasks"))
+                views.setOnClickPendingIntent(R.id.txt_water_stat, getActivityPendingIntent(context, "health"))
+                views.setOnClickPendingIntent(R.id.txt_slipped_stat, getActivityPendingIntent(context, "habit_breaker"))
+                views.setOnClickPendingIntent(R.id.widget_header_time_date, getActivityPendingIntent(context, "calendar"))
+                views.setOnClickPendingIntent(R.id.widget_header_urdu_allah, getActivityPendingIntent(context, "hijri_calendar"))
 
                 // --- 1. Top Right: Small Date & Time + Urdu Date + Today's Allah Name ---
                 val now = Date()

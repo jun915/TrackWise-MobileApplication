@@ -218,6 +218,20 @@ fun HabitBreakerScreen(
                                 },
                                 onDelete = { viewModel.removeBadHabit(item.id) },
                                 onCardClick = { selectedItemForOptions = item },
+                                onEdit = {
+                                    editingItemId = item.id
+                                    prefilledName = item.name
+                                    prefilledType = item.avoidType
+                                    prefilledTag = item.tags.firstOrNull() ?: "Health"
+                                    prefilledPriority = item.priority
+                                    prefilledReminderTime = item.reminderTime
+                                    prefilledIsRecurring = item.isRecurring
+                                    prefilledEventDate = item.eventDate
+                                    prefilledCostType = item.costType
+                                    prefilledCostValue = item.costValue
+                                    prefilledIconName = item.iconName
+                                    viewModel.setHabitBreakerViewState("create")
+                                },
                                 tick = tick
                             )
                         }
@@ -246,26 +260,27 @@ fun HabitBreakerScreen(
                                 undoSwipeData = null
                             },
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shadowElevation = 8.dp,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                            color = MaterialTheme.colorScheme.inverseSurface,
+                            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                            shadowElevation = 10.dp,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                         ) {
                             Row(
                                 modifier = Modifier
-                                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Undo,
                                     contentDescription = "Undo",
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    tint = BrandAmber,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    text = "UNDO",
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontWeight = FontWeight.Bold,
+                                    text = "UNDO LOG",
+                                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                                    fontWeight = FontWeight.ExtraBold,
                                     fontSize = 13.sp,
                                     letterSpacing = 0.5.sp
                                 )
@@ -410,6 +425,7 @@ fun SwipeableAvoidCard(
     onLogSlipUp: () -> Unit,
     onDelete: () -> Unit,
     onCardClick: () -> Unit,
+    onEdit: (() -> Unit)? = null,
     tick: Int
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
@@ -480,6 +496,7 @@ fun SwipeableAvoidCard(
             onLogSlipUp = onLogSlipUp,
             onDelete = onDelete,
             onCardClick = onCardClick,
+            onEdit = onEdit,
             tick = tick
         )
     }
@@ -495,49 +512,13 @@ fun AvoidItemCard(
     onLogSlipUp: () -> Unit,
     onDelete: () -> Unit,
     onCardClick: () -> Unit,
+    onEdit: (() -> Unit)? = null,
     tick: Int
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showLongPressMenu by remember { mutableStateOf(false) }
     val cleanTimerText = remember(item.logs, item.id, tick) {
         calculateCleanTimeText(item.logs, item.id)
-    }
-
-    if (showLongPressMenu) {
-        AlertDialog(
-            onDismissRequest = { showLongPressMenu = false },
-            title = { Text(item.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            onTogglePin()
-                            showLongPressMenu = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            showLongPressMenu = false
-                            showDeleteConfirm = true
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete Habit Breaker", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showLongPressMenu = false }) { Text("Cancel") }
-            }
-        )
     }
 
     if (showDeleteConfirm) {
@@ -564,28 +545,29 @@ fun AvoidItemCard(
         )
     }
 
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onLongClick = { showLongPressMenu = true },
-                onClick = onCardClick
-            )
-            .testTag("avoid_card_${item.id}")
-    ) {
-        Row(
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                .fillMaxWidth()
+                .combinedClickable(
+                    onLongClick = { showLongPressMenu = true },
+                    onClick = onCardClick
+                )
+                .testTag("avoid_card_${item.id}")
         ) {
+            Row(
+                modifier = Modifier
+                    .padding(12.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
             val typeColor = when (item.avoidType.lowercase()) {
                 "person" -> BrandIndigo
                 "event" -> BrandOrange
@@ -761,7 +743,42 @@ fun AvoidItemCard(
                 }
             }
         }
+
+        DropdownMenu(
+            expanded = showLongPressMenu,
+            onDismissRequest = { showLongPressMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Edit Details") },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                onClick = {
+                    showLongPressMenu = false
+                    if (onEdit != null) {
+                        onEdit()
+                    } else {
+                        onCardClick()
+                    }
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(if (isPinned) "Unpin from Top" else "Pin to Top") },
+                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber) },
+                onClick = {
+                    showLongPressMenu = false
+                    onTogglePin()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Delete Habit Breaker", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                onClick = {
+                    showLongPressMenu = false
+                    showDeleteConfirm = true
+                }
+            )
+        }
     }
+}
 }
 
 fun getGalleryTemplateIcon(templateName: String): ImageVector {
@@ -923,7 +940,7 @@ fun FullPageGallery(
                     .weight(1f)
             ) { pageIndex ->
                 val category = categories[pageIndex]
-                val items = galleryData[category] ?: emptyList()
+                val templateItems = galleryData[category] ?: emptyList()
 
                 LazyColumn(
                     modifier = Modifier
@@ -931,7 +948,7 @@ fun FullPageGallery(
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(items) { template ->
+                    items(templateItems) { template ->
                         val templateIcon = getGalleryTemplateIcon(template.name)
                         Card(
                             colors = CardDefaults.cardColors(

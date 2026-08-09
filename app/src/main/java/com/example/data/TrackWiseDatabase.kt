@@ -24,6 +24,22 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
     }
 }
 
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Version 18 migration placeholder
+    }
+}
+
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            db.execSQL("ALTER TABLE notebooks ADD COLUMN customCoverUri TEXT")
+        } catch (e: Exception) {
+            // Column may already exist
+        }
+    }
+}
+
 @Database(
     entities = [
         UserEntity::class,
@@ -45,9 +61,11 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
         TabletReminderEntity::class,
         PeriodCycleEntity::class,
         FinanceLogEntity::class,
-        NetWorthItemEntity::class
+        NetWorthItemEntity::class,
+        NotebookEntity::class,
+        NoteEntity::class
     ],
-    version = 17,
+    version = 19,
     exportSchema = false
 )
 abstract class TrackWiseDatabase : RoomDatabase() {
@@ -64,7 +82,7 @@ abstract class TrackWiseDatabase : RoomDatabase() {
                     TrackWiseDatabase::class.java,
                     "trackwise_database"
                 )
-                .addMigrations(MIGRATION_15_16, MIGRATION_16_17)
+                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

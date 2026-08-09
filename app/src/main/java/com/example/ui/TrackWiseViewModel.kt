@@ -43,6 +43,37 @@ class TrackWiseViewModel(
     private val _notificationNavigateTab = MutableStateFlow<String?>(null)
     val notificationNavigateTab: StateFlow<String?> = _notificationNavigateTab.asStateFlow()
 
+    data class UndoActionState(
+        val type: String, // "task" or "habit"
+        val id: String,
+        val title: String,
+        val isCompleted: Boolean,
+        val originalTask: TaskEntity? = null,
+        val originalHabit: HabitEntity? = null,
+        val timestamp: Long = System.currentTimeMillis()
+    )
+
+    private val _undoActionState = MutableStateFlow<UndoActionState?>(null)
+    val undoActionState: StateFlow<UndoActionState?> = _undoActionState.asStateFlow()
+
+    fun clearUndoAction() {
+        _undoActionState.value = null
+    }
+
+    fun undoLastAction() {
+        val state = _undoActionState.value ?: return
+        _undoActionState.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            if (state.type == "task" && state.originalTask != null) {
+                repository.insertTask(state.originalTask)
+                triggerFakeSync()
+            } else if (state.type == "habit" && state.originalHabit != null) {
+                repository.insertHabit(state.originalHabit)
+                triggerFakeSync()
+            }
+        }
+    }
+
     fun setNotificationNavigateTab(tab: String?) {
         _notificationNavigateTab.value = tab
     }
@@ -977,6 +1008,242 @@ class TrackWiseViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    // --- Notebooks & Notes State ---
+    val allNotebooks: StateFlow<List<NotebookEntity>> = _sessionUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getNotebooksFlow(user.id) else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _selectedNotebook = MutableStateFlow<NotebookEntity?>(null)
+    val selectedNotebook: StateFlow<NotebookEntity?> = _selectedNotebook.asStateFlow()
+
+    fun selectNotebook(notebook: NotebookEntity?) {
+        _selectedNotebook.value = notebook
+    }
+
+    val notesForSelectedNotebook: StateFlow<List<NoteEntity>> = combine(
+        _sessionUser,
+        _selectedNotebook
+    ) { user, notebook ->
+        Pair(user, notebook)
+    }.flatMapLatest { (user, notebook) ->
+        if (user != null && notebook != null) {
+            repository.getNotesForNotebookFlow(notebook.id)
+        } else {
+            flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _activeNoteToEdit = MutableStateFlow<NoteEntity?>(null)
+    val activeNoteToEdit: StateFlow<NoteEntity?> = _activeNoteToEdit.asStateFlow()
+
+    private val _notesViewMode = MutableStateFlow("grid") // "grid" or "list"
+    val notesViewMode: StateFlow<String> = _notesViewMode.asStateFlow()
+
+    fun setNotesViewMode(mode: String) {
+        _notesViewMode.value = mode
+    }
+
+    fun openNoteToEdit(note: NoteEntity?) {
+        _activeNoteToEdit.value = note
+    }
+
+    fun closeNoteEditor() {
+        _activeNoteToEdit.value = null
+    }
+
+    private val _showCreateNotebookDialog = MutableStateFlow(false)
+    val showCreateNotebookDialog: StateFlow<Boolean> = _showCreateNotebookDialog.asStateFlow()
+
+    fun setShowCreateNotebookDialog(show: Boolean) {
+        _showCreateNotebookDialog.value = show
+    }
+
+    private val _isNotesSpeedDialOpen = MutableStateFlow(false)
+    val isNotesSpeedDialOpen: StateFlow<Boolean> = _isNotesSpeedDialOpen.asStateFlow()
+
+    fun setNotesSpeedDialOpen(open: Boolean) {
+        _isNotesSpeedDialOpen.value = open
+    }
+
+    fun toggleNotesSpeedDial() {
+        _isNotesSpeedDialOpen.value = !_isNotesSpeedDialOpen.value
+    }
+
+    private val _isNotebookSearchActive = MutableStateFlow(false)
+    val isNotebookSearchActive: StateFlow<Boolean> = _isNotebookSearchActive.asStateFlow()
+
+    fun setNotebookSearchActive(active: Boolean) {
+        _isNotebookSearchActive.value = active
+    }
+
+    fun toggleNotebookSearchActive() {
+        _isNotebookSearchActive.value = !_isNotebookSearchActive.value
+    }
+
+    private val _isNoteSearchActive = MutableStateFlow(false)
+    val isNoteSearchActive: StateFlow<Boolean> = _isNoteSearchActive.asStateFlow()
+
+    fun setNoteSearchActive(active: Boolean) {
+        _isNoteSearchActive.value = active
+    }
+
+    fun toggleNoteSearchActive() {
+        _isNoteSearchActive.value = !_isNoteSearchActive.value
+    }
+
+    fun createAndOpenNewNote() {
+        val currentNotebook = _selectedNotebook.value ?: return
+        openNoteToEdit(
+            NoteEntity(
+                id = UUID.randomUUID().toString(),
+                notebookId = currentNotebook.id,
+                userId = currentNotebook.userId,
+                title = "",
+                content = "",
+                cardColor = "#FFF59D",
+                createdAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date()),
+                updatedAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+            )
+        )
+    }
+
+    fun onMainFabClickInNotes() {
+        toggleNotesSpeedDial()
+    }
+
+    fun createNotebook(title: String, coverPreset: String = "preset_1", coverColor: String = "#FF9800", customCoverUri: String? = null) {
+        val user = _sessionUser.value ?: return
+        val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        val notebook = NotebookEntity(
+            id = UUID.randomUUID().toString(),
+            userId = user.id,
+            title = if (title.isBlank()) "Untitled" else title,
+            coverPreset = coverPreset,
+            coverColor = coverColor,
+            customCoverUri = customCoverUri,
+            createdAt = now,
+            updatedAt = now
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertNotebook(notebook)
+            selectNotebook(notebook)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateNotebook(notebook: NotebookEntity) {
+        val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertNotebook(notebook.copy(updatedAt = now))
+            if (_selectedNotebook.value?.id == notebook.id) {
+                _selectedNotebook.value = notebook
+            }
+            triggerFakeSync()
+        }
+    }
+
+    fun deleteNotebook(notebookId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteNotebook(notebookId)
+            if (_selectedNotebook.value?.id == notebookId) {
+                _selectedNotebook.value = null
+            }
+            triggerFakeSync()
+        }
+    }
+
+    fun createNote(notebookId: String, title: String, content: String, cardColor: String = "#FFF59D") {
+        val user = _sessionUser.value ?: return
+        val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        val note = NoteEntity(
+            id = UUID.randomUUID().toString(),
+            notebookId = notebookId,
+            userId = user.id,
+            title = if (title.isBlank()) "Untitled" else title,
+            content = content,
+            cardColor = cardColor,
+            createdAt = now,
+            updatedAt = now
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertNote(note)
+            triggerFakeSync()
+        }
+    }
+
+    fun updateNote(note: NoteEntity) {
+        val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertNote(note.copy(updatedAt = now))
+            triggerFakeSync()
+        }
+    }
+
+    fun deleteNote(noteId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteNote(noteId)
+            if (_activeNoteToEdit.value?.id == noteId) {
+                _activeNoteToEdit.value = null
+            }
+            triggerFakeSync()
+        }
+    }
+
+    fun ensureDefaultNotebookSeeded() {
+        val user = _sessionUser.value ?: return
+        if (allNotebooks.value.isEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+                val nb1 = NotebookEntity(
+                    id = "nb-default-1",
+                    userId = user.id,
+                    title = "My Notebook",
+                    coverPreset = "preset_1",
+                    coverColor = "#FF9800",
+                    createdAt = now,
+                    updatedAt = now
+                )
+                val nb2 = NotebookEntity(
+                    id = "nb-default-2",
+                    userId = user.id,
+                    title = "Notes",
+                    coverPreset = "preset_2",
+                    coverColor = "#E91E63",
+                    createdAt = now,
+                    updatedAt = now
+                )
+                repository.insertNotebook(nb1)
+                repository.insertNotebook(nb2)
+
+                // Add initial sample notes into "My Notebook" matching Screenshot 4
+                val note1 = NoteEntity(
+                    id = "note-default-1",
+                    notebookId = nb1.id,
+                    userId = user.id,
+                    title = "Uujnbbb",
+                    content = "This is your first rich text note! Tap to edit and add more content.",
+                    cardColor = "#FFF59D", // yellow
+                    createdAt = now,
+                    updatedAt = now
+                )
+                val note2 = NoteEntity(
+                    id = "note-default-2",
+                    notebookId = nb1.id,
+                    userId = user.id,
+                    title = "Yjjjjj",
+                    content = "Quick thoughts and ideas saved in your notebook.",
+                    cardColor = "#FFCC80", // orange
+                    createdAt = now,
+                    updatedAt = now
+                )
+                repository.insertNote(note1)
+                repository.insertNote(note2)
+            }
+        }
+    }
+
     // --- Computed Score Stats ---
     private val corePointsFlow: Flow<Int> = combine(
         allTasks,
@@ -1463,6 +1730,20 @@ class TrackWiseViewModel(
                 playTaskCompletionSound()
                 autoDismissNotification(task.id, task.title)
             }
+            val newState = UndoActionState(
+                type = "task",
+                id = task.id,
+                title = task.title,
+                isCompleted = updated.completed,
+                originalTask = task
+            )
+            _undoActionState.value = newState
+            viewModelScope.launch {
+                delay(5000)
+                if (_undoActionState.value?.timestamp == newState.timestamp) {
+                    _undoActionState.value = null
+                }
+            }
             triggerFakeSync()
         }
     }
@@ -1684,6 +1965,20 @@ class TrackWiseViewModel(
             )
             
             repository.insertHabit(updated)
+            val newState = UndoActionState(
+                type = "habit",
+                id = habit.id,
+                title = habit.name,
+                isCompleted = days.contains(todayStr),
+                originalHabit = habit
+            )
+            _undoActionState.value = newState
+            viewModelScope.launch {
+                delay(5000)
+                if (_undoActionState.value?.timestamp == newState.timestamp) {
+                    _undoActionState.value = null
+                }
+            }
             triggerFakeSync()
         }
     }
@@ -2367,6 +2662,66 @@ class TrackWiseViewModel(
         if (current != null) {
             updateBirthday(current.copy(isPinned = !current.isPinned))
         }
+    }
+
+    private val _pinnedTaskIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedTaskIds: StateFlow<List<String>> = _pinnedTaskIds.asStateFlow()
+    fun togglePinTask(id: String) {
+        _pinnedTaskIds.value = if (_pinnedTaskIds.value.contains(id)) _pinnedTaskIds.value - id else _pinnedTaskIds.value + id
+    }
+
+    private val _pinnedHabitIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedHabitIds: StateFlow<List<String>> = _pinnedHabitIds.asStateFlow()
+    fun togglePinHabit(id: String) {
+        _pinnedHabitIds.value = if (_pinnedHabitIds.value.contains(id)) _pinnedHabitIds.value - id else _pinnedHabitIds.value + id
+    }
+
+    private val _pinnedOccasionIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedOccasionIds: StateFlow<List<String>> = _pinnedOccasionIds.asStateFlow()
+    fun togglePinOccasion(id: String) = togglePinBirthday(id)
+
+    private val _pinnedHealthLogIds = MutableStateFlow<List<String>>(emptyList())
+    val pinnedHealthLogIds: StateFlow<List<String>> = _pinnedHealthLogIds.asStateFlow()
+    fun togglePinHealthLog(id: String) {
+        _pinnedHealthLogIds.value = if (_pinnedHealthLogIds.value.contains(id)) _pinnedHealthLogIds.value - id else _pinnedHealthLogIds.value + id
+    }
+
+    private val _dismissedHabitIdsToday = MutableStateFlow<Set<String>>(emptySet())
+    val dismissedHabitIdsToday: StateFlow<Set<String>> = _dismissedHabitIdsToday.asStateFlow()
+
+    private val _dismissedHabitKeys = MutableStateFlow<Set<String>>(emptySet())
+    val dismissedHabitKeys: StateFlow<Set<String>> = _dismissedHabitKeys.asStateFlow()
+
+    fun getHabitPeriodKey(frequency: String): String {
+        val cal = java.util.Calendar.getInstance()
+        val year = cal.get(java.util.Calendar.YEAR)
+        return when (frequency.lowercase(java.util.Locale.ROOT)) {
+            "weekly" -> "$year-W${cal.get(java.util.Calendar.WEEK_OF_YEAR)}"
+            "monthly" -> "$year-M${cal.get(java.util.Calendar.MONTH)}"
+            "yearly" -> "$year"
+            else -> "$year-D${cal.get(java.util.Calendar.DAY_OF_YEAR)}"
+        }
+    }
+
+    fun dismissHabitForToday(habitId: String) {
+        dismissHabitForCurrentPeriod(habitId, "daily")
+    }
+
+    fun dismissHabitForCurrentPeriod(habitId: String, frequency: String) {
+        val periodKey = getHabitPeriodKey(frequency)
+        _dismissedHabitKeys.value = _dismissedHabitKeys.value + "${habitId}_${periodKey}"
+        _dismissedHabitIdsToday.value = _dismissedHabitIdsToday.value + habitId
+    }
+
+    fun isHabitDismissedForCurrentPeriod(habitId: String, frequency: String): Boolean {
+        val periodKey = getHabitPeriodKey(frequency)
+        return _dismissedHabitKeys.value.contains("${habitId}_${periodKey}")
+    }
+
+    private val _dismissedTaskIdsToday = MutableStateFlow<Set<String>>(emptySet())
+    val dismissedTaskIdsToday: StateFlow<Set<String>> = _dismissedTaskIdsToday.asStateFlow()
+    fun dismissTaskForToday(taskId: String) {
+        _dismissedTaskIdsToday.value = _dismissedTaskIdsToday.value + taskId
     }
 
     fun populateDefaultNetWorthItemsIfEmpty() {
@@ -3200,6 +3555,49 @@ class TrackWiseViewModel(
         }
     }
 
+    private fun encodeUriToBase64IfNeeded(uriStr: String?): String? {
+        if (uriStr.isNullOrBlank()) return null
+        if (uriStr.startsWith("data:image/") || uriStr.startsWith("http://") || uriStr.startsWith("https://") || uriStr.startsWith("preset_")) {
+            return uriStr
+        }
+        return try {
+            val context = getApplication<Application>()
+            val uri = android.net.Uri.parse(uriStr)
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: if (java.io.File(uriStr).exists()) java.io.FileInputStream(java.io.File(uriStr)) else null
+            inputStream?.use { stream ->
+                val bytes = stream.readBytes()
+                if (bytes.isNotEmpty() && bytes.size < 15 * 1024 * 1024) {
+                    "data:image/png;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                } else uriStr
+            } ?: uriStr
+        } catch (e: Exception) {
+            uriStr
+        }
+    }
+
+    private fun decodeBase64ToImageFileIfNeeded(dataStr: String?): String? {
+        if (dataStr.isNullOrBlank()) return null
+        if (dataStr.startsWith("data:image/")) {
+            return try {
+                val context = getApplication<Application>()
+                val commaIdx = dataStr.indexOf(",")
+                if (commaIdx != -1) {
+                    val base64Str = dataStr.substring(commaIdx + 1)
+                    val bytes = android.util.Base64.decode(base64Str, android.util.Base64.DEFAULT)
+                    val dir = java.io.File(context.filesDir, "backed_up_images")
+                    if (!dir.exists()) dir.mkdirs()
+                    val file = java.io.File(dir, "img_${java.util.UUID.randomUUID()}.png")
+                    file.writeBytes(bytes)
+                    android.net.Uri.fromFile(file).toString()
+                } else dataStr
+            } catch (e: Exception) {
+                dataStr
+            }
+        }
+        return dataStr
+    }
+
     // --- Settings Panels Actions ---
     suspend fun generateBackupJsonString(user: UserEntity): String {
         val rootJson = org.json.JSONObject()
@@ -3215,8 +3613,8 @@ class TrackWiseViewModel(
         prefsJson.put("app_bg_color", _appBgColor.value)
         prefsJson.put("app_bg_gradient", _appBgGradient.value)
         prefsJson.put("app_bg_image", _appBgImage.value)
-        prefsJson.put("app_bg_custom_uri", _appBgCustomUri.value)
-        prefsJson.put("profile_image_uri", _profileImageUri.value ?: "")
+        prefsJson.put("app_bg_custom_uri", encodeUriToBase64IfNeeded(_appBgCustomUri.value) ?: "")
+        prefsJson.put("profile_image_uri", encodeUriToBase64IfNeeded(_profileImageUri.value) ?: "")
         prefsJson.put("auto_backup_frequency", _autoBackupFrequency.value)
         prefsJson.put("custom_folders_list", _customFolders.value.joinToString(","))
         prefsJson.put("custom_tags_list", _customTags.value.joinToString(","))
@@ -3306,13 +3704,13 @@ class TrackWiseViewModel(
             obj.put("reminderDate", item.reminderDate ?: "")
             obj.put("reminderTime", item.reminderTime ?: "")
             obj.put("dueTime", item.dueTime ?: "")
-            obj.put("icon", item.icon)
+            obj.put("icon", encodeUriToBase64IfNeeded(item.icon) ?: "😊")
             obj.put("quote", item.quote)
             obj.put("goalType", item.goalType)
             obj.put("goalDays", item.goalDays)
             obj.put("section", item.section)
             obj.put("autoPopup", item.autoPopup)
-            obj.put("backgroundImage", item.backgroundImage)
+            obj.put("backgroundImage", encodeUriToBase64IfNeeded(item.backgroundImage) ?: "window")
             habitsArray.put(obj)
         }
         rootJson.put("habits", habitsArray)
@@ -3449,7 +3847,7 @@ class TrackWiseViewModel(
             obj.put("reminderDate", item.reminderDate ?: "")
             obj.put("reminderTime", item.reminderTime ?: "")
             obj.put("isPinned", item.isPinned)
-            obj.put("customBgImage", item.customBgImage ?: "")
+            obj.put("customBgImage", encodeUriToBase64IfNeeded(item.customBgImage) ?: "")
             obj.put("customTextColor", item.customTextColor ?: "")
             obj.put("customFontStyle", item.customFontStyle ?: "")
             obj.put("reminderOptions", item.reminderOptions ?: "")
@@ -3458,6 +3856,39 @@ class TrackWiseViewModel(
             birthdaysArray.put(obj)
         }
         rootJson.put("birthdays", birthdaysArray)
+
+        // Notebooks
+        val notebooksArray = org.json.JSONArray()
+        repository.getNotebooksFlow(user.id).first().forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("title", item.title)
+            obj.put("coverPreset", item.coverPreset)
+            obj.put("coverColor", item.coverColor)
+            obj.put("customCoverUri", encodeUriToBase64IfNeeded(item.customCoverUri) ?: "")
+            obj.put("createdAt", item.createdAt)
+            obj.put("updatedAt", item.updatedAt)
+            notebooksArray.put(obj)
+        }
+        rootJson.put("notebooks", notebooksArray)
+
+        // Notes
+        val notesArray = org.json.JSONArray()
+        repository.getAllNotesFlow(user.id).first().forEach { item ->
+            val obj = org.json.JSONObject()
+            obj.put("id", item.id)
+            obj.put("notebookId", item.notebookId)
+            obj.put("title", item.title)
+            obj.put("content", item.content)
+            obj.put("cardColor", item.cardColor)
+            obj.put("createdAt", item.createdAt)
+            obj.put("updatedAt", item.updatedAt)
+            obj.put("reminderDate", item.reminderDate ?: "")
+            obj.put("reminderTime", item.reminderTime ?: "")
+            obj.put("isPinned", item.isPinned)
+            notesArray.put(obj)
+        }
+        rootJson.put("notes", notesArray)
 
         // Wishlist
         val wishlistArray = org.json.JSONArray()
@@ -3774,8 +4205,8 @@ class TrackWiseViewModel(
                     if (prefsObj.has("app_bg_color")) setAppBgColor(prefsObj.getString("app_bg_color"))
                     if (prefsObj.has("app_bg_gradient")) setAppBgGradient(prefsObj.getString("app_bg_gradient"))
                     if (prefsObj.has("app_bg_image")) setAppBgImage(prefsObj.getString("app_bg_image"))
-                    if (prefsObj.has("app_bg_custom_uri")) setAppBgCustomUri(prefsObj.getString("app_bg_custom_uri"))
-                    if (prefsObj.has("profile_image_uri")) setProfileImageUri(prefsObj.optString("profile_image_uri").ifBlank { null })
+                    if (prefsObj.has("app_bg_custom_uri")) setAppBgCustomUri(decodeBase64ToImageFileIfNeeded(prefsObj.getString("app_bg_custom_uri")) ?: "")
+                    if (prefsObj.has("profile_image_uri")) setProfileImageUri(decodeBase64ToImageFileIfNeeded(prefsObj.optString("profile_image_uri"))?.ifBlank { null })
                     if (prefsObj.has("auto_backup_frequency")) updateAutoBackupFrequency(prefsObj.getString("auto_backup_frequency"))
                     if (prefsObj.has("custom_folders_list")) {
                         val folders = prefsObj.getString("custom_folders_list").split(",").map { it.trim() }.filter { it.isNotEmpty() }
@@ -3890,13 +4321,13 @@ class TrackWiseViewModel(
                             reminderDate = if (obj.has("reminderDate") && obj.getString("reminderDate").isNotBlank()) obj.getString("reminderDate") else null,
                             reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotBlank()) obj.getString("reminderTime") else null,
                             dueTime = if (obj.has("dueTime") && obj.getString("dueTime").isNotBlank()) obj.getString("dueTime") else null,
-                            icon = obj.optString("icon", "😊"),
+                            icon = decodeBase64ToImageFileIfNeeded(obj.optString("icon", "😊")) ?: "😊",
                             quote = obj.optString("quote", ""),
                             goalType = obj.optString("goalType", "Achieve it all"),
                             goalDays = obj.optString("goalDays", "Forever"),
                             section = obj.optString("section", "Others"),
                             autoPopup = obj.optBoolean("autoPopup", false),
-                            backgroundImage = obj.optString("backgroundImage", "window")
+                            backgroundImage = decodeBase64ToImageFileIfNeeded(obj.optString("backgroundImage", "window")) ?: "window"
                         )
                         repository.insertHabit(entity)
                     }
@@ -4059,7 +4490,7 @@ class TrackWiseViewModel(
                             reminderDate = if (obj.has("reminderDate") && obj.getString("reminderDate").isNotBlank()) obj.getString("reminderDate") else null,
                             reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotBlank()) obj.getString("reminderTime") else null,
                             isPinned = obj.optBoolean("isPinned", false),
-                            customBgImage = if (obj.has("customBgImage") && obj.getString("customBgImage").isNotBlank()) obj.getString("customBgImage") else null,
+                            customBgImage = decodeBase64ToImageFileIfNeeded(if (obj.has("customBgImage") && obj.getString("customBgImage").isNotBlank()) obj.getString("customBgImage") else null),
                             customTextColor = if (obj.has("customTextColor") && obj.getString("customTextColor").isNotBlank()) obj.getString("customTextColor") else null,
                             customFontStyle = if (obj.has("customFontStyle") && obj.getString("customFontStyle").isNotBlank()) obj.getString("customFontStyle") else null,
                             reminderOptions = if (obj.has("reminderOptions") && obj.getString("reminderOptions").isNotBlank()) obj.getString("reminderOptions") else null,
@@ -4067,6 +4498,47 @@ class TrackWiseViewModel(
                             countingMode = if (obj.has("countingMode") && obj.getString("countingMode").isNotBlank()) obj.getString("countingMode") else null
                         )
                         repository.insertBirthday(entity)
+                    }
+                }
+
+                // Restore Notebooks
+                if (rootJson.has("notebooks")) {
+                    val array = rootJson.getJSONArray("notebooks")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = NotebookEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            title = obj.getString("title"),
+                            coverPreset = obj.optString("coverPreset", "preset_1"),
+                            coverColor = obj.optString("coverColor", "#FF9800"),
+                            customCoverUri = decodeBase64ToImageFileIfNeeded(if (obj.has("customCoverUri") && obj.getString("customCoverUri").isNotBlank()) obj.getString("customCoverUri") else null),
+                            createdAt = obj.optString("createdAt", TrackWiseUtils.getTodayString()),
+                            updatedAt = obj.optString("updatedAt", TrackWiseUtils.getTodayString())
+                        )
+                        repository.insertNotebook(entity)
+                    }
+                }
+
+                // Restore Notes
+                if (rootJson.has("notes")) {
+                    val array = rootJson.getJSONArray("notes")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = NoteEntity(
+                            id = obj.getString("id"),
+                            notebookId = obj.getString("notebookId"),
+                            userId = user.id,
+                            title = obj.getString("title"),
+                            content = obj.optString("content", ""),
+                            cardColor = obj.optString("cardColor", "#FFF59D"),
+                            createdAt = obj.optString("createdAt", TrackWiseUtils.getTodayString()),
+                            updatedAt = obj.optString("updatedAt", TrackWiseUtils.getTodayString()),
+                            reminderDate = if (obj.has("reminderDate") && obj.getString("reminderDate").isNotBlank()) obj.getString("reminderDate") else null,
+                            reminderTime = if (obj.has("reminderTime") && obj.getString("reminderTime").isNotBlank()) obj.getString("reminderTime") else null,
+                            isPinned = obj.optBoolean("isPinned", false)
+                        )
+                        repository.insertNote(entity)
                     }
                 }
 

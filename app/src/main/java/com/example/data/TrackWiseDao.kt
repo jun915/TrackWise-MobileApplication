@@ -246,6 +246,8 @@ interface TrackWiseDao {
         clearPeriodCyclesForUser(userId)
         clearFinanceLogsForUser(userId)
         clearNetWorthItemsForUser(userId)
+        clearNotebooksForUser(userId)
+        clearNotesForUser(userId)
     }
 
     @Query("DELETE FROM net_worth_items WHERE userId = :userId")
@@ -320,4 +322,36 @@ interface TrackWiseDao {
 
     @Query("SELECT * FROM net_worth_items WHERE name = :name AND userId = :userId LIMIT 1")
     suspend fun getNetWorthItemByName(userId: String, name: String): NetWorthItemEntity?
+
+    // --- Notebooks ---
+    @Query("SELECT * FROM notebooks WHERE userId = :userId ORDER BY updatedAt DESC")
+    fun getNotebooksForUserFlow(userId: String): Flow<List<NotebookEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotebook(notebook: NotebookEntity)
+
+    @Query("DELETE FROM notebooks WHERE id = :notebookId")
+    suspend fun deleteNotebookById(notebookId: String)
+
+    // --- Notes ---
+    @Query("SELECT * FROM notes WHERE notebookId = :notebookId ORDER BY isPinned DESC, updatedAt DESC")
+    fun getNotesForNotebookFlow(notebookId: String): Flow<List<NoteEntity>>
+
+    @Query("SELECT * FROM notes WHERE userId = :userId ORDER BY updatedAt DESC")
+    fun getAllNotesForUserFlow(userId: String): Flow<List<NoteEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNote(note: NoteEntity)
+
+    @Query("DELETE FROM notes WHERE id = :noteId")
+    suspend fun deleteNoteById(noteId: String)
+
+    @Query("DELETE FROM notes WHERE notebookId = :notebookId")
+    suspend fun deleteNotesByNotebookId(notebookId: String)
+
+    @Query("DELETE FROM notebooks WHERE userId = :userId")
+    suspend fun clearNotebooksForUser(userId: String)
+
+    @Query("DELETE FROM notes WHERE userId = :userId")
+    suspend fun clearNotesForUser(userId: String)
 }

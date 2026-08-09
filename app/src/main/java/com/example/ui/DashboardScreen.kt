@@ -39,6 +39,8 @@ import com.example.utils.TrackWiseUtils
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
 
 import androidx.compose.ui.platform.LocalFocusManager
@@ -412,22 +414,6 @@ fun DashboardScreen(
             }
         }
 
-        // --- TrackWise 4x4 Widget Preview ---
-        item {
-            StaggeredItem(index = 5) {
-                val waterLogs by viewModel.waterLogs.collectAsState()
-                Dashboard4x4WidgetCard(
-                    viewModel = viewModel,
-                    allFinanceLogs = allFinanceLogs,
-                    allBirthdays = allBirthdays,
-                    allHabits = allHabits,
-                    allTasks = allTasks,
-                    badHabits = badHabits,
-                    waterLogs = waterLogs
-                )
-            }
-        }
-
         // --- Monthly Finance Summary Widget ---
         item {
             StaggeredItem(index = 5) {
@@ -474,18 +460,21 @@ fun DashboardScreen(
         item {
             StaggeredItem(index = 9) {
                 DailyHabitsWidget(
+                    viewModel = viewModel,
                     habits = allHabits,
                     onToggleHabit = { viewModel.toggleHabitToday(it) },
                     onHabitClick = { viewModel.setActiveDetailHabit(it) },
-                    onAddHabit = { viewModel.openHabitCreationSheet() }
+                    onAddHabit = { viewModel.openHabitCreationSheet() },
+                    onOpenHabitTab = { onNavigate("habits") }
                 )
             }
         }
 
-        // --- Habit Breaker Chart Widget (Habit Breaker Insights - BELOW Hydration) ---
+        // --- Top 4 Habit Breakers Widget ---
         item {
             StaggeredItem(index = 10) {
-                DashboardHabitBreakerChartWidget(
+                DashboardTopHabitBreakersWidget(
+                    viewModel = viewModel,
                     badHabits = badHabits,
                     onNavigate = onNavigate
                 )
@@ -1580,23 +1569,43 @@ fun PriorityItemsWidget(
 
 @Composable
 fun DailyHabitsWidget(
+    viewModel: TrackWiseViewModel? = null,
     habits: List<HabitEntity>,
     onToggleHabit: (HabitEntity) -> Unit,
     onHabitClick: (HabitEntity) -> Unit,
     onAddHabit: () -> Unit = {},
+    onOpenHabitTab: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val today = TrackWiseUtils.getTodayString()
-    val filteredHabits = remember(habits, today) {
-        habits.filter { TrackWiseUtils.shouldShowHabitOnDate(it, today) }
+    val dismissedKeys = viewModel?.dismissedHabitKeys?.collectAsState()?.value ?: emptySet()
+    val filteredHabits = remember(habits, today, dismissedKeys) {
+        habits.filter { habit ->
+            TrackWiseUtils.shouldShowHabitOnDate(habit, today) &&
+            (viewModel == null || !viewModel.isHabitDismissedForCurrentPeriod(habit.id, habit.frequency))
+        }
     }
     val completedToday = filteredHabits.count {
         TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
     }
-    val renderedHabits = remember(filteredHabits, today) {
-        filteredHabits.filter {
-            !TrackWiseUtils.deserializeStringList(it.daysCompletedJson).contains(today)
+
+    val currentHour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+
+    val dashboardHabits = remember(filteredHabits, currentHour) {
+        val sorted = filteredHabits.sortedBy { habit ->
+            com.example.receiver.ReminderReceiver.parseTo24HourTime(habit.reminderTime) ?: "23:59"
         }
+        val inWindow = sorted.filter { habit ->
+            val parsedTime = com.example.receiver.ReminderReceiver.parseTo24HourTime(habit.reminderTime)
+            if (parsedTime != null) {
+                val habitHour = parsedTime.split(":").firstOrNull()?.toIntOrNull()
+                if (habitHour != null) {
+                    (habitHour - currentHour) in -2..2
+                } else false
+            } else false
+        }
+        val candidates = if (inWindow.isNotEmpty()) inWindow else sorted
+        candidates.take(4)
     }
 
     Card(
@@ -1636,21 +1645,15 @@ fun DailyHabitsWidget(
                         letterSpacing = 1.sp
                     )
                 }
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(8.dp)
+                TextButton(
+                    onClick = onOpenHabitTab,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text(
-                        text = "$completedToday/${filteredHabits.size} COMPLETED",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black,
-                        color = BrandOrange,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
+                    Text("View All", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
                 }
             }
 
-            if (renderedHabits.isEmpty()) {
+            if (dashboardHabits.isEmpty()) {
                 Column(
                     modifier = Modifier.padding(vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1658,51 +1661,15 @@ fun DailyHabitsWidget(
                     Text(
                         text = if (habits.isEmpty()) "Configure Habits in the Workspace tab to launch daily streak multipliers."
                                else if (completedToday > 0 && completedToday == filteredHabits.size) "All of today's habits completed! Keep up the great work! 🎉"
-                               else "No active habits scheduled for today.",
+                               else "No active habits scheduled for now.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
                 }
             } else {
-                val groupedRenderedHabits = remember(renderedHabits) {
-                    renderedHabits.groupBy { habit ->
-                        habit.section.split(",").firstOrNull { it.isNotBlank() } ?: "Inbox"
-                    }.entries.sortedByDescending { it.value.size }.map { entry ->
-                        entry.key to entry.value.sortedBy { habit ->
-                            com.example.receiver.ReminderReceiver.parseTo24HourTime(habit.reminderTime) ?: "23:59"
-                        }
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    groupedRenderedHabits.forEach { (folderName, folderHabits) ->
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (groupedRenderedHabits.size > 1 || folderName != "Inbox") {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.padding(vertical = 2.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Folder,
-                                        contentDescription = null,
-                                        tint = BrandOrange.copy(alpha = 0.8f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = folderName,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                                    )
-                                    Text(
-                                        text = "(${folderHabits.size})",
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                                    )
-                                }
-                            }
-                            folderHabits.forEach { habit ->
-                                val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    dashboardHabits.forEach { habit ->
+                        val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
                         SwipeableHabitCard(
                             habit = habit,
                             onToggleCompleted = { completed ->
@@ -1712,6 +1679,9 @@ fun DailyHabitsWidget(
                                 if (isCurrentlyCompleted != completed) {
                                     onToggleHabit(habit)
                                 }
+                            },
+                            onDismissForToday = {
+                                viewModel?.dismissHabitForCurrentPeriod(habit.id, habit.frequency)
                             }
                         ) {
                             Card(
@@ -1813,8 +1783,6 @@ fun DailyHabitsWidget(
                 }
             }
         }
-    }
-}
     }
 }
 
@@ -2195,6 +2163,7 @@ fun SwipeableTaskItem(
     onArchiveTask: () -> Unit,
     onPinTask: () -> Unit,
     onPostponeTask: () -> Unit,
+    onDismissForToday: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -2274,6 +2243,26 @@ fun SwipeableTaskItem(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (onDismissForToday != null) {
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch { animOffset.animateTo(0f) }
+                            onDismissForToday()
+                        },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(BrandRose.copy(alpha = 0.15f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VisibilityOff,
+                            contentDescription = "Dismiss for Today",
+                            tint = BrandRose,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
                 IconButton(
                     onClick = {
                         coroutineScope.launch { animOffset.animateTo(0f) }
@@ -2499,10 +2488,20 @@ fun PostponeTaskDialog(
 }
 
 @Composable
-fun DashboardHabitBreakerChartWidget(
+fun DashboardTopHabitBreakersWidget(
+    viewModel: TrackWiseViewModel,
     badHabits: List<TrackWiseViewModel.BadHabitSpec>,
     onNavigate: (String) -> Unit
 ) {
+    val pinnedHabitBreakerIds by viewModel.pinnedHabitBreakerIds.collectAsState()
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(1000)
+            tick++
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -2512,7 +2511,7 @@ fun DashboardHabitBreakerChartWidget(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header
+            // Header Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2538,14 +2537,14 @@ fun DashboardHabitBreakerChartWidget(
                     }
                     Column {
                         Text(
-                            text = "HABIT BREAKER INSIGHTS",
+                            text = "TOP HABIT BREAKERS",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = BrandRose,
                             letterSpacing = 0.5.sp
                         )
                         Text(
-                            text = "Slip-ups & sobriety progress",
+                            text = "Top 4 habit breakers",
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2555,17 +2554,17 @@ fun DashboardHabitBreakerChartWidget(
                     onClick = { onNavigate("habit_breaker") },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                 ) {
-                    Text("Details", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                    Text("View All", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             if (badHabits.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp)
+                        .height(90.dp)
                         .background(
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
                             shape = RoundedCornerShape(14.dp)
@@ -2574,195 +2573,35 @@ fun DashboardHabitBreakerChartWidget(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(12.dp)
                     ) {
                         Text(
-                            text = "No bad habits added yet",
+                            text = "No habit breakers added yet",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Add habits to track slip-ups and clean streaks",
+                            text = "Tap View All to add habit breakers to track",
                             fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            textAlign = TextAlign.Center
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
                 }
             } else {
-                // Let's compute weekly slip-up statistics
-                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                val dayFormat = java.text.SimpleDateFormat("E", java.util.Locale.US)
-                val last7Days = remember(badHabits) {
-                    (0..6).map { i ->
-                        val cal = java.util.Calendar.getInstance()
-                        cal.add(java.util.Calendar.DAY_OF_YEAR, -i)
-                        val dateStr = sdf.format(cal.time)
-                        val dayLabel = dayFormat.format(cal.time).substring(0, 1)
-                        dateStr to dayLabel
-                    }.reversed()
-                }
-
-                val dailyCounts = remember(badHabits, last7Days) {
-                    last7Days.map { (dateStr, _) ->
-                        badHabits.sumOf { habit ->
-                            habit.logs.count { it.startsWith(dateStr) }
-                        }
-                    }
-                }
-
-                val maxCount = remember(dailyCounts) { (dailyCounts.maxOrNull() ?: 1).coerceAtLeast(1) }
-
-                // Slip-ups Trend Bar Chart
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp)
-                        .padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    last7Days.forEachIndexed { idx, (dateStr, label) ->
-                        val count = dailyCounts[idx]
-                        val barHeightFactor = count.toFloat() / maxCount.toFloat()
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Bottom,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            if (count > 0) {
-                                Text(
-                                    text = count.toString(),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandRose
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight(0.7f)
-                                    .width(16.dp)
-                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                    .background(
-                                        if (count > 0) BrandRose.copy(alpha = 0.85f)
-                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
-                                    )
-                                    .fillMaxHeight(barHeightFactor.coerceAtLeast(0.08f))
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = label,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Breakdown list
-                Text(
-                    text = "ACTIVE BAD HABITS & SOBRIETY STATUS",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    letterSpacing = 0.5.sp
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
+                val top4Habits = remember(badHabits) { badHabits.take(4) }
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    badHabits.take(3).forEach { habit ->
-                        val lastSlipDateStr = habit.logs.map { it.take(10) }.maxOrNull()
-                        val cleanDays = remember(lastSlipDateStr) {
-                            if (lastSlipDateStr == null) {
-                                // No slip-ups ever
-                                "Clean"
-                            } else {
-                                try {
-                                    val lastDate = sdf.parse(lastSlipDateStr)
-                                    val todayDate = sdf.parse(sdf.format(java.util.Date()))
-                                    val diff = todayDate.time - lastDate.time
-                                    val days = (diff / (1000 * 60 * 60 * 24)).toInt()
-                                    if (days <= 0) "Slipped Today" else "$days d clean"
-                                } catch (e: Exception) {
-                                    "Active"
-                                }
-                            }
-                        }
-
-                        val isClean = cleanDays != "Slipped Today"
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = habit.name,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isClean) BrandGreen else BrandRose)
-                                    )
-                                    Text(
-                                        text = cleanDays,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (isClean) BrandGreen else BrandRose
-                                    )
-                                }
-                            }
-
-                            Card(
-                                shape = RoundedCornerShape(8.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = BrandRose.copy(alpha = 0.08f)
-                                )
-                            ) {
-                                Text(
-                                    text = "${habit.logs.size} slip-up${if (habit.logs.size == 1) "" else "s"}",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = BrandRose,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    if (badHabits.size > 3) {
-                        Text(
-                            text = "+ ${badHabits.size - 3} more bad habit trackers...",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = BrandRose,
-                            modifier = Modifier
-                                .align(Alignment.End)
-                                .clickable { onNavigate("habit_breaker") }
+                    top4Habits.forEach { habit ->
+                        SwipeableAvoidCard(
+                            item = habit,
+                            isPinned = pinnedHabitBreakerIds.contains(habit.id),
+                            onTogglePin = { viewModel.togglePinHabitBreaker(habit.id) },
+                            onLogAvoidance = { viewModel.logBadHabitAvoidance(habit.id) },
+                            onLogSlipUp = { viewModel.logBadHabitOccurrence(habit.id) },
+                            onDelete = { viewModel.removeBadHabit(habit.id) },
+                            onCardClick = { onNavigate("habit_breaker") },
+                            tick = tick
                         )
                     }
                 }
@@ -3658,254 +3497,4 @@ private fun MasteryItemGridCard(
     }
 }
 
-@Composable
-fun Dashboard4x4WidgetCard(
-    viewModel: TrackWiseViewModel,
-    allFinanceLogs: List<com.example.data.FinanceLogEntity>,
-    allBirthdays: List<com.example.data.BirthdayEntity>,
-    allHabits: List<HabitEntity>,
-    allTasks: List<TaskEntity>,
-    badHabits: List<TrackWiseViewModel.BadHabitSpec>,
-    waterLogs: List<WaterLogEntity>
-) {
-    val now = remember { Date() }
-    val calendar = remember { Calendar.getInstance() }
-    val todayStr = remember { TrackWiseUtils.getTodayString().take(10) }
 
-    // 1. Top Right: Small Time/Date + Urdu Date + Allah Name Today
-    val displayDateStr = remember { SimpleDateFormat("EEE, MMM d • hh:mm a", Locale.US).format(now) }
-    val dayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
-    val allahNameObj = TrackWiseUtils.ALLAH_NAMES[(dayOfYear) % 99]
-    val allahNameStr = "ﷲ ${allahNameObj.transliteration} (${allahNameObj.arabic})"
-
-    val hijriDateStr = remember {
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                val hijrah = java.time.chrono.HijrahDate.now()
-                val day = hijrah.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
-                val monthIdx = hijrah.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
-                val year = hijrah.get(java.time.temporal.ChronoField.YEAR)
-                val hijriMonths = arrayOf("", "Muharram", "Safar", "Rabi' I", "Rabi' II", "Jumada I", "Jumada II", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah")
-                "$day ${hijriMonths.getOrElse(monthIdx) { "Safar" }} $year AH"
-            } else {
-                "23 Safar 1448 AH"
-            }
-        } catch (e: Exception) {
-            "23 Safar 1448 AH"
-        }
-    }
-
-    // 2. Net Balance from Monthly Finance Summary
-    val currentMonthStr = remember { SimpleDateFormat("yyyy-MM", Locale.US).format(now) }
-    val monthLogs = allFinanceLogs.filter { it.date.startsWith(currentMonthStr) }
-    val income = monthLogs.filter { it.type == "income" }.sumOf { it.amount }
-    val expense = monthLogs.filter { it.type == "expense" }.sumOf { it.amount }
-    val savings = monthLogs.filter { it.type == "savings" }.sumOf { it.amount }
-    val netBalance = income - (expense + savings)
-
-    // 3. Max 2 Countdown Events Today (GONE if no events today)
-    val todayBirthdays = allBirthdays.filter { it.date.endsWith(todayStr.substring(5)) }.map { "🎉 ${it.name}'s Birthday" }
-    val todayFestivals = TrackWiseUtils.getIndianFestivalsForDate(todayStr).map { "🎆 $it" }
-    val todayEvents = (todayBirthdays + todayFestivals).take(2)
-
-    // 4. Max 2 Habits with reminder for current hour
-    val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
-    val currentHourStr = String.format(Locale.US, "%02d", currentHour)
-    val todayHabits = allHabits.filter { TrackWiseUtils.shouldShowHabitOnDate(it, todayStr) }
-    val currentHourHabits = todayHabits.filter {
-        it.reminderTime?.take(2) == currentHourStr || it.reminderTime?.contains(currentHourStr) == true
-    }.ifEmpty { todayHabits }.take(2)
-
-    // 5. Max 2 Tasks with reminder for current hour
-    val todayTasks = allTasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) }
-    val currentHourTasks = todayTasks.filter {
-        it.dueTime?.take(2) == currentHourStr || it.reminderTime?.take(2) == currentHourStr
-    }.ifEmpty { todayTasks.filter { !it.completed } }.take(2)
-
-    // 6. Water intake today (icon + number)
-    val todayWater = waterLogs.find { it.date == todayStr }
-    val glasses = todayWater?.glasses ?: 0
-    val goal = todayWater?.goal ?: 8
-
-    // 7. Most slipped up habit
-    val mostSlipped = badHabits.maxByOrNull { it.slippedCount }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("dashboard_4x4_widget_card"),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Header Row: Widget Title + Top Right Date/Time + Urdu Date + Allah Name
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Widgets,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                        Text(
-                            text = "TrackWise 4×4 Widget",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Text(
-                        text = "💰 Net Balance: ₹${netBalance.toInt()}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = displayDateStr,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "$hijriDateStr • $allahNameStr",
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(top = 1.dp)
-                    )
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-            // Section 1: Today's Countdown Events (Max 2) - EXCLUDED if no events today
-            if (todayEvents.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(
-                        text = "🎉 Today's Countdown Events",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    todayEvents.forEach { ev ->
-                        Text(
-                            text = "• $ev",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
-            }
-
-            // Section 2: Max 2 Habits with reminder for current hour
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = "💪 Habits (Current Hour)",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (currentHourHabits.isNotEmpty()) {
-                    currentHourHabits.forEach { h ->
-                        val isDone = h.daysCompletedJson.contains(todayStr)
-                        Text(
-                            text = "• ${h.name} (${if (isDone) "Done" else "Pending"})",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "• No habit reminders this hour",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Section 3: Max 2 Tasks with reminder for current hour
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = "📝 Tasks (Current Hour)",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (currentHourTasks.isNotEmpty()) {
-                    currentHourTasks.forEach { t ->
-                        Text(
-                            text = "• ${t.title} (${if (t.completed) "Done" else "Pending"})",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "• No task reminders this hour",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-            // Bottom Quick Stats Row: Water Intake + Most Slipped Up Habit
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "💧 $glasses / $goal glasses",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandCyan
-                )
-
-                Text(
-                    text = if (mostSlipped != null && mostSlipped.slippedCount > 0)
-                        "⚠️ Most Slipped: ${mostSlipped.name} (${mostSlipped.slippedCount}x)"
-                    else
-                        "⚠️ Most Slipped: None",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandRose,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
