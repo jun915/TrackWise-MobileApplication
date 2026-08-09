@@ -379,8 +379,14 @@ fun MainScreen(
 
     val isShowAddFinanceSheet by viewModel.showAddFinanceSheet.collectAsState()
     val showHealthOptionsOverlay by viewModel.showHealthOptionsOverlay.collectAsState()
-    val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isShowAddFinanceSheet || isNetWorthSpeedDialOpen || showHealthOptionsOverlay
-    val isSubViewActive = (activeTab == "finance" && (financeViewMode != "home" || isFinanceSearchActive)) || (activeTab == "habit_breaker" && habitBreakerView != "list")
+    val selectedNotebook by viewModel.selectedNotebook.collectAsState()
+    val isNotesSpeedDialOpen by viewModel.isNotesSpeedDialOpen.collectAsState()
+    val isNotebookSearchActive by viewModel.isNotebookSearchActive.collectAsState()
+    val isNoteSearchActive by viewModel.isNoteSearchActive.collectAsState()
+    val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isShowAddFinanceSheet || isNetWorthSpeedDialOpen || showHealthOptionsOverlay || isNotesSpeedDialOpen
+    val isSubViewActive = (activeTab == "finance" && (financeViewMode != "home" || isFinanceSearchActive)) ||
+                          (activeTab == "habit_breaker" && habitBreakerView != "list") ||
+                          (activeTab == "notes" && (selectedNotebook != null || isNotebookSearchActive || isNoteSearchActive))
 
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     val isKeyboardVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
@@ -406,6 +412,8 @@ fun MainScreen(
             isNetWorthSpeedDialOpen = false
         } else if (showHealthOptionsOverlay) {
             viewModel.setShowHealthOptionsOverlay(false)
+        } else if (isNotesSpeedDialOpen) {
+            viewModel.setNotesSpeedDialOpen(false)
         } else if (isShowAddFinanceSheet) {
             viewModel.closeAddFinanceSheet()
         } else if (leftDrawerOpen) {
@@ -414,6 +422,12 @@ fun MainScreen(
             showMoreMenu = false
         } else if (showSettings) {
             viewModel.setSettingsPanelOpen(false)
+        } else if (activeTab == "notes" && isNoteSearchActive) {
+            viewModel.setNoteSearchActive(false)
+        } else if (activeTab == "notes" && isNotebookSearchActive) {
+            viewModel.setNotebookSearchActive(false)
+        } else if (activeTab == "notes" && selectedNotebook != null) {
+            viewModel.selectNotebook(null)
         } else if (activeTab == "finance" && isFinanceSearchActive) {
             isFinanceSearchActive = false
         } else if (activeTab == "finance" && financeViewMode != "home") {

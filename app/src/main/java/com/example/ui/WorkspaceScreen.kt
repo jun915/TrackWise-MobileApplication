@@ -586,11 +586,76 @@ fun TaskSection(
         }
 
         // Tasks Grid/List
+        var taskFilterTab by remember { mutableStateOf("my_day") } // "my_day" or "all"
+        val todayStr = TrackWiseUtils.getTodayString()
         val dismissedTaskIdsToday by viewModel.dismissedTaskIdsToday.collectAsState()
         val pinnedTaskIds by viewModel.pinnedTaskIds.collectAsState()
-        val filteredTasks = remember(tasks, selectedFolder, selectedTag, dismissedTaskIdsToday, pinnedTaskIds) {
+
+        val myDayTasksCount = remember(tasks, todayStr) {
+            tasks.count { task ->
+                !task.notes.contains("[ARCHIVED]") && (
+                    task.deadline == todayStr ||
+                    (task.startDate != null && task.startDate.startsWith(todayStr)) ||
+                    task.reminderDate == todayStr ||
+                    (!task.completed && task.deadline.isNotBlank() && task.deadline <= todayStr) ||
+                    TrackWiseUtils.shouldShowTaskOnDate(task, todayStr)
+                )
+            }
+        }
+        val allTasksCount = remember(tasks) {
+            tasks.count { !it.notes.contains("[ARCHIVED]") }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = taskFilterTab == "my_day",
+                onClick = { taskFilterTab = "my_day" },
+                label = { Text("My Day ($myDayTasksCount)", fontWeight = FontWeight.Bold) },
+                leadingIcon = {
+                    Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(16.dp))
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = BrandViolet,
+                    selectedLabelColor = Color.White,
+                    selectedLeadingIconColor = Color.White
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+            FilterChip(
+                selected = taskFilterTab == "all",
+                onClick = { taskFilterTab = "all" },
+                label = { Text("All Tasks ($allTasksCount)", fontWeight = FontWeight.Bold) },
+                leadingIcon = {
+                    Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(16.dp))
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = BrandViolet,
+                    selectedLabelColor = Color.White,
+                    selectedLeadingIconColor = Color.White
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+        }
+
+        val filteredTasks = remember(tasks, selectedFolder, selectedTag, dismissedTaskIdsToday, pinnedTaskIds, taskFilterTab, todayStr) {
             tasks.filter { task ->
                 if (dismissedTaskIdsToday.contains(task.id)) return@filter false
+                if (task.notes.contains("[ARCHIVED]")) return@filter false
+
+                if (taskFilterTab == "my_day") {
+                    val isForToday = task.deadline == todayStr ||
+                                     (task.startDate != null && task.startDate.startsWith(todayStr)) ||
+                                     task.reminderDate == todayStr ||
+                                     (!task.completed && task.deadline.isNotBlank() && task.deadline <= todayStr) ||
+                                     TrackWiseUtils.shouldShowTaskOnDate(task, todayStr)
+                    if (!isForToday) return@filter false
+                }
+
                 if (selectedFolder != null) {
                     task.project.equals(selectedFolder, ignoreCase = true)
                 } else if (selectedTag != null) {
@@ -1511,16 +1576,88 @@ fun HabitSection(
 
         val selectedFolder by viewModel.selectedTaskFolder.collectAsState()
         val dismissedHabitKeys by viewModel.dismissedHabitKeys.collectAsState()
-        
-        val filteredHabits = remember(habits, selectedFolder, dismissedHabitKeys) {
-            val list = if (selectedFolder != null) {
-                habits.filter { habit ->
-                    habit.section.split(",").map { it.trim().lowercase() }.contains(selectedFolder!!.lowercase())
+        var habitFilterTab by remember { mutableStateOf("my_day") } // "my_day" or "all"
+        val todayStr = TrackWiseUtils.getTodayString()
+
+        val myDayHabitsCount = remember(habits, todayStr) {
+            habits.count { habit ->
+                val notStarted = !habit.startDate.isNullOrBlank() && habit.startDate!! > todayStr
+                val ended = !habit.endDate.isNullOrBlank() && habit.endDate!! < todayStr
+                if (notStarted || ended) return@count false
+                if (habit.repeatType == "custom" && !habit.customRepeatDaysOfWeek.isNullOrBlank()) {
+                    val todayDayOfWeek = try {
+                        val date = java.time.LocalDate.parse(todayStr)
+                        date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+                    } catch (e: Exception) { "" }
+                    val customDays = habit.customRepeatDaysOfWeek.split(",").map { it.trim() }
+                    if (todayDayOfWeek.isNotBlank() && customDays.isNotEmpty() && !customDays.any { it.equals(todayDayOfWeek, ignoreCase = true) }) {
+                        return@count false
+                    }
                 }
-            } else {
-                habits
-            }.filter { habit ->
-                !viewModel.isHabitDismissedForCurrentPeriod(habit.id, habit.frequency)
+                true
+            }
+        }
+        val allHabitsCount = habits.size
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = habitFilterTab == "my_day",
+                onClick = { habitFilterTab = "my_day" },
+                label = { Text("My Day ($myDayHabitsCount)", fontWeight = FontWeight.Bold) },
+                leadingIcon = {
+                    Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(16.dp))
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = BrandOrange,
+                    selectedLabelColor = Color.White,
+                    selectedLeadingIconColor = Color.White
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+            FilterChip(
+                selected = habitFilterTab == "all",
+                onClick = { habitFilterTab = "all" },
+                label = { Text("All Habits ($allHabitsCount)", fontWeight = FontWeight.Bold) },
+                leadingIcon = {
+                    Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(16.dp))
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = BrandOrange,
+                    selectedLabelColor = Color.White,
+                    selectedLeadingIconColor = Color.White
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+        }
+
+        val filteredHabits = remember(habits, selectedFolder, dismissedHabitKeys, habitFilterTab, todayStr) {
+            val list = habits.filter { habit ->
+                if (selectedFolder != null) {
+                    if (!habit.section.split(",").map { it.trim().lowercase() }.contains(selectedFolder!!.lowercase())) return@filter false
+                }
+                if (viewModel.isHabitDismissedForCurrentPeriod(habit.id, habit.frequency)) return@filter false
+
+                if (habitFilterTab == "my_day") {
+                    val notStarted = !habit.startDate.isNullOrBlank() && habit.startDate!! > todayStr
+                    val ended = !habit.endDate.isNullOrBlank() && habit.endDate!! < todayStr
+                    if (notStarted || ended) return@filter false
+                    if (habit.repeatType == "custom" && !habit.customRepeatDaysOfWeek.isNullOrBlank()) {
+                        val todayDayOfWeek = try {
+                            val date = java.time.LocalDate.parse(todayStr)
+                            date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+                        } catch (e: Exception) { "" }
+                        val customDays = habit.customRepeatDaysOfWeek.split(",").map { it.trim() }
+                        if (todayDayOfWeek.isNotBlank() && customDays.isNotEmpty() && !customDays.any { it.equals(todayDayOfWeek, ignoreCase = true) }) {
+                            return@filter false
+                        }
+                    }
+                }
+                true
             }
             list.sortedWith(
                 compareBy<HabitEntity> { !it.notes.contains("[PINNED]") }
