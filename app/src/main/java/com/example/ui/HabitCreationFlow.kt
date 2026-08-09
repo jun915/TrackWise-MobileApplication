@@ -222,6 +222,21 @@ fun HabitCreationFlowDialog(
 
         var currentStep by remember(habitToEdit) { mutableIntStateOf(if (habitToEdit != null) 1 else 0) } // 0: Gallery, 1: Step 1 (Name/Icon/Quote), 2: Step 2 (Frequency/Settings)
 
+        androidx.activity.compose.BackHandler(enabled = true) {
+            when (currentStep) {
+                2 -> currentStep = 1
+                1 -> {
+                    if (habitToEdit != null) {
+                        onDismiss()
+                    } else {
+                        currentStep = 0
+                    }
+                }
+                0 -> onDismiss()
+                else -> onDismiss()
+            }
+        }
+
         // Form state
         var galleryCategory by remember { mutableStateOf("Suggested") }
         var habitName by remember(habitToEdit) { mutableStateOf(habitToEdit?.name ?: "") }
@@ -592,6 +607,7 @@ fun HabitCreationFlowDialog(
                                                 selectedIcon = selectedIcon,
                                                 onIconSelected = { selectedIcon = it },
                                                 accentColor = primaryColor,
+                                                searchQuery = habitName,
                                                 modifier = Modifier.fillMaxWidth()
                                             )
                                         }
@@ -932,6 +948,16 @@ fun HabitCreationFlowDialog(
                                                     }
                                                 }
                                             }
+
+                                            if (selectedFolders.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    text = "Selected Folders: ${selectedFolders.joinToString(", ")}",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = primaryColor
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1139,7 +1165,10 @@ fun HabitCreationFlowDialog(
         // SCREENSHOT 7: Goal Dialog
         if (showGoalDialog) {
             AlertDialog(
-                onDismissRequest = { showGoalDialog = false },
+                onDismissRequest = {
+                    goalType = "Achieve it all"
+                    showGoalDialog = false
+                },
                 title = { Text("Goal", fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
@@ -1193,7 +1222,10 @@ fun HabitCreationFlowDialog(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showGoalDialog = false }) {
+                    TextButton(onClick = {
+                        goalType = "Achieve it all"
+                        showGoalDialog = false
+                    }) {
                         Text("Cancel", color = Color(0xFF64748B))
                     }
                 }
@@ -1393,7 +1425,10 @@ fun HabitCreationFlowDialog(
         // SCREENSHOT 9: Goal Days Dialog
         if (showGoalDaysDialog) {
             AlertDialog(
-                onDismissRequest = { showGoalDaysDialog = false },
+                onDismissRequest = {
+                    goalDays = "Forever"
+                    showGoalDaysDialog = false
+                },
                 title = { Text("Goal Days", fontWeight = FontWeight.Bold, color = textColor) },
                 text = {
                     val options = listOf("Forever", "7 days", "21 days", "30 days", "100 days", "365 days", "Custom")
@@ -1472,7 +1507,10 @@ fun HabitCreationFlowDialog(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showGoalDaysDialog = false }) {
+                    TextButton(onClick = {
+                        goalDays = "Forever"
+                        showGoalDaysDialog = false
+                    }) {
                         Text("Cancel", color = onSurfaceVariantColor)
                     }
                 }
@@ -1587,7 +1625,10 @@ fun HabitCreationFlowDialog(
             var unitDropdownExpanded by remember { mutableStateOf(false) }
 
             AlertDialog(
-                onDismissRequest = { showCustomRepeatDialog = false },
+                onDismissRequest = {
+                    selectedFrequencyOption = "DAILY"
+                    showCustomRepeatDialog = false
+                },
                 title = {
                     Text(
                         text = "Repeat every ...",
@@ -1741,7 +1782,10 @@ fun HabitCreationFlowDialog(
                 },
                 dismissButton = {
                     TextButton(
-                        onClick = { showCustomRepeatDialog = false }
+                        onClick = {
+                            selectedFrequencyOption = "DAILY"
+                            showCustomRepeatDialog = false
+                        }
                     ) {
                         Text("CANCEL", fontWeight = FontWeight.Bold, color = onSurfaceVariantColor)
                     }

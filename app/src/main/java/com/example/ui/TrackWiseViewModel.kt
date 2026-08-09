@@ -64,6 +64,7 @@ class TrackWiseViewModel(
             timestamp = timeStr
         )
         _notifications.value = listOf(newNotification) + _notifications.value
+        triggerNotificationVibration()
         if (showSystem) {
             showSystemNotification(title, message, taskId, tabletId, canSnooze)
         }
@@ -271,6 +272,18 @@ class TrackWiseViewModel(
 
     private val _alarmSound = MutableStateFlow("Reflection")
     val alarmSound: StateFlow<String> = _alarmSound.asStateFlow()
+
+    private val _vibrationEnabled = MutableStateFlow(true)
+    val vibrationEnabled: StateFlow<Boolean> = _vibrationEnabled.asStateFlow()
+
+    private val _vibrateOnTaskCompletion = MutableStateFlow(true)
+    val vibrateOnTaskCompletion: StateFlow<Boolean> = _vibrateOnTaskCompletion.asStateFlow()
+
+    private val _vibrateOnSwipe = MutableStateFlow(true)
+    val vibrateOnSwipe: StateFlow<Boolean> = _vibrateOnSwipe.asStateFlow()
+
+    private val _vibrateOnNotification = MutableStateFlow(true)
+    val vibrateOnNotification: StateFlow<Boolean> = _vibrateOnNotification.asStateFlow()
 
     private val _appThemeSelection = MutableStateFlow("Default Violet")
     val appThemeSelection: StateFlow<String> = _appThemeSelection.asStateFlow()
@@ -560,6 +573,32 @@ class TrackWiseViewModel(
         _badHabits.value = current
         saveBadHabitsList(current)
         addNotification("Slip-Up Logged ⚠️", "Logged occurrence for '$habitName'. Take a deep breath and regain focus.")
+    }
+
+    fun undoBadHabitAvoidance(id: String) {
+        var habitName = "Bad Habit"
+        val current = _badHabits.value.map { item ->
+            if (item.id == id && item.avoidCount > 0) {
+                habitName = item.name
+                item.copy(avoidCount = item.avoidCount - 1)
+            } else item
+        }
+        _badHabits.value = current
+        saveBadHabitsList(current)
+        addNotification("Undo Completed 🔄", "Reverted avoidance count for '$habitName'.")
+    }
+
+    fun undoBadHabitOccurrence(id: String) {
+        var habitName = "Bad Habit"
+        val current = _badHabits.value.map { item ->
+            if (item.id == id && item.logs.isNotEmpty()) {
+                habitName = item.name
+                item.copy(logs = item.logs.dropLast(1))
+            } else item
+        }
+        _badHabits.value = current
+        saveBadHabitsList(current)
+        addNotification("Undo Completed 🔄", "Removed last slip-up log for '$habitName'.")
     }
 
     fun removeBadHabit(id: String) {
@@ -2689,8 +2728,77 @@ class TrackWiseViewModel(
         }
     }
 
+    private fun triggerVibrationPattern(pattern: LongArray) {
+        try {
+            val context = getApplication<Application>().applicationContext
+            val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                vm.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            }
+            if (vibrator.hasVibrator()) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(pattern, -1)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun triggerTaskCompletionVibration() {
+        if (_vibrationEnabled.value && _vibrateOnTaskCompletion.value) {
+            triggerVibrationPattern(longArrayOf(0, 30, 40, 50))
+        }
+    }
+
+    fun triggerSwipeVibration() {
+        if (_vibrationEnabled.value && _vibrateOnSwipe.value) {
+            triggerLightVibration()
+        }
+    }
+
+    fun triggerNotificationVibration() {
+        if (_vibrationEnabled.value && _vibrateOnNotification.value) {
+            triggerVibrationPattern(longArrayOf(0, 50, 40, 60))
+        }
+    }
+
+    fun setVibrationEnabled(enabled: Boolean) {
+        _vibrationEnabled.value = enabled
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("vibration_enabled", enabled).apply()
+        if (enabled) triggerLightVibration()
+    }
+
+    fun setVibrateOnTaskCompletion(enabled: Boolean) {
+        _vibrateOnTaskCompletion.value = enabled
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("vibrate_on_task_completion", enabled).apply()
+        if (enabled) triggerTaskCompletionVibration()
+    }
+
+    fun setVibrateOnSwipe(enabled: Boolean) {
+        _vibrateOnSwipe.value = enabled
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("vibrate_on_swipe", enabled).apply()
+        if (enabled) triggerSwipeVibration()
+    }
+
+    fun setVibrateOnNotification(enabled: Boolean) {
+        _vibrateOnNotification.value = enabled
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_session", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("vibrate_on_notification", enabled).apply()
+        if (enabled) triggerNotificationVibration()
+    }
+
     fun playTaskCompletionSound() {
-        triggerLightVibration()
+        triggerTaskCompletionVibration()
         val sound = _taskSound.value
         if (sound == "None") return
         viewModelScope.launch(Dispatchers.IO) {
@@ -4305,6 +4413,10 @@ class TrackWiseViewModel(
         loadBadHabits()
         _taskSound.value = prefs.getString("task_sound", "Chime Gentle") ?: "Chime Gentle"
         _alarmSound.value = prefs.getString("alarm_sound", "Reflection") ?: "Reflection"
+        _vibrationEnabled.value = prefs.getBoolean("vibration_enabled", true)
+        _vibrateOnTaskCompletion.value = prefs.getBoolean("vibrate_on_task_completion", true)
+        _vibrateOnSwipe.value = prefs.getBoolean("vibrate_on_swipe", true)
+        _vibrateOnNotification.value = prefs.getBoolean("vibrate_on_notification", true)
         
         if (savedUserId != null) {
             val lastActiveTime = prefs.getLong("last_active_timestamp", System.currentTimeMillis())

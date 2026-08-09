@@ -1778,7 +1778,9 @@ fun CustomDatePickerSheet(
                 context,
                 themeId,
                 { _, h, m ->
-                    selectedTimeStr = String.format(Locale.US, "%02d:%02d", h, m)
+                    val h12 = if (h % 12 == 0) 12 else h % 12
+                    val amPm = if (h >= 12) "PM" else "AM"
+                    selectedTimeStr = String.format(Locale.US, "%02d:%02d %s", h12, m, amPm)
                     showTimePickerDialog = false
                 },
                 currentHour,
@@ -1846,7 +1848,9 @@ fun CustomDatePickerSheet(
                 context,
                 themeId,
                 { _, h, m ->
-                    customReminderTime = String.format(Locale.US, "%02d:%02d", h, m)
+                    val h12 = if (h % 12 == 0) 12 else h % 12
+                    val amPm = if (h >= 12) "PM" else "AM"
+                    customReminderTime = String.format(Locale.US, "%02d:%02d %s", h12, m, amPm)
                     showCustomReminderTimePicker = false
                     selectedReminder = "Custom"
                 },

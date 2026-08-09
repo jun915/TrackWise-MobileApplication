@@ -362,7 +362,18 @@ object TrackWiseUtils {
 
     // --- Embedded Constants ---
 
-    data class AllahName(val dayNum: Int, val en: String, val ar: String, val ur: String, val meaning: String)
+    data class AllahName(
+        val dayNum: Int,
+        val en: String,
+        val ar: String,
+        val ur: String,
+        val meaning: String
+    ) {
+        val id: Int get() = dayNum
+        val transliteration: String get() = en
+        val arabic: String get() = ar
+        val urdu: String get() = ur
+    }
     data class HinduCalendarInfo(val vsYear: Int, val vsMonth: String, val tithi: String, val paksha: String, val isAmavasya: Boolean, val isPurnima: Boolean)
     data class HijriInfo(val day: Int, val month: Int, val year: Int, val monthNameEn: String, val monthNameUr: String)
 
@@ -494,7 +505,7 @@ object TrackWiseUtils {
         "2028-12-02" to "Guru Nanak Jayanti 🪯"
     )
 
-    private val ALLAH_NAMES_LIST = listOf(
+    val ALLAH_NAMES_LIST = listOf(
         AllahName(1, "Ar-Rahman", "الرحمن", "الرحمن", "The Beneficent"),
         AllahName(2, "Ar-Rahim", "الرحيم", "الرحيم", "The Merciful"),
         AllahName(3, "Al-Malik", "الملك", "الملك", "The Eternal Lord"),
@@ -596,6 +607,8 @@ object TrackWiseUtils {
         AllahName(99, "As-Sabur", "الصبور", "الصبور", "The Patient One"),
         AllahName(100, "Allah", "الله", "اللہ", "The Supreme Name")
     )
+
+    val ALLAH_NAMES get() = ALLAH_NAMES_LIST
 
     fun shouldShowHabitOnDate(habit: com.example.data.HabitEntity, dateStr: String): Boolean {
         val rawSDate = if (!habit.startDate.isNullOrBlank()) habit.startDate else habit.createdAt

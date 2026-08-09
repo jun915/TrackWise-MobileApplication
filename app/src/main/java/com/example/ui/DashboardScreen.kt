@@ -412,6 +412,22 @@ fun DashboardScreen(
             }
         }
 
+        // --- TrackWise 4x4 Widget Preview ---
+        item {
+            StaggeredItem(index = 5) {
+                val waterLogs by viewModel.waterLogs.collectAsState()
+                Dashboard4x4WidgetCard(
+                    viewModel = viewModel,
+                    allFinanceLogs = allFinanceLogs,
+                    allBirthdays = allBirthdays,
+                    allHabits = allHabits,
+                    allTasks = allTasks,
+                    badHabits = badHabits,
+                    waterLogs = waterLogs
+                )
+            }
+        }
+
         // --- Monthly Finance Summary Widget ---
         item {
             StaggeredItem(index = 5) {
@@ -2160,13 +2176,13 @@ private fun showTimePicker(context: android.content.Context, onTimeSelected: (St
         context,
         themeId,
         { _, hourOfDay, minute ->
-            val formattedHour = String.format("%02d", hourOfDay)
-            val formattedMinute = String.format("%02d", minute)
-            onTimeSelected("$formattedHour:$formattedMinute")
+            val h12 = if (hourOfDay % 12 == 0) 12 else hourOfDay % 12
+            val amPm = if (hourOfDay >= 12) "PM" else "AM"
+            onTimeSelected(String.format(java.util.Locale.US, "%02d:%02d %s", h12, minute, amPm))
         },
         calendar.get(Calendar.HOUR_OF_DAY),
         calendar.get(Calendar.MINUTE),
-        true
+        false
     )
     tpd.show()
 }
@@ -2330,10 +2346,10 @@ fun SwipeableTaskItem(
                         onDragEnd = {
                             coroutineScope.launch {
                                 val offsetPx = animOffset.value
-                                val thresholdFullRight = 200f * density
-                                val thresholdFullLeft = -200f * density
-                                val thresholdRevealRight = 50f * density
-                                val thresholdRevealLeft = -50f * density
+                                val thresholdFullRight = 240f * density
+                                val thresholdFullLeft = -240f * density
+                                val thresholdRevealRight = 110f * density
+                                val thresholdRevealLeft = -110f * density
                                 val snapRevealRight = 112f * density
                                 val snapRevealLeft = -164f * density
 
@@ -3638,6 +3654,258 @@ private fun MasteryItemGridCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
+
+@Composable
+fun Dashboard4x4WidgetCard(
+    viewModel: TrackWiseViewModel,
+    allFinanceLogs: List<com.example.data.FinanceLogEntity>,
+    allBirthdays: List<com.example.data.BirthdayEntity>,
+    allHabits: List<HabitEntity>,
+    allTasks: List<TaskEntity>,
+    badHabits: List<TrackWiseViewModel.BadHabitSpec>,
+    waterLogs: List<WaterLogEntity>
+) {
+    val now = remember { Date() }
+    val calendar = remember { Calendar.getInstance() }
+    val todayStr = remember { TrackWiseUtils.getTodayString().take(10) }
+
+    // 1. Top Right: Small Time/Date + Urdu Date + Allah Name Today
+    val displayDateStr = remember { SimpleDateFormat("EEE, MMM d • hh:mm a", Locale.US).format(now) }
+    val dayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
+    val allahNameObj = TrackWiseUtils.ALLAH_NAMES[(dayOfYear) % 99]
+    val allahNameStr = "ﷲ ${allahNameObj.transliteration} (${allahNameObj.arabic})"
+
+    val hijriDateStr = remember {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val hijrah = java.time.chrono.HijrahDate.now()
+                val day = hijrah.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
+                val monthIdx = hijrah.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
+                val year = hijrah.get(java.time.temporal.ChronoField.YEAR)
+                val hijriMonths = arrayOf("", "Muharram", "Safar", "Rabi' I", "Rabi' II", "Jumada I", "Jumada II", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah")
+                "$day ${hijriMonths.getOrElse(monthIdx) { "Safar" }} $year AH"
+            } else {
+                "23 Safar 1448 AH"
+            }
+        } catch (e: Exception) {
+            "23 Safar 1448 AH"
+        }
+    }
+
+    // 2. Net Balance from Monthly Finance Summary
+    val currentMonthStr = remember { SimpleDateFormat("yyyy-MM", Locale.US).format(now) }
+    val monthLogs = allFinanceLogs.filter { it.date.startsWith(currentMonthStr) }
+    val income = monthLogs.filter { it.type == "income" }.sumOf { it.amount }
+    val expense = monthLogs.filter { it.type == "expense" }.sumOf { it.amount }
+    val savings = monthLogs.filter { it.type == "savings" }.sumOf { it.amount }
+    val netBalance = income - (expense + savings)
+
+    // 3. Max 2 Countdown Events Today (GONE if no events today)
+    val todayBirthdays = allBirthdays.filter { it.date.endsWith(todayStr.substring(5)) }.map { "🎉 ${it.name}'s Birthday" }
+    val todayFestivals = TrackWiseUtils.getIndianFestivalsForDate(todayStr).map { "🎆 $it" }
+    val todayEvents = (todayBirthdays + todayFestivals).take(2)
+
+    // 4. Max 2 Habits with reminder for current hour
+    val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
+    val currentHourStr = String.format(Locale.US, "%02d", currentHour)
+    val todayHabits = allHabits.filter { TrackWiseUtils.shouldShowHabitOnDate(it, todayStr) }
+    val currentHourHabits = todayHabits.filter {
+        it.reminderTime?.take(2) == currentHourStr || it.reminderTime?.contains(currentHourStr) == true
+    }.ifEmpty { todayHabits }.take(2)
+
+    // 5. Max 2 Tasks with reminder for current hour
+    val todayTasks = allTasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) }
+    val currentHourTasks = todayTasks.filter {
+        it.dueTime?.take(2) == currentHourStr || it.reminderTime?.take(2) == currentHourStr
+    }.ifEmpty { todayTasks.filter { !it.completed } }.take(2)
+
+    // 6. Water intake today (icon + number)
+    val todayWater = waterLogs.find { it.date == todayStr }
+    val glasses = todayWater?.glasses ?: 0
+    val goal = todayWater?.goal ?: 8
+
+    // 7. Most slipped up habit
+    val mostSlipped = badHabits.maxByOrNull { it.slippedCount }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("dashboard_4x4_widget_card"),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header Row: Widget Title + Top Right Date/Time + Urdu Date + Allah Name
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Widgets,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Text(
+                            text = "TrackWise 4×4 Widget",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text(
+                        text = "💰 Net Balance: ₹${netBalance.toInt()}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = displayDateStr,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "$hijriDateStr • $allahNameStr",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 1.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+            // Section 1: Today's Countdown Events (Max 2) - EXCLUDED if no events today
+            if (todayEvents.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        text = "🎉 Today's Countdown Events",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    todayEvents.forEach { ev ->
+                        Text(
+                            text = "• $ev",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+            }
+
+            // Section 2: Max 2 Habits with reminder for current hour
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    text = "💪 Habits (Current Hour)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (currentHourHabits.isNotEmpty()) {
+                    currentHourHabits.forEach { h ->
+                        val isDone = h.daysCompletedJson.contains(todayStr)
+                        Text(
+                            text = "• ${h.name} (${if (isDone) "Done" else "Pending"})",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "• No habit reminders this hour",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Section 3: Max 2 Tasks with reminder for current hour
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    text = "📝 Tasks (Current Hour)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (currentHourTasks.isNotEmpty()) {
+                    currentHourTasks.forEach { t ->
+                        Text(
+                            text = "• ${t.title} (${if (t.completed) "Done" else "Pending"})",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "• No task reminders this hour",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+            // Bottom Quick Stats Row: Water Intake + Most Slipped Up Habit
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "💧 $glasses / $goal glasses",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandCyan
+                )
+
+                Text(
+                    text = if (mostSlipped != null && mostSlipped.slippedCount > 0)
+                        "⚠️ Most Slipped: ${mostSlipped.name} (${mostSlipped.slippedCount}x)"
+                    else
+                        "⚠️ Most Slipped: None",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandRose,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

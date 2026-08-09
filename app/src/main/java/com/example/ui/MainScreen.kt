@@ -104,6 +104,9 @@ fun MainScreen(
     var financePresetTab by remember { mutableStateOf("expense") }
 
     fun navigateTo(tab: String) {
+        if (tab == "habit_breaker") {
+            viewModel.setHabitBreakerViewState("list")
+        }
         if (activeTab != tab) {
             val currentList = navigationHistory.toMutableList()
             if (tab == "dashboard") {
@@ -352,7 +355,7 @@ fun MainScreen(
     val isShowAddFinanceSheet by viewModel.showAddFinanceSheet.collectAsState()
     val showHealthOptionsOverlay by viewModel.showHealthOptionsOverlay.collectAsState()
     val isAnyPopupOpen = activeDetailHabit != null || showCustomTaskSheet || showHabitCreationSheet || showAddChoiceDialog || leftDrawerOpen || showMoreMenu || showSettings || showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isShowAddFinanceSheet || isNetWorthSpeedDialOpen || showHealthOptionsOverlay
-    val isSubViewActive = (activeTab == "finance" && (financeViewMode != "home" || isFinanceSearchActive))
+    val isSubViewActive = (activeTab == "finance" && (financeViewMode != "home" || isFinanceSearchActive)) || (activeTab == "habit_breaker" && habitBreakerView != "list")
 
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
     val isKeyboardVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
@@ -390,6 +393,12 @@ fun MainScreen(
             isFinanceSearchActive = false
         } else if (activeTab == "finance" && financeViewMode != "home") {
             financeViewMode = "home"
+        } else if (activeTab == "habit_breaker" && habitBreakerView != "list") {
+            if (habitBreakerView == "create") {
+                viewModel.setHabitBreakerViewState("gallery")
+            } else {
+                viewModel.setHabitBreakerViewState("list")
+            }
         } else {
             navigateBack()
         }
@@ -1451,7 +1460,7 @@ fun MainScreen(
                                         HealthOptionSpec(1, "Exercise", Icons.Default.DirectionsRun, BrandOrange),
                                         HealthOptionSpec(2, "Symptom Log", Icons.Default.Info, Color(0xFFEF4444)),
                                         HealthOptionSpec(3, "Sleep", Icons.Default.NightsStay, Color(0xFF8B5CF6)),
-                                        HealthOptionSpec(4, "Tablets", Icons.Default.CheckCircle, Color(0xFF10B981))
+                                        HealthOptionSpec(4, "Medicine Taker", Icons.Default.CheckCircle, Color(0xFF10B981))
                                     )
                                     if (isWoman) {
                                         list.add(HealthOptionSpec(5, "Period Tracker", Icons.Default.Face, BrandPink))

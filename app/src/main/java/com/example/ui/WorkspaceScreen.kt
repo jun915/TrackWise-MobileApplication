@@ -2127,6 +2127,7 @@ fun SwipeableHabitCard(
     content: @Composable () -> Unit
 ) {
     val dismissState = androidx.compose.material3.rememberSwipeToDismissBoxState(
+        positionalThreshold = { distance -> distance * 0.7f },
         confirmValueChange = { value ->
             when (value) {
                 androidx.compose.material3.SwipeToDismissBoxValue.StartToEnd -> {
@@ -4962,8 +4963,8 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                         priceInput = it 
                                         showErrors = false
                                     },
-                                    label = "Price ($) *",
-                                    placeholder = "e.g., 2.50",
+                                    label = "Price (₹) *",
+                                    placeholder = "e.g., 250.00",
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     isError = showErrors && priceError != null,
                                     errorText = priceError,
@@ -5323,13 +5324,13 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                                 else -> item.priceUnit ?: "item"
                                             }
                                             Text(
-                                                text = String.format("· $%.2f/%s", item.price, displayUnit),
+                                                text = String.format("· ₹%.2f/%s", item.price, displayUnit),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 color = BrandViolet
                                             )
                                             Text(
-                                                text = String.format("(Total: $%.2f)", subTotal),
+                                                text = String.format("(Total: ₹%.2f)", subTotal),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
@@ -5384,21 +5385,21 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Total Estimated Cost:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(String.format("$%.2f", totalCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(String.format("₹%.2f", totalCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Bought Items Cost:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(String.format("$%.2f", completedCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                        Text(String.format("₹%.2f", completedCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Remaining to Buy:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(String.format("$%.2f", pendingCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                        Text(String.format("₹%.2f", pendingCost), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
                     }
                 }
             }
@@ -5805,9 +5806,27 @@ fun DatePickerField(
     }
 }
 
+private fun parseTimeHourMinuteWs(timeStr: String?): Pair<Int, Int> {
+    if (timeStr.isNullOrBlank()) return Pair(12, 0)
+    return try {
+        val uppercase = timeStr.trim().uppercase(Locale.US)
+        val isPm = uppercase.contains("PM")
+        val isAm = uppercase.contains("AM")
+        val clean = uppercase.replace("AM", "").replace("PM", "").trim()
+        val parts = clean.split(":")
+        var h = parts.getOrNull(0)?.toIntOrNull() ?: 12
+        val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        if (isPm && h < 12) h += 12
+        if (isAm && h == 12) h = 0
+        Pair(h, m)
+    } catch (e: Exception) {
+        Pair(12, 0)
+    }
+}
+
 @Composable
 fun TimePickerField(
-    timeStr: String?, // HH:MM or null/blank
+    timeStr: String?, // HH:MM or 12h or null/blank
     label: String,
     onTimeSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -5815,9 +5834,7 @@ fun TimePickerField(
 ) {
     val context = LocalContext.current
     val displayValue = if (timeStr.isNullOrBlank()) "Not Set" else timeStr
-    val parts = remember(timeStr) { (timeStr ?: "12:00").split(":") }
-    val hour = remember(parts) { parts.getOrNull(0)?.toIntOrNull() ?: 12 }
-    val minute = remember(parts) { parts.getOrNull(1)?.toIntOrNull() ?: 0 }
+    val (hour, minute) = remember(timeStr) { parseTimeHourMinuteWs(timeStr) }
 
     val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
     val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
@@ -5827,12 +5844,14 @@ fun TimePickerField(
             context,
             themeId,
             { _, selectedHour, selectedMinute ->
-                val formattedTime = String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute)
+                val h12 = if (selectedHour % 12 == 0) 12 else selectedHour % 12
+                val amPm = if (selectedHour >= 12) "PM" else "AM"
+                val formattedTime = String.format(Locale.US, "%02d:%02d %s", h12, selectedMinute, amPm)
                 onTimeSelected(formattedTime)
             },
             hour,
             minute,
-            true // 24 hour view
+            false // 12 hour view
         )
     }
 

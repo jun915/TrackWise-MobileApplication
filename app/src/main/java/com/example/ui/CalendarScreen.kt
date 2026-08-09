@@ -187,7 +187,7 @@ fun CalendarScreen(
         }
 
         // --- Calendar Overlay Selector ---
-        if (availableOverlays.size > 1) {
+        if (availableOverlays.size > 1 && activeView == "month") {
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -827,7 +827,7 @@ fun CalendarDayView(
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Teams Header Row
+            // Daily Header Row
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -842,23 +842,10 @@ fun CalendarDayView(
                     )
                     val totalItemsCount = todayTasks.size + todayHabits.size
                     Text(
-                        text = "Teams Daily Schedule • $totalItemsCount items",
+                        text = "Daily Schedule • $totalItemsCount items",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(BrandViolet.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Teams Style",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandViolet
                     )
                 }
             }
@@ -959,6 +946,13 @@ fun CalendarDayView(
             }
 
             // --- 24-Hour Schedule Timeline ---
+            val nowCal = Calendar.getInstance()
+            val isToday = (currentDate.get(Calendar.YEAR) == nowCal.get(Calendar.YEAR) &&
+                           currentDate.get(Calendar.DAY_OF_YEAR) == nowCal.get(Calendar.DAY_OF_YEAR))
+            val currentHour = nowCal.get(Calendar.HOUR_OF_DAY)
+            val currentMinute = nowCal.get(Calendar.MINUTE)
+            val currentTimeStr = String.format(Locale.US, "%02d:%02d", if (currentHour == 0) 12 else if (currentHour > 12) currentHour - 12 else currentHour, currentMinute) + if (currentHour >= 12) " PM" else " AM"
+
             Text(
                 text = "TIMELINE (24 HRS)",
                 fontSize = 10.sp,
@@ -1046,8 +1040,45 @@ fun CalendarDayView(
                                     .weight(1f)
                                     .padding(vertical = 8.dp)
                             ) {
+                                if (isToday && h == currentHour) {
+                                    // Current time indicator line
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(BrandRose)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .height(2.dp)
+                                                .width(12.dp)
+                                                .background(BrandRose)
+                                        )
+                                        Text(
+                                            text = " NOW $currentTimeStr ",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandRose,
+                                            modifier = Modifier
+                                                .background(BrandRose.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(2.dp)
+                                                .background(BrandRose)
+                                        )
+                                    }
+                                }
+
                                 if (hourTasks.isEmpty() && hourHabits.isEmpty()) {
-                                    // Teams style empty schedule placeholder
                                     Spacer(modifier = Modifier.height(28.dp))
                                 } else {
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

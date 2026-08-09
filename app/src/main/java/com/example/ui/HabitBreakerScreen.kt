@@ -43,6 +43,13 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
+data class UndoSwipeData(
+    val habitId: String,
+    val habitName: String,
+    val isAvoidance: Boolean,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 enum class HabitBreakerView {
     LIST,
     GALLERY,
@@ -79,6 +86,25 @@ fun HabitBreakerScreen(
     var selectedItemForOptions by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
     var selectedItemForLogUpdate by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
     var selectedItemForIconPicker by remember { mutableStateOf<TrackWiseViewModel.BadHabitSpec?>(null) }
+    var undoSwipeData by remember { mutableStateOf<UndoSwipeData?>(null) }
+
+    LaunchedEffect(undoSwipeData) {
+        if (undoSwipeData != null) {
+            kotlinx.coroutines.delay(5000)
+            undoSwipeData = null
+        }
+    }
+
+    if (currentView != HabitBreakerView.LIST) {
+        androidx.activity.compose.BackHandler(enabled = true) {
+            if (currentView == HabitBreakerView.CREATE) {
+                editingItemId = null
+                viewModel.setHabitBreakerViewState("gallery")
+            } else if (currentView == HabitBreakerView.GALLERY) {
+                viewModel.setHabitBreakerViewState("list")
+            }
+        }
+    }
 
     val pinnedHabitBreakerIds by viewModel.pinnedHabitBreakerIds.collectAsState()
 
@@ -99,7 +125,7 @@ fun HabitBreakerScreen(
                 )
             }
 
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
@@ -173,19 +199,77 @@ fun HabitBreakerScreen(
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(top = 12.dp, bottom = 88.dp)
+                        contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
                     ) {
                         items(sortedBadHabits, key = { it.id }) { item ->
                             SwipeableAvoidCard(
                                 item = item,
                                 isPinned = pinnedHabitBreakerIds.contains(item.id),
                                 onTogglePin = { viewModel.togglePinHabitBreaker(item.id) },
-                                onLogAvoidance = { viewModel.logBadHabitAvoidance(item.id) },
-                                onLogSlipUp = { viewModel.logBadHabitOccurrence(item.id) },
+                                onLogAvoidance = {
+                                    viewModel.logBadHabitAvoidance(item.id)
+                                    viewModel.triggerSwipeVibration()
+                                    undoSwipeData = UndoSwipeData(item.id, item.name, isAvoidance = true)
+                                },
+                                onLogSlipUp = {
+                                    viewModel.logBadHabitOccurrence(item.id)
+                                    viewModel.triggerSwipeVibration()
+                                    undoSwipeData = UndoSwipeData(item.id, item.name, isAvoidance = false)
+                                },
                                 onDelete = { viewModel.removeBadHabit(item.id) },
                                 onCardClick = { selectedItemForOptions = item },
                                 tick = tick
                             )
+                        }
+                    }
+                }
+
+                // Floating 5-Second Undo Popup (Compact Pill)
+                AnimatedVisibility(
+                    visible = undoSwipeData != null,
+                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp)
+                ) {
+                    if (undoSwipeData != null) {
+                        val state = undoSwipeData!!
+                        Surface(
+                            onClick = {
+                                if (state.isAvoidance) {
+                                    viewModel.undoBadHabitAvoidance(state.habitId)
+                                } else {
+                                    viewModel.undoBadHabitOccurrence(state.habitId)
+                                }
+                                viewModel.triggerSwipeVibration()
+                                undoSwipeData = null
+                            },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shadowElevation = 8.dp,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Undo,
+                                    contentDescription = "Undo",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "UNDO",
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -329,6 +413,7 @@ fun SwipeableAvoidCard(
     tick: Int
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { distance -> distance * 0.7f },
         confirmValueChange = { value ->
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
@@ -1052,6 +1137,7 @@ fun FullPageAddAvoidItem(
                     selectedIcon = iconName,
                     onIconSelected = { iconName = it },
                     accentColor = BrandRose,
+                    searchQuery = name,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -2059,6 +2145,7 @@ fun IconPickerBottomSheet(
                     onDismiss()
                 },
                 accentColor = BrandRose,
+                searchQuery = item.name,
                 modifier = Modifier.fillMaxWidth()
             )
         }

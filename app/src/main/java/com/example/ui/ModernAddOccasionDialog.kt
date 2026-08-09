@@ -1915,13 +1915,39 @@ fun FlatColorIconPicker(
     selectedIcon: String,
     onIconSelected: (String) -> Unit,
     accentColor: Color = MaterialTheme.colorScheme.primary,
+    searchQuery: String = "",
     modifier: Modifier = Modifier
 ) {
     val iconsList = remember { com.example.utils.FLAT_COLOR_ICONS }
 
+    val sortedIcons = remember(iconsList, searchQuery) {
+        val query = searchQuery.trim().lowercase()
+        if (query.isBlank()) {
+            iconsList
+        } else {
+            val keywords = query.split("\\s+".toRegex()).filter { it.isNotBlank() }
+            fun score(spec: com.example.utils.FlatColorIconSpec): Int {
+                var s = 0
+                val nameLower = spec.name.lowercase()
+                val emojiStr = spec.emoji
+                for (kw in keywords) {
+                    if (nameLower == kw || emojiStr == kw) s += 100
+                    else if (nameLower.startsWith(kw)) s += 50
+                    else if (nameLower.split(" ").any { it.startsWith(kw) }) s += 30
+                    else if (nameLower.contains(kw)) s += 10
+                }
+                return s
+            }
+            val scored = iconsList.map { Pair(it, score(it)) }
+            val matching = scored.filter { it.second > 0 }.sortedByDescending { it.second }.map { it.first }
+            val nonMatching = scored.filter { it.second == 0 }.map { it.first }
+            matching + nonMatching
+        }
+    }
+
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val iconRows = 4
-        val chunked = remember(iconsList) { iconsList.chunked(iconRows) }
+        val chunked = remember(sortedIcons) { sortedIcons.chunked(iconRows) }
         
         androidx.compose.foundation.lazy.LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),

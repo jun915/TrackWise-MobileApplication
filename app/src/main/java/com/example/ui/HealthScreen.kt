@@ -61,7 +61,7 @@ fun HealthScreen(
     }
 
     val tabs = remember(isWoman) {
-        val list = mutableListOf("Metrics Log", "Exercise", "Symptom Log", "Sleep", "Tablets")
+        val list = mutableListOf("Metrics Log", "Exercise", "Symptom Log", "Sleep", "Medicine Taker")
         if (isWoman) {
             list.add("Period Tracker")
         }
@@ -157,7 +157,7 @@ fun HealthScreen(
             "Sleep" -> {
                 item { SleepLogSection(viewModel = viewModel, sleepLogs = sleepLogs) }
             }
-            "Tablets" -> {
+            "Medicine Taker" -> {
                 item { TabletTrackerSection(viewModel = viewModel) }
             }
             "Period Tracker" -> {
@@ -2094,10 +2094,11 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                         label = { Text("Dosage (e.g., 1 pill) *") },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = editTime,
-                        onValueChange = { editTime = it },
-                        label = { Text("Time of Day *") },
+                    HealthTimePickerField(
+                        timeStr = editTime,
+                        label = "Time of Day *",
+                        onTimeSelected = { editTime = it },
+                        tintColor = BrandViolet,
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
@@ -2151,7 +2152,7 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Tablet Taker Tracker 💊", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Medicine Taker Tracker 💊", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Text("Track your medications.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
@@ -2167,7 +2168,7 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                 ) {
                     Icon(imageVector = if (showForm) Icons.Default.Close else Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (showForm) "Close" else "New Tablet", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (showForm) "Close" else "New Medicine", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -2200,11 +2201,11 @@ fun TabletTrackerSection(viewModel: TrackWiseViewModel) {
                             placeholder = "e.g., 1 pill, 5ml",
                             modifier = Modifier.weight(1f)
                         )
-                        CompactTextField(
-                            value = timeOfDay,
-                            onValueChange = { timeOfDay = it },
+                        HealthTimePickerField(
+                            timeStr = timeOfDay,
                             label = "Time *",
-                            placeholder = "e.g., 08:00 AM, Night",
+                            onTimeSelected = { timeOfDay = it },
+                            tintColor = BrandViolet,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -2832,18 +2833,34 @@ fun PeriodTrackerSection(viewModel: TrackWiseViewModel) {
     }
 }
 
+private fun parseTimeHourMinute(timeStr: String?): Pair<Int, Int> {
+    if (timeStr.isNullOrBlank()) return Pair(8, 0)
+    return try {
+        val uppercase = timeStr.trim().uppercase(Locale.US)
+        val isPm = uppercase.contains("PM")
+        val isAm = uppercase.contains("AM")
+        val clean = uppercase.replace("AM", "").replace("PM", "").trim()
+        val parts = clean.split(":")
+        var h = parts.getOrNull(0)?.toIntOrNull() ?: 8
+        val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        if (isPm && h < 12) h += 12
+        if (isAm && h == 12) h = 0
+        Pair(h, m)
+    } catch (e: Exception) {
+        Pair(8, 0)
+    }
+}
+
 @Composable
 fun HealthTimePickerField(
-    timeStr: String, // HH:MM
+    timeStr: String, // HH:MM or 12h
     label: String,
     onTimeSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
     tintColor: Color = MaterialTheme.colorScheme.primary
 ) {
     val context = LocalContext.current
-    val parts = remember(timeStr) { timeStr.split(":") }
-    val hour = remember(parts) { parts.getOrNull(0)?.toIntOrNull() ?: 8 }
-    val minute = remember(parts) { parts.getOrNull(1)?.toIntOrNull() ?: 0 }
+    val (hour, minute) = remember(timeStr) { parseTimeHourMinute(timeStr) }
 
     val isDarkTheme = MaterialTheme.colorScheme.background.let { (it.red + it.green + it.blue) / 3f < 0.5f }
     val themeId = if (isDarkTheme) android.R.style.Theme_DeviceDefault_Dialog_Alert else android.R.style.Theme_DeviceDefault_Light_Dialog_Alert
@@ -2853,12 +2870,14 @@ fun HealthTimePickerField(
             context,
             themeId,
             { _, selectedHour, selectedMinute ->
-                val formattedTime = String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute)
+                val h12 = if (selectedHour % 12 == 0) 12 else selectedHour % 12
+                val amPm = if (selectedHour >= 12) "PM" else "AM"
+                val formattedTime = String.format(Locale.US, "%02d:%02d %s", h12, selectedMinute, amPm)
                 onTimeSelected(formattedTime)
             },
             hour,
             minute,
-            true // 24 hour view
+            false // 12 hour view
         )
     }
 
