@@ -2166,204 +2166,13 @@ fun SwipeableTaskItem(
     onDismissForToday: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    val density = androidx.compose.ui.platform.LocalDensity.current.density
-    val animOffset = remember { androidx.compose.animation.core.Animatable(0f) }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f))
     ) {
-        // --- BACKGROUND ACTIONS ---
-        // Right Swipe Actions (Mark Done, Pin) - aligned to LEFT (revealed when dragging right, i.e. positive offset)
-        val rightAlpha = if (animOffset.value > 0f) {
-            (animOffset.value / (15f * density)).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
-        if (animOffset.value > 1f) {
-            Row(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .align(Alignment.CenterStart)
-                    .padding(start = 12.dp)
-                    .graphicsLayer { alpha = rightAlpha },
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        coroutineScope.launch { animOffset.animateTo(0f) }
-                        onToggleTask()
-                    },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(BrandGreen.copy(alpha = 0.15f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Mark Done",
-                        tint = BrandGreen,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = {
-                        coroutineScope.launch { animOffset.animateTo(0f) }
-                        onPinTask()
-                    },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(BrandAmber.copy(alpha = 0.15f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PushPin,
-                        contentDescription = "Pin to Top",
-                        tint = BrandAmber,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        // Left Swipe Actions (Archive, Delete, Postpone) - aligned to RIGHT (revealed when dragging left, i.e. negative offset)
-        val leftAlpha = 1f
-        if (animOffset.value < -1f) {
-            Row(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 12.dp)
-                    .graphicsLayer { alpha = leftAlpha },
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (onDismissForToday != null) {
-                    IconButton(
-                        onClick = {
-                            coroutineScope.launch { animOffset.animateTo(0f) }
-                            onDismissForToday()
-                        },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(BrandRose.copy(alpha = 0.15f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.VisibilityOff,
-                            contentDescription = "Dismiss for Today",
-                            tint = BrandRose,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                IconButton(
-                    onClick = {
-                        coroutineScope.launch { animOffset.animateTo(0f) }
-                        onArchiveTask()
-                    },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Archive,
-                        contentDescription = "Archive",
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = {
-                        coroutineScope.launch { animOffset.animateTo(0f) }
-                        onDeleteTask()
-                    },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = {
-                        coroutineScope.launch { animOffset.animateTo(0f) }
-                        onPostponeTask()
-                    },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(BrandOrange.copy(alpha = 0.15f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AccessTime,
-                        contentDescription = "Postpone",
-                        tint = BrandOrange,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        // --- FOREGROUND CARD ---
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset { androidx.compose.ui.unit.IntOffset(animOffset.value.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            coroutineScope.launch {
-                                animOffset.snapTo((animOffset.value + dragAmount).coerceIn(-280f * density, 280f * density))
-                            }
-                        },
-                        onDragEnd = {
-                            coroutineScope.launch {
-                                val offsetPx = animOffset.value
-                                val thresholdFullRight = 240f * density
-                                val thresholdFullLeft = -240f * density
-                                val thresholdRevealRight = 110f * density
-                                val thresholdRevealLeft = -110f * density
-                                val snapRevealRight = 112f * density
-                                val snapRevealLeft = -164f * density
-
-                                if (offsetPx > thresholdFullRight) {
-                                    animOffset.animateTo(300f * density)
-                                    onToggleTask()
-                                    animOffset.animateTo(0f)
-                                } else if (offsetPx < thresholdFullLeft) {
-                                    animOffset.animateTo(-300f * density)
-                                    onPostponeTask()
-                                    animOffset.animateTo(0f)
-                                } else if (offsetPx > thresholdRevealRight) {
-                                    animOffset.animateTo(snapRevealRight)
-                                } else if (offsetPx < thresholdRevealLeft) {
-                                    animOffset.animateTo(snapRevealLeft)
-                                } else {
-                                    animOffset.animateTo(0f)
-                                }
-                            }
-                        }
-                    )
-                }
-        ) {
-            content()
-        }
+        content()
     }
 }
 
@@ -2589,7 +2398,14 @@ fun DashboardTopHabitBreakersWidget(
                     }
                 }
             } else {
-                val top4Habits = remember(badHabits) { badHabits.take(4) }
+                val sortedBadHabits = remember(badHabits, pinnedHabitBreakerIds, tick) {
+                    badHabits.sortedWith(
+                        compareBy<TrackWiseViewModel.BadHabitSpec> { !pinnedHabitBreakerIds.contains(it.id) }
+                            .thenBy { if (pinnedHabitBreakerIds.contains(it.id)) pinnedHabitBreakerIds.indexOf(it.id) else Int.MAX_VALUE }
+                            .thenBy { calculateCleanTimerMs(it.logs, it.id) }
+                    )
+                }
+                val top4Habits = remember(sortedBadHabits) { sortedBadHabits.take(4) }
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     top4Habits.forEach { habit ->

@@ -203,49 +203,46 @@ fun NotebooksGridScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(filteredNotebooks, key = { it.id }) { notebook ->
-                        NotebookCoverItem(
-                            notebook = notebook,
-                            onClick = { onNotebookClick(notebook) },
-                            onLongClick = { notebookMenuTarget = notebook }
-                        )
+                        Box {
+                            NotebookCoverItem(
+                                notebook = notebook,
+                                onClick = { onNotebookClick(notebook) },
+                                onLongClick = { notebookMenuTarget = notebook }
+                            )
+                            DropdownMenu(
+                                expanded = notebookMenuTarget?.id == notebook.id,
+                                onDismissRequest = { notebookMenuTarget = null }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Open") },
+                                    onClick = {
+                                        notebookMenuTarget = null
+                                        onNotebookClick(notebook)
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Book, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Edit Title & Cover") },
+                                    onClick = {
+                                        notebookToEdit = notebook
+                                        notebookMenuTarget = null
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete Notebook", color = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        val id = notebook.id
+                                        notebookMenuTarget = null
+                                        viewModel.deleteNotebook(id)
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                )
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-
-    // Context Menu for Notebook
-    if (notebookMenuTarget != null) {
-        DropdownMenu(
-            expanded = notebookMenuTarget != null,
-            onDismissRequest = { notebookMenuTarget = null }
-        ) {
-            DropdownMenuItem(
-                text = { Text("Open") },
-                onClick = {
-                    val nb = notebookMenuTarget!!
-                    notebookMenuTarget = null
-                    onNotebookClick(nb)
-                },
-                leadingIcon = { Icon(Icons.Default.Book, contentDescription = null) }
-            )
-            DropdownMenuItem(
-                text = { Text("Edit Title & Cover") },
-                onClick = {
-                    notebookToEdit = notebookMenuTarget
-                    notebookMenuTarget = null
-                },
-                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-            )
-            DropdownMenuItem(
-                text = { Text("Delete Notebook", color = MaterialTheme.colorScheme.error) },
-                onClick = {
-                    val id = notebookMenuTarget!!.id
-                    notebookMenuTarget = null
-                    viewModel.deleteNotebook(id)
-                },
-                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-            )
         }
     }
 
@@ -667,11 +664,43 @@ fun NotebookDetailScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(filteredNotes, key = { it.id }) { note ->
-                            NoteStickyCard(
-                                note = note,
-                                onClick = { viewModel.openNoteToEdit(note) },
-                                onLongClick = { noteMenuTarget = note }
-                            )
+                            Box {
+                                NoteStickyCard(
+                                    note = note,
+                                    onClick = { viewModel.openNoteToEdit(note) },
+                                    onLongClick = { noteMenuTarget = note }
+                                )
+                                DropdownMenu(
+                                    expanded = noteMenuTarget?.id == note.id,
+                                    onDismissRequest = { noteMenuTarget = null }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit Note") },
+                                        onClick = {
+                                            noteMenuTarget = null
+                                            viewModel.openNoteToEdit(note)
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (note.isPinned) "Unpin Note" else "Pin Note") },
+                                        onClick = {
+                                            noteMenuTarget = null
+                                            viewModel.updateNote(note.copy(isPinned = !note.isPinned))
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete Note", color = MaterialTheme.colorScheme.error) },
+                                        onClick = {
+                                            val id = note.id
+                                            noteMenuTarget = null
+                                            viewModel.deleteNote(id)
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                    )
+                                }
+                            }
                         }
                     }
                 } else {
@@ -681,51 +710,47 @@ fun NotebookDetailScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(filteredNotes, key = { it.id }) { note ->
-                            NoteStickyCard(
-                                note = note,
-                                onClick = { viewModel.openNoteToEdit(note) },
-                                onLongClick = { noteMenuTarget = note }
-                            )
+                            Box {
+                                NoteStickyCard(
+                                    note = note,
+                                    onClick = { viewModel.openNoteToEdit(note) },
+                                    onLongClick = { noteMenuTarget = note }
+                                )
+                                DropdownMenu(
+                                    expanded = noteMenuTarget?.id == note.id,
+                                    onDismissRequest = { noteMenuTarget = null }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit Note") },
+                                        onClick = {
+                                            noteMenuTarget = null
+                                            viewModel.openNoteToEdit(note)
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (note.isPinned) "Unpin Note" else "Pin Note") },
+                                        onClick = {
+                                            noteMenuTarget = null
+                                            viewModel.updateNote(note.copy(isPinned = !note.isPinned))
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete Note", color = MaterialTheme.colorScheme.error) },
+                                        onClick = {
+                                            val id = note.id
+                                            noteMenuTarget = null
+                                            viewModel.deleteNote(id)
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-
-    // Context Menu for Note
-    if (noteMenuTarget != null) {
-        DropdownMenu(
-            expanded = noteMenuTarget != null,
-            onDismissRequest = { noteMenuTarget = null }
-        ) {
-            DropdownMenuItem(
-                text = { Text("Edit Note") },
-                onClick = {
-                    val n = noteMenuTarget!!
-                    noteMenuTarget = null
-                    viewModel.openNoteToEdit(n)
-                },
-                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-            )
-            DropdownMenuItem(
-                text = { Text(if (noteMenuTarget!!.isPinned) "Unpin Note" else "Pin Note") },
-                onClick = {
-                    val n = noteMenuTarget!!
-                    noteMenuTarget = null
-                    viewModel.updateNote(n.copy(isPinned = !n.isPinned))
-                },
-                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
-            )
-            DropdownMenuItem(
-                text = { Text("Delete Note", color = MaterialTheme.colorScheme.error) },
-                onClick = {
-                    val id = noteMenuTarget!!.id
-                    noteMenuTarget = null
-                    viewModel.deleteNote(id)
-                },
-                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-            )
         }
     }
 }
@@ -832,6 +857,24 @@ fun NoteEditorScreen(
     var isPinned by remember { mutableStateOf(note.isPinned) }
     var reminderDate by remember { mutableStateOf(note.reminderDate) }
     var reminderTime by remember { mutableStateOf(note.reminderTime) }
+
+    fun buildCurrentNote(): NoteEntity {
+        val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        return note.copy(
+            title = title,
+            content = contentValue.text,
+            cardColor = selectedColorHex,
+            isPinned = isPinned,
+            reminderDate = reminderDate,
+            reminderTime = reminderTime,
+            updatedAt = now
+        )
+    }
+
+    androidx.activity.compose.BackHandler {
+        onSave(buildCurrentNote())
+        onBack()
+    }
 
     var showReminderPicker by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }

@@ -622,19 +622,13 @@ object TrackWiseUtils {
             return false
         }
 
-        val isToday = dateStr == getTodayString()
-        if (isToday && !habit.dueTime.isNullOrBlank()) {
-            val nowTimeStr = SimpleDateFormat("HH:mm", Locale.US).format(Date())
-            if (nowTimeStr > habit.dueTime) {
-                val daysCompleted = deserializeStringList(habit.daysCompletedJson)
-                if (!daysCompleted.contains(dateStr)) {
-                    return false
-                }
-            }
-        }
-
         val date = parseDate(dateStr)
-        val created = parseDate(sDate)
+        val baseDateStr = if (!habit.reminderDate.isNullOrBlank() && habit.repeatType.lowercase() in listOf("weekly", "monthly", "yearly", "custom")) {
+            habit.reminderDate.take(10)
+        } else {
+            sDate
+        }
+        val created = parseDate(baseDateStr)
 
         val cal = Calendar.getInstance().apply { time = date }
         val calCreated = Calendar.getInstance().apply { time = created }
@@ -651,10 +645,17 @@ object TrackWiseUtils {
             else -> ""
         }
 
-        // Check if habit has specific days of week selected (e.g. "Mon,Wed,Fri")
+        // Check if habit has specific days of week selected (e.g. "Mon,Wed,Fri" or "Friday")
         val customDaysList = habit.customRepeatDaysOfWeek?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
-        if (customDaysList.isNotEmpty() && !customDaysList.contains(dayOfWeekStr)) {
-            return false
+        if (customDaysList.isNotEmpty()) {
+            val matches = customDaysList.any { day ->
+                day.equals(dayOfWeekStr, ignoreCase = true) ||
+                dayOfWeekStr.equals(day.take(3), ignoreCase = true) ||
+                day.startsWith(dayOfWeekStr, ignoreCase = true)
+            }
+            if (!matches) {
+                return false
+            }
         }
 
         return when (habit.repeatType.lowercase()) {
@@ -662,18 +663,14 @@ object TrackWiseUtils {
                 dateStr == sDate
             }
             "daily" -> {
-                if (customDaysList.isNotEmpty()) {
-                    customDaysList.contains(dayOfWeekStr)
-                } else {
-                    true
-                }
+                true
             }
             "weekdays" -> {
                 dayOfWeek in listOf(Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY)
             }
             "weekly" -> {
                 if (customDaysList.isNotEmpty()) {
-                    customDaysList.contains(dayOfWeekStr)
+                    true
                 } else {
                     cal.get(Calendar.DAY_OF_WEEK) == calCreated.get(Calendar.DAY_OF_WEEK)
                 }

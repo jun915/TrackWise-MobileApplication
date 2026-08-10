@@ -13,6 +13,7 @@ import android.widget.RemoteViews
 import com.example.R
 import com.example.MainActivity
 import com.example.data.TrackWiseDatabase
+import com.example.receiver.ReminderReceiver
 import com.example.utils.TrackWiseUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -187,58 +188,67 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                     }
                 }
 
-                // --- 4. Max 2 Habits with Reminder for Current Hour ---
+                // --- 4. Max 2 Habits for Today / Current Hour ---
                 val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
                 val currentHourStr = String.format(Locale.US, "%02d", currentHour)
                 val allHabits = dao.getHabitsForUser(userId).filter { TrackWiseUtils.shouldShowHabitOnDate(it, todayStr) }
                 
-                // Prioritize habits with reminder for current hour, or general today habits
-                val currentHourHabits = allHabits.filter { 
-                    it.reminderTime?.take(2) == currentHourStr || it.reminderTime?.contains(currentHourStr) == true 
-                }.ifEmpty { allHabits }.take(2)
+                val currentHourHabits = allHabits.filter { habit ->
+                    val t24 = ReminderReceiver.parseTo24HourTime(habit.reminderTime)
+                    t24 != null && t24.take(2) == currentHourStr
+                }.ifEmpty { 
+                    allHabits.sortedBy { ReminderReceiver.parseTo24HourTime(it.reminderTime) ?: "23:59" } 
+                }.take(2)
 
-                views.setTextViewText(R.id.txt_habits_header, "💪 Habits (Current Hour)")
+                views.setTextViewText(R.id.txt_habits_header, "💪 Habits (${currentHourHabits.size} for today)")
                 views.setTextColor(R.id.txt_habits_header, textPrimaryColor)
 
                 if (currentHourHabits.isNotEmpty()) {
                     val habit1 = currentHourHabits[0]
                     val isDone1 = habit1.daysCompletedJson.contains(todayStr)
-                    views.setTextViewText(R.id.txt_habit_1, "• ${habit1.name} (${if (isDone1) "Done" else "Pending"})")
+                    val timeDisp1 = if (!habit1.reminderTime.isNullOrBlank()) " @ ${habit1.reminderTime}" else ""
+                    views.setTextViewText(R.id.txt_habit_1, "• ${habit1.name}$timeDisp1 (${if (isDone1) "Done" else "Pending"})")
                     views.setTextColor(R.id.txt_habit_1, textSecondaryColor)
 
                     if (currentHourHabits.size >= 2) {
                         val habit2 = currentHourHabits[1]
                         val isDone2 = habit2.daysCompletedJson.contains(todayStr)
+                        val timeDisp2 = if (!habit2.reminderTime.isNullOrBlank()) " @ ${habit2.reminderTime}" else ""
                         views.setViewVisibility(R.id.txt_habit_2, View.VISIBLE)
-                        views.setTextViewText(R.id.txt_habit_2, "• ${habit2.name} (${if (isDone2) "Done" else "Pending"})")
+                        views.setTextViewText(R.id.txt_habit_2, "• ${habit2.name}$timeDisp2 (${if (isDone2) "Done" else "Pending"})")
                         views.setTextColor(R.id.txt_habit_2, textSecondaryColor)
                     } else {
                         views.setViewVisibility(R.id.txt_habit_2, View.GONE)
                     }
                 } else {
-                    views.setTextViewText(R.id.txt_habit_1, "• No habit reminders this hour")
+                    views.setTextViewText(R.id.txt_habit_1, "• No habits scheduled for today")
                     views.setTextColor(R.id.txt_habit_1, textSecondaryColor)
                     views.setViewVisibility(R.id.txt_habit_2, View.GONE)
                 }
 
-                // --- 5. Max 2 Tasks with Reminder for Current Hour ---
+                // --- 5. Max 2 Tasks for Today / Current Hour ---
                 val allTasks = dao.getTasksForUser(userId).filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) }
-                val currentHourTasks = allTasks.filter {
-                    it.dueTime?.take(2) == currentHourStr || it.reminderTime?.take(2) == currentHourStr
-                }.ifEmpty { allTasks.filter { !it.completed } }.take(2)
+                val currentHourTasks = allTasks.filter { task ->
+                    val t24 = ReminderReceiver.parseTo24HourTime(task.reminderTime ?: task.dueTime)
+                    t24 != null && t24.take(2) == currentHourStr
+                }.ifEmpty { 
+                    allTasks.filter { !it.completed }.sortedBy { ReminderReceiver.parseTo24HourTime(it.reminderTime ?: it.dueTime) ?: "23:59" } 
+                }.take(2)
 
-                views.setTextViewText(R.id.txt_tasks_header, "📝 Tasks (Current Hour)")
+                views.setTextViewText(R.id.txt_tasks_header, "📝 Tasks (${currentHourTasks.size} pending)")
                 views.setTextColor(R.id.txt_tasks_header, textPrimaryColor)
 
                 if (currentHourTasks.isNotEmpty()) {
                     val task1 = currentHourTasks[0]
-                    views.setTextViewText(R.id.txt_task_1, "• ${task1.title} (${if (task1.completed) "Done" else "Pending"})")
+                    val timeDisp1 = if (!task1.reminderTime.isNullOrBlank()) " @ ${task1.reminderTime}" else if (!task1.dueTime.isNullOrBlank()) " @ ${task1.dueTime}" else ""
+                    views.setTextViewText(R.id.txt_task_1, "• ${task1.title}$timeDisp1 (${if (task1.completed) "Done" else "Pending"})")
                     views.setTextColor(R.id.txt_task_1, textSecondaryColor)
 
                     if (currentHourTasks.size >= 2) {
                         val task2 = currentHourTasks[1]
+                        val timeDisp2 = if (!task2.reminderTime.isNullOrBlank()) " @ ${task2.reminderTime}" else if (!task2.dueTime.isNullOrBlank()) " @ ${task2.dueTime}" else ""
                         views.setViewVisibility(R.id.txt_task_2, View.VISIBLE)
-                        views.setTextViewText(R.id.txt_task_2, "• ${task2.title} (${if (task2.completed) "Done" else "Pending"})")
+                        views.setTextViewText(R.id.txt_task_2, "• ${task2.title}$timeDisp2 (${if (task2.completed) "Done" else "Pending"})")
                         views.setTextColor(R.id.txt_task_2, textSecondaryColor)
                     } else {
                         views.setViewVisibility(R.id.txt_task_2, View.GONE)

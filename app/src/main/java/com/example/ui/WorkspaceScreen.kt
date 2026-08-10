@@ -1581,20 +1581,7 @@ fun HabitSection(
 
         val myDayHabitsCount = remember(habits, todayStr) {
             habits.count { habit ->
-                val notStarted = !habit.startDate.isNullOrBlank() && habit.startDate!! > todayStr
-                val ended = !habit.endDate.isNullOrBlank() && habit.endDate!! < todayStr
-                if (notStarted || ended) return@count false
-                if (habit.repeatType == "custom" && !habit.customRepeatDaysOfWeek.isNullOrBlank()) {
-                    val todayDayOfWeek = try {
-                        val date = java.time.LocalDate.parse(todayStr)
-                        date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
-                    } catch (e: Exception) { "" }
-                    val customDays = habit.customRepeatDaysOfWeek.split(",").map { it.trim() }
-                    if (todayDayOfWeek.isNotBlank() && customDays.isNotEmpty() && !customDays.any { it.equals(todayDayOfWeek, ignoreCase = true) }) {
-                        return@count false
-                    }
-                }
-                true
+                TrackWiseUtils.shouldShowHabitOnDate(habit, todayStr)
             }
         }
         val allHabitsCount = habits.size
@@ -1643,19 +1630,7 @@ fun HabitSection(
                 if (viewModel.isHabitDismissedForCurrentPeriod(habit.id, habit.frequency)) return@filter false
 
                 if (habitFilterTab == "my_day") {
-                    val notStarted = !habit.startDate.isNullOrBlank() && habit.startDate!! > todayStr
-                    val ended = !habit.endDate.isNullOrBlank() && habit.endDate!! < todayStr
-                    if (notStarted || ended) return@filter false
-                    if (habit.repeatType == "custom" && !habit.customRepeatDaysOfWeek.isNullOrBlank()) {
-                        val todayDayOfWeek = try {
-                            val date = java.time.LocalDate.parse(todayStr)
-                            date.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
-                        } catch (e: Exception) { "" }
-                        val customDays = habit.customRepeatDaysOfWeek.split(",").map { it.trim() }
-                        if (todayDayOfWeek.isNotBlank() && customDays.isNotEmpty() && !customDays.any { it.equals(todayDayOfWeek, ignoreCase = true) }) {
-                            return@filter false
-                        }
-                    }
+                    if (!TrackWiseUtils.shouldShowHabitOnDate(habit, todayStr)) return@filter false
                 }
                 true
             }
@@ -2408,56 +2383,6 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
     var showLongPressMenuForWish by remember { mutableStateOf<com.example.data.WishItemEntity?>(null) }
     var showDeleteConfirmForWish by remember { mutableStateOf<com.example.data.WishItemEntity?>(null) }
 
-    if (showLongPressMenuForWish != null) {
-        val wish = showLongPressMenuForWish!!
-        val isPinned = pinnedWishlistIds.contains(wish.id)
-        AlertDialog(
-            onDismissRequest = { showLongPressMenuForWish = null },
-            title = { Text(wish.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            showLongPressMenuForWish = null
-                            editingWishItem = wish
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Edit Details", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            viewModel.togglePinWishlist(wish.id)
-                            showLongPressMenuForWish = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            showDeleteConfirmForWish = wish
-                            showLongPressMenuForWish = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete Wishlist Item", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showLongPressMenuForWish = null }) { Text("Cancel") }
-            }
-        )
-    }
-
     if (showDeleteConfirmForWish != null) {
         val wish = showDeleteConfirmForWish!!
         AlertDialog(
@@ -2823,7 +2748,8 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
             }
             sortedItems.forEachIndexed { index, item ->
                 val isPinned = pinnedWishlistIds.contains(item.id)
-                StaggeredItem(index = index) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    StaggeredItem(index = index) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         modifier = Modifier
@@ -2894,7 +2820,38 @@ fun WishlistSection(viewModel: TrackWiseViewModel) {
                     }
                 }
             }
+
+            DropdownMenu(
+                expanded = showLongPressMenuForWish?.id == item.id,
+                onDismissRequest = { showLongPressMenuForWish = null }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Edit Details") },
+                    onClick = {
+                        showLongPressMenuForWish = null
+                        editingWishItem = item
+                    },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text(if (isPinned) "Unpin from Top" else "Pin to Top") },
+                    onClick = {
+                        viewModel.togglePinWishlist(item.id)
+                        showLongPressMenuForWish = null
+                    },
+                    leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete Wishlist Item", color = MaterialTheme.colorScheme.error) },
+                    onClick = {
+                        showDeleteConfirmForWish = item
+                        showLongPressMenuForWish = null
+                    },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                )
+            }
         }
+    }
         }
     }
 }
@@ -4835,56 +4792,6 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
     var showLongPressMenuForGrocery by remember { mutableStateOf<com.example.data.GroceryItemEntity?>(null) }
     var showDeleteConfirmForGrocery by remember { mutableStateOf<com.example.data.GroceryItemEntity?>(null) }
 
-    if (showLongPressMenuForGrocery != null) {
-        val item = showLongPressMenuForGrocery!!
-        val isPinned = pinnedGroceryIds.contains(item.id)
-        AlertDialog(
-            onDismissRequest = { showLongPressMenuForGrocery = null },
-            title = { Text(item.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            showLongPressMenuForGrocery = null
-                            editingGroceryItem = item
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Edit Details", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            viewModel.togglePinGrocery(item.id)
-                            showLongPressMenuForGrocery = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PushPin, contentDescription = null, tint = BrandAmber)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(
-                        onClick = {
-                            showDeleteConfirmForGrocery = item
-                            showLongPressMenuForGrocery = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Delete Item", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showLongPressMenuForGrocery = null }) { Text("Cancel") }
-            }
-        )
-    }
-
     if (showDeleteConfirmForGrocery != null) {
         val item = showDeleteConfirmForGrocery!!
         AlertDialog(
@@ -5425,7 +5332,8 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
             ) {
                 sortedGroceryList.forEach { item ->
                     val isPinned = pinnedGroceryIds.contains(item.id)
-                    Card(
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Card(
                         colors = CardDefaults.cardColors(
                             containerColor = if (item.completed) {
                                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
@@ -5555,7 +5463,38 @@ fun GrocerySection(viewModel: TrackWiseViewModel) {
                                 }
                             }
                         }
+
+                        DropdownMenu(
+                            expanded = showLongPressMenuForGrocery?.id == item.id,
+                            onDismissRequest = { showLongPressMenuForGrocery = null }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Details") },
+                                onClick = {
+                                    showLongPressMenuForGrocery = null
+                                    editingGroceryItem = item
+                                },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (isPinned) "Unpin from Top" else "Pin to Top") },
+                                onClick = {
+                                    viewModel.togglePinGrocery(item.id)
+                                    showLongPressMenuForGrocery = null
+                                },
+                                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete Item", color = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showDeleteConfirmForGrocery = item
+                                    showLongPressMenuForGrocery = null
+                                },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                            )
+                        }
                     }
+                }
                 }
             }
         }

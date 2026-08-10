@@ -588,16 +588,17 @@ class ReminderReceiver : BroadcastReceiver() {
         }
 
         private fun convertTo24Hour(time12: String): String? {
+            val upperTime12 = time12.uppercase(Locale.US)
             return try {
                 val sdf12 = SimpleDateFormat("hh:mm a", Locale.US)
                 val sdf24 = SimpleDateFormat("HH:mm", Locale.US)
-                val date = sdf12.parse(time12) ?: return null
+                val date = sdf12.parse(upperTime12) ?: return null
                 sdf24.format(date)
             } catch (e: Exception) {
                 try {
                     val sdf12NoSpace = SimpleDateFormat("hh:mma", Locale.US)
                     val sdf24 = SimpleDateFormat("HH:mm", Locale.US)
-                    val date = sdf12NoSpace.parse(time12) ?: return null
+                    val date = sdf12NoSpace.parse(upperTime12) ?: return null
                     sdf24.format(date)
                 } catch (ex: Exception) {
                     null
