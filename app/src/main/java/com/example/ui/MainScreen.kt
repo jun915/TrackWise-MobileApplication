@@ -453,13 +453,48 @@ fun MainScreen(
                 activeTab in listOf("health", "finance", "calendar") ||
                 (activeTab == "workspace" && activeSubTab in listOf(2, 4, 5))
 
+        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+        val isTablet = configuration.screenWidthDp >= 600
+
+        if (isTablet) {
+            // Fixed Side Navigation Bar for tablet / landscape viewports
+            Box(
+                modifier = Modifier
+                    .width(280.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                    )
+                    .align(Alignment.CenterStart)
+            ) {
+                LeftDrawerPane(
+                    viewModel = viewModel,
+                    activeTab = activeTab,
+                    onNavigate = { navigateTo(it) },
+                    onClose = { /* No-op on tablet viewport */ },
+                    onImportClick = { showImportOptionDialog = true },
+                    onNotificationClick = { showGlobalNotificationsDialog = true },
+                    onSearchClick = { showGlobalSearchDialog = true }
+                )
+            }
+        }
+
         Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = if (isTablet) 280.dp else 0.dp),
             topBar = {
                 if (activeDetailHabit == null && (activeTab != "habit_breaker" || habitBreakerView == "list")) {
                     HeaderToolbar(
                         viewModel = viewModel,
                         activeTab = activeTab,
-                        onMenuClick = { leftDrawerOpen = !leftDrawerOpen },
+                        onMenuClick = { 
+                            if (!isTablet) {
+                                leftDrawerOpen = !leftDrawerOpen 
+                            }
+                        },
                         onNavigateToDashboard = {
                             viewModel.setActiveDetailHabit(null)
                             navigateTo("dashboard")
@@ -468,12 +503,13 @@ fun MainScreen(
                             viewModel.setActiveDetailHabit(null)
                             navigateTo(tab)
                             viewModel.setWorkspaceSubTab(subTab)
-                        }
+                        },
+                        showMenuIcon = !isTablet
                     )
                 }
             },
             bottomBar = {
-                if (activeDetailHabit == null && (activeTab != "habit_breaker" || habitBreakerView == "list")) {
+                if (!isTablet && activeDetailHabit == null && (activeTab != "habit_breaker" || habitBreakerView == "list")) {
                     BottomNavigationBar(
                         activeTab = activeTab,
                         viewModel = viewModel,
@@ -1163,7 +1199,6 @@ fun MainScreen(
         }
 
         // --- Full Screen Dim Backdrop for Speed Dial Options ---
-        val isNotesSpeedDialOpen by viewModel.isNotesSpeedDialOpen.collectAsState()
         if ((showMainSpeedDial || showOccasionSpeedDial || isFinanceSpeedDialOpen || isNetWorthSpeedDialOpen || showHealthOptionsOverlay || isNotesSpeedDialOpen) && activeDetailHabit == null && !needsOnboarding) {
             Box(
                 modifier = Modifier
@@ -1184,7 +1219,6 @@ fun MainScreen(
         }
 
         // --- Floating Action Button & Speed Dials Rendered at Root level above the Scrims ---
-        val activeDetailHabit by viewModel.activeDetailHabit.collectAsState()
         val showNetWorthAddSheet by viewModel.showNetWorthAddSheet.collectAsState()
         if (activeDetailHabit == null && !needsOnboarding && !showNetWorthAddSheet && (!isShowAddFinanceSheet || activeTab != "finance") && !leftDrawerOpen) {
             Box(
@@ -2078,7 +2112,8 @@ fun HeaderToolbar(
     activeTab: String,
     onMenuClick: () -> Unit,
     onNavigateToDashboard: () -> Unit,
-    onNavigateToSubTab: (String, Int) -> Unit
+    onNavigateToSubTab: (String, Int) -> Unit,
+    showMenuIcon: Boolean = true
 ) {
     val activeSubTab by viewModel.workspaceSubTab.collectAsState()
     val currentTitle = when (activeTab) {
@@ -2123,20 +2158,24 @@ fun HeaderToolbar(
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = onMenuClick,
-                modifier = Modifier
-                    .size(40.dp)
-                    .testTag("top_hamburger_menu")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Open Drawer",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(24.dp)
-                )
+            if (showMenuIcon) {
+                IconButton(
+                    onClick = onMenuClick,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .testTag("top_hamburger_menu")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Open Drawer",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+            } else {
+                Spacer(modifier = Modifier.width(16.dp))
             }
-            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = currentTitle,
                 fontSize = 20.sp,

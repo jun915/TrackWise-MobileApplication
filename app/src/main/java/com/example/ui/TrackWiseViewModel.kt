@@ -1708,12 +1708,19 @@ class TrackWiseViewModel(
                     val notifHabitId = extras.getString("habit_id")
                     val notifTabletId = extras.getString("tablet_id")
                     val title = extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: ""
+                    val text = extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
                     
                     val matchesId = (notifTaskId == itemId || notifHabitId == itemId || notifTabletId == itemId)
-                    val matchesTitle = itemTitle != null && itemTitle.isNotBlank() && title.contains(itemTitle, ignoreCase = true)
+                    val matchesTitle = itemTitle != null && itemTitle.isNotBlank() && (
+                        title.contains(itemTitle, ignoreCase = true) || text.contains(itemTitle, ignoreCase = true)
+                    )
                     
                     if (matchesId || matchesTitle) {
-                        notifManager.cancel(sbn.id)
+                        if (sbn.tag != null) {
+                            notifManager.cancel(sbn.tag, sbn.id)
+                        } else {
+                            notifManager.cancel(sbn.id)
+                        }
                     }
                 }
             }
@@ -2409,6 +2416,7 @@ class TrackWiseViewModel(
             } else {
                 list.add(dateStr)
                 playTaskCompletionSound()
+                autoDismissNotification(reminder.id, reminder.tabletName)
             }
 
             // Serialize back
@@ -3002,28 +3010,34 @@ class TrackWiseViewModel(
 
     // --- Sleep Tracker Actions ---
     fun addSleepLog(hoursSlept: Double, startTime: String, endTime: String, notes: String? = null, date: String? = null) {
-        val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            val user = _sessionUser.value
+            val userId = user?.id ?: "user-default-syed"
             val finalDate = date ?: TrackWiseUtils.getTodayString()
             
-            // Limit to one entry per day
-            val isDuplicate = sleepLogs.value.any { it.date == finalDate }
-            if (isDuplicate) {
-                _authError.value = "Only one sleep entry is allowed per day!"
-                return@launch
+            val existing = sleepLogs.value.firstOrNull { it.date == finalDate }
+            if (existing != null) {
+                val updatedLog = existing.copy(
+                    hoursSlept = hoursSlept,
+                    startTime = startTime,
+                    endTime = endTime,
+                    notes = notes
+                )
+                repository.insertSleepLog(updatedLog)
+                _successMessage.value = "Sleep entry updated for $finalDate."
+            } else {
+                val log = SleepLogEntity(
+                    id = "sleep-${System.currentTimeMillis()}",
+                    userId = userId,
+                    date = finalDate,
+                    hoursSlept = hoursSlept,
+                    startTime = startTime,
+                    endTime = endTime,
+                    notes = notes
+                )
+                repository.insertSleepLog(log)
+                _successMessage.value = "Sleep logged successfully."
             }
-
-            val log = SleepLogEntity(
-                id = "sleep-${System.currentTimeMillis()}",
-                userId = user.id,
-                date = finalDate,
-                hoursSlept = hoursSlept,
-                startTime = startTime,
-                endTime = endTime,
-                notes = notes
-            )
-            repository.insertSleepLog(log)
-            _successMessage.value = "Sleep logged successfully."
             triggerFakeSync()
         }
     }
@@ -4942,7 +4956,7 @@ class TrackWiseViewModel(
                                     triggeredReminders.add(key)
                                     addNotification(
                                         title = "Task Reminder: ${task.title}",
-                                        message = "Deadline: ${task.deadline}. Don't forget to complete it!",
+                                        message = "Project: ${task.project} • Priority: ${task.priority.uppercase()}${if (task.description.isNotBlank()) " • " + task.description else ""}",
                                         showSystem = true,
                                         taskId = task.id,
                                         canSnooze = true
@@ -4963,7 +4977,7 @@ class TrackWiseViewModel(
                                     triggeredReminders.add(key)
                                     addNotification(
                                         title = "Habit: ${habit.name}",
-                                        message = "It's time for your habit: ${habit.category}!",
+                                        message = "Category: ${habit.category} • Streak: ${habit.streak} days${if (habit.quote.isNotBlank()) " • \"" + habit.quote + "\"" else if (habit.notes.isNotBlank()) " • " + habit.notes else ""}",
                                         showSystem = true,
                                         canSnooze = true
                                     )
@@ -4983,7 +4997,7 @@ class TrackWiseViewModel(
                                     triggeredReminders.add(key)
                                     addNotification(
                                         title = "Wishlist Reminder: ${item.title}",
-                                        message = "Check out your item: ${item.title} (₹${item.price})",
+                                        message = "Price: ₹${item.price} • Priority: ${item.priority.uppercase()}${if (!item.link.isNullOrBlank()) " • Link available" else ""}",
                                         showSystem = true,
                                         canSnooze = true
                                     )
@@ -5003,7 +5017,7 @@ class TrackWiseViewModel(
                                     triggeredReminders.add(key)
                                     addNotification(
                                         title = "Occasion Reminder: ${bday.name}",
-                                        message = "Event: ${bday.name} is scheduled for today!",
+                                        message = "Category: ${bday.category} • Date: ${bday.date}${if (!bday.giftIdea.isNullOrBlank()) " • Gift Idea: " + bday.giftIdea else ""}",
                                         showSystem = true,
                                         canSnooze = true
                                     )

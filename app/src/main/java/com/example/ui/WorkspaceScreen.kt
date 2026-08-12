@@ -4098,6 +4098,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                         else if (bdayType == "Countdown") "TODAY 🚀"
                                         else "TODAY 🎂"
                                     }
+                                    bday.countingMode == "Count Up" && daysLeft == 1 -> "Yesterday"
                                     daysLeft == 1 -> "Tomorrow"
                                     bday.countingMode == "Count Up" -> "$daysLeft Days ago"
                                     bday.countingMode == "Count Down" -> "$daysLeft Days left"
@@ -4141,8 +4142,9 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                                             lineHeight = 24.sp
                                         )
                                         val label = when {
-                                            daysLeft == 1 -> "TOMORROW"
+                                            bday.countingMode == "Count Up" && daysLeft == 1 -> "YESTERDAY"
                                             bday.countingMode == "Count Up" -> "DAYS AGO"
+                                            daysLeft == 1 -> "TOMORROW"
                                             else -> "DAYS LEFT"
                                         }
                                         Text(

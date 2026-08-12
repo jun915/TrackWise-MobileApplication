@@ -430,7 +430,7 @@ fun HabitCreationFlowDialog(
                                 // Habit Templates List
                                 val templates = GALLERY_TEMPLATES[galleryCategory] ?: emptyList()
                                 LazyColumn(
-                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxSize()
                                 ) {
@@ -499,6 +499,30 @@ fun HabitCreationFlowDialog(
                                             }
                                         }
                                     }
+
+                                    item {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Button(
+                                            onClick = {
+                                                habitName = ""
+                                                selectedIcon = "😊"
+                                                currentQuote = ""
+                                                currentStep = 1
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                                            shape = RoundedCornerShape(24.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(50.dp)
+                                        ) {
+                                            Text(
+                                                text = "Create a new habit",
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -506,7 +530,7 @@ fun HabitCreationFlowDialog(
                         1 -> {
                             // SCREENSHOT 2 & 3: NEW HABIT STEP 1 (Name, Icon, Quote)
                             LazyColumn(
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 90.dp),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
@@ -676,13 +700,40 @@ fun HabitCreationFlowDialog(
                                         }
                                     }
                                 }
+
+                                item {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            if (habitName.isBlank()) {
+                                                nameError = true
+                                            } else {
+                                                nameError = false
+                                                currentStep = 2
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                                        shape = RoundedCornerShape(24.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(50.dp)
+                                            .testTag("habit_primary_action_button")
+                                    ) {
+                                        Text(
+                                            text = "Next",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
                             }
                         }
 
                         2 -> {
                             // SCREENSHOT 4, 5, 6, 7, 8, 9: NEW HABIT STEP 2 (Frequency, Goals, Folders, Reminder, #tags)
                             LazyColumn(
-                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 90.dp),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
@@ -1018,145 +1069,116 @@ fun HabitCreationFlowDialog(
                                         }
                                     }
                                 }
+
+                                // Save button
+                                item {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            val repeatTypeVal = when (selectedFrequencyOption) {
+                                                "DAILY" -> "daily"
+                                                "WEEKDAYS" -> "weekdays"
+                                                "WEEKLY" -> "weekly"
+                                                "MONTHLY" -> "monthly"
+                                                "YEARLY" -> "yearly"
+                                                "CUSTOM" -> "custom"
+                                                else -> "daily"
+                                            }
+
+                                            val customDays = when (selectedFrequencyOption) {
+                                                "WEEKDAYS" -> "Mon,Tue,Wed,Thu,Fri"
+                                                "CUSTOM" -> {
+                                                    if (customRepeatUnitState == "weeks" && customSelectedDaysOfWeek.isNotEmpty()) {
+                                                        customSelectedDaysOfWeek.joinToString(",")
+                                                    } else {
+                                                        null
+                                                    }
+                                                }
+                                                else -> null
+                                            }
+
+                                            val customVal = when (selectedFrequencyOption) {
+                                                "CUSTOM" -> customRepeatValueState
+                                                else -> 1
+                                            }
+
+                                            val customUnit = when (selectedFrequencyOption) {
+                                                "CUSTOM" -> customRepeatUnitState
+                                                "WEEKLY" -> "weeks"
+                                                "MONTHLY" -> "months"
+                                                "YEARLY" -> "years"
+                                                else -> "days"
+                                            }
+
+                                            if (habitToEdit != null) {
+                                                val updated = habitToEdit!!.copy(
+                                                    name = habitName,
+                                                    category = habitCategory,
+                                                    isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
+                                                    multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
+                                                    repeatType = repeatTypeVal,
+                                                    customRepeatValue = customVal,
+                                                    customRepeatUnit = customUnit,
+                                                    customRepeatDaysOfWeek = customDays,
+                                                    startDate = startDate,
+                                                    remindMe = reminderTimes.isNotEmpty(),
+                                                    reminderTime = reminderTimes.firstOrNull(),
+                                                    icon = selectedIcon,
+                                                    quote = currentQuote,
+                                                    goalType = goalType,
+                                                    goalDays = goalDays,
+                                                    section = if (selectedFolders.isEmpty()) "Inbox" else {
+                                                        val validFolders = selectedFolders.filter { it.isNotBlank() }
+                                                        val cleanedFolders = if (validFolders.size > 1) validFolders.filter { !it.equals("Others", ignoreCase = true) } else validFolders
+                                                        if (cleanedFolders.isEmpty()) "Inbox" else cleanedFolders.joinToString(",")
+                                                    }
+                                                )
+                                                viewModel.updateHabit(updated)
+                                            } else {
+                                                viewModel.addHabit(
+                                                    name = habitName,
+                                                    category = habitCategory,
+                                                    isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
+                                                    multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
+                                                    repeatType = repeatTypeVal,
+                                                    customRepeatValue = customVal,
+                                                    customRepeatUnit = customUnit,
+                                                    customRepeatDaysOfWeek = customDays,
+                                                    startDate = startDate,
+                                                    remindMe = reminderTimes.isNotEmpty(),
+                                                    reminderTime = reminderTimes.firstOrNull(),
+                                                    icon = selectedIcon,
+                                                    quote = currentQuote,
+                                                    goalType = goalType,
+                                                    goalDays = goalDays,
+                                                    section = if (selectedFolders.isEmpty()) "Inbox" else {
+                                                        val validFolders = selectedFolders.filter { it.isNotBlank() }
+                                                        val cleanedFolders = if (validFolders.size > 1) validFolders.filter { !it.equals("Others", ignoreCase = true) } else validFolders
+                                                        if (cleanedFolders.isEmpty()) "Inbox" else cleanedFolders.joinToString(",")
+                                                    },
+                                                    autoPopup = false
+                                                 )
+                                             }
+
+                                             onDismiss()
+                                         },
+                                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                                         shape = RoundedCornerShape(24.dp),
+                                         modifier = Modifier
+                                             .fillMaxWidth()
+                                             .height(50.dp)
+                                             .testTag("habit_primary_action_button")
+                                     ) {
+                                         Text(
+                                             text = if (habitToEdit != null) "Save Changes" else "Save",
+                                             fontSize = 16.sp,
+                                             fontWeight = FontWeight.Bold,
+                                             color = Color.White
+                                         )
+                                     }
+                                 }
                             }
                         }
-                    }
-                }
-
-                // Bottom Action Button Bar
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(surfaceColor)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            when (currentStep) {
-                                0 -> {
-                                    // Create a new habit
-                                    habitName = ""
-                                    selectedIcon = "😊"
-                                    currentQuote = ""
-                                    currentStep = 1
-                                }
-                                1 -> {
-                                    // Next button
-                                    if (habitName.isBlank()) {
-                                        nameError = true
-                                    } else {
-                                        nameError = false
-                                        currentStep = 2
-                                    }
-                                }
-                                2 -> {
-                                    // Save button
-                                    val repeatTypeVal = when (selectedFrequencyOption) {
-                                        "DAILY" -> "daily"
-                                        "WEEKDAYS" -> "weekdays"
-                                        "WEEKLY" -> "weekly"
-                                        "MONTHLY" -> "monthly"
-                                        "YEARLY" -> "yearly"
-                                        "CUSTOM" -> "custom"
-                                        else -> "daily"
-                                    }
-
-                                    val customDays = when (selectedFrequencyOption) {
-                                        "WEEKDAYS" -> "Mon,Tue,Wed,Thu,Fri"
-                                        "CUSTOM" -> {
-                                            if (customRepeatUnitState == "weeks" && customSelectedDaysOfWeek.isNotEmpty()) {
-                                                customSelectedDaysOfWeek.joinToString(",")
-                                            } else {
-                                                null
-                                            }
-                                        }
-                                        else -> null
-                                    }
-
-                                    val customVal = when (selectedFrequencyOption) {
-                                        "CUSTOM" -> customRepeatValueState
-                                        else -> 1
-                                    }
-
-                                    val customUnit = when (selectedFrequencyOption) {
-                                        "CUSTOM" -> customRepeatUnitState
-                                        "WEEKLY" -> "weeks"
-                                        "MONTHLY" -> "months"
-                                        "YEARLY" -> "years"
-                                        else -> "days"
-                                    }
-
-                                    if (habitToEdit != null) {
-                                        val updated = habitToEdit!!.copy(
-                                            name = habitName,
-                                            category = habitCategory,
-                                            isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
-                                            multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
-                                            repeatType = repeatTypeVal,
-                                            customRepeatValue = customVal,
-                                            customRepeatUnit = customUnit,
-                                            customRepeatDaysOfWeek = customDays,
-                                            startDate = startDate,
-                                            remindMe = reminderTimes.isNotEmpty(),
-                                            reminderTime = reminderTimes.firstOrNull(),
-                                            icon = selectedIcon,
-                                            quote = currentQuote,
-                                            goalType = goalType,
-                                            goalDays = goalDays,
-                                            section = if (selectedFolders.isEmpty()) "Inbox" else {
-                                                val validFolders = selectedFolders.filter { it.isNotBlank() }
-                                                val cleanedFolders = if (validFolders.size > 1) validFolders.filter { !it.equals("Others", ignoreCase = true) } else validFolders
-                                                if (cleanedFolders.isEmpty()) "Inbox" else cleanedFolders.joinToString(",")
-                                            }
-                                        )
-                                        viewModel.updateHabit(updated)
-                                    } else {
-                                        viewModel.addHabit(
-                                            name = habitName,
-                                            category = habitCategory,
-                                            isMultipleTimesPerDay = (goalType == "Reach a certain amount"),
-                                            multipleTimesTarget = if (goalType == "Reach a certain amount") goalAmount else 1,
-                                            repeatType = repeatTypeVal,
-                                            customRepeatValue = customVal,
-                                            customRepeatUnit = customUnit,
-                                            customRepeatDaysOfWeek = customDays,
-                                            startDate = startDate,
-                                            remindMe = reminderTimes.isNotEmpty(),
-                                            reminderTime = reminderTimes.firstOrNull(),
-                                            icon = selectedIcon,
-                                            quote = currentQuote,
-                                            goalType = goalType,
-                                            goalDays = goalDays,
-                                            section = if (selectedFolders.isEmpty()) "Inbox" else {
-                                                val validFolders = selectedFolders.filter { it.isNotBlank() }
-                                                val cleanedFolders = if (validFolders.size > 1) validFolders.filter { !it.equals("Others", ignoreCase = true) } else validFolders
-                                                if (cleanedFolders.isEmpty()) "Inbox" else cleanedFolders.joinToString(",")
-                                            },
-                                            autoPopup = false
-                                        )
-                                    }
-
-                                    onDismiss()
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .testTag("habit_primary_action_button")
-                    ) {
-                        Text(
-                            text = when (currentStep) {
-                                0 -> "Create a new habit"
-                                1 -> "Next"
-                                else -> if (habitToEdit != null) "Save Changes" else "Save"
-                            },
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
                     }
                 }
             }

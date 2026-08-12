@@ -1809,11 +1809,8 @@ fun SleepLogSection(
 ) {
     val focusManager = LocalFocusManager.current
     fun isValidSleepTime(time: String): Boolean {
-        val trimmed = time.trim()
-        val parts = trimmed.split(":")
-        if (parts.size != 2) return false
-        val hour = parts[0].toIntOrNull() ?: return false
-        val min = parts[1].toIntOrNull() ?: return false
+        if (time.isBlank()) return false
+        val (hour, min) = parseTimeHourMinute(time)
         return hour in 0..23 && min in 0..59
     }
 
@@ -2142,22 +2139,17 @@ fun SleepLogSection(
 
 fun calculateHoursDifference(start: String, end: String): Double {
     try {
-        val partsStart = start.split(":")
-        val partsEnd = end.split(":")
-        if (partsStart.size == 2 && partsEnd.size == 2) {
-            val hStart = partsStart[0].toIntOrNull() ?: 22
-            val mStart = partsStart[1].toIntOrNull() ?: 30
-            val hEnd = partsEnd[0].toIntOrNull() ?: 6
-            val mEnd = partsEnd[1].toIntOrNull() ?: 30
+        val (hStart, mStart) = parseTimeHourMinute(start)
+        val (hEnd, mEnd) = parseTimeHourMinute(end)
 
-            var diffMin = (hEnd * 60 + mEnd) - (hStart * 60 + mStart)
-            if (diffMin < 0) {
-                diffMin += 24 * 60 // spanned midnight
-            }
-            return diffMin / 60.0
+        var diffMin = (hEnd * 60 + mEnd) - (hStart * 60 + mStart)
+        if (diffMin <= 0) {
+            diffMin += 24 * 60 // spanned midnight or same time
         }
-    } catch (e: Exception) {}
-    return 8.0
+        return diffMin / 60.0
+    } catch (e: Exception) {
+        return 8.0
+    }
 }
 
 // --- HealthTips Evaluations (Part 16 Clinical Rules) ---

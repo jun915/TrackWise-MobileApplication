@@ -323,7 +323,7 @@ class ReminderReceiver : BroadcastReceiver() {
                                 context,
                                 notificationManager,
                                 "Task Reminder (${trigger.optionLabel}): ${task.title}",
-                                "Deadline: ${task.deadline} ${task.reminderTime ?: ""}. Don't forget to complete it!",
+                                "Project: ${task.project} • Priority: ${task.priority.uppercase()}${if (task.description.isNotBlank()) " • " + task.description else ""}",
                                 "workspace",
                                 0, // Tasks tab
                                 key.hashCode(),
@@ -351,7 +351,7 @@ class ReminderReceiver : BroadcastReceiver() {
                             context,
                             notificationManager,
                             "Habit: ${habit.name}",
-                            "It's time for your habit: ${habit.category}!",
+                            "Category: ${habit.category} • Streak: ${habit.streak} days${if (habit.quote.isNotBlank()) " • \"" + habit.quote + "\"" else if (habit.notes.isNotBlank()) " • " + habit.notes else ""}",
                             "workspace",
                             1, // Habit tab
                             key.hashCode(),
@@ -378,7 +378,7 @@ class ReminderReceiver : BroadcastReceiver() {
                             context,
                             notificationManager,
                             "Wishlist Reminder: ${item.title}",
-                            "Check out your item: ${item.title} (₹${item.price})",
+                            "Price: ₹${item.price} • Priority: ${item.priority.uppercase()}${if (!item.link.isNullOrBlank()) " • Link available" else ""}",
                             "workspace",
                             2, // Wishlist tab
                             key.hashCode(),
@@ -404,7 +404,7 @@ class ReminderReceiver : BroadcastReceiver() {
                             context,
                             notificationManager,
                             "Occasion Reminder: ${bday.name}",
-                            "Event: ${bday.name} is scheduled for today!",
+                            "Category: ${bday.category} • Date: ${bday.date}${if (!bday.giftIdea.isNullOrBlank()) " • Gift Idea: " + bday.giftIdea else ""}",
                             "workspace",
                             3, // Occasions tab
                             key.hashCode(),
@@ -531,6 +531,12 @@ class ReminderReceiver : BroadcastReceiver() {
             actionFlags
         )
 
+        val notifExtras = android.os.Bundle().apply {
+            if (taskId != null) putString("task_id", taskId)
+            if (tabletId != null) putString("tablet_id", tabletId)
+            if (habitId != null) putString("habit_id", habitId)
+        }
+
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(smallIcon)
             .setContentTitle(title)
@@ -538,6 +544,7 @@ class ReminderReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(false)
             .setOngoing(true)
+            .addExtras(notifExtras)
             .setVibrate(longArrayOf(0, 100, 50, 100))
             .setContentIntent(pendingIntent)
 

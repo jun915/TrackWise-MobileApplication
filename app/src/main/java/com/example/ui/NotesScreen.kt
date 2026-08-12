@@ -449,6 +449,27 @@ fun AbstractCanvasCover(preset: String) {
     }
 }
 
+fun copyUriToInternalStorage(context: android.content.Context, uri: android.net.Uri): String? {
+    try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val fileName = "notebook_cover_${System.currentTimeMillis()}.jpg"
+        val outputFile = java.io.File(context.filesDir, fileName)
+        val outputStream = java.io.FileOutputStream(outputFile)
+        val buffer = ByteArray(4 * 1024)
+        var read: Int
+        while (inputStream.read(buffer).also { read = it } != -1) {
+            outputStream.write(buffer, 0, read)
+        }
+        outputStream.flush()
+        outputStream.close()
+        inputStream.close()
+        return outputFile.absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return null
+}
+
 @Composable
 fun NotebookDialog(
     initialNotebook: NotebookEntity?,
@@ -459,12 +480,19 @@ fun NotebookDialog(
     var selectedPreset by remember { mutableStateOf(initialNotebook?.coverPreset ?: "preset_1") }
     var selectedCustomUri by remember { mutableStateOf<String?>(initialNotebook?.customCoverUri) }
 
+    val context = LocalContext.current
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            selectedCustomUri = uri.toString()
-            selectedPreset = "custom"
+            val persistentPath = copyUriToInternalStorage(context, uri)
+            if (persistentPath != null) {
+                selectedCustomUri = persistentPath
+                selectedPreset = "custom"
+            } else {
+                selectedCustomUri = uri.toString()
+                selectedPreset = "custom"
+            }
         }
     }
 
