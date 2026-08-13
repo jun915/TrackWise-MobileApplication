@@ -1221,19 +1221,54 @@ fun TodayItemsWidget(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         // Left: Calendar indicator / reminder
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.CalendarToday,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                            Text(
-                                                text = if (task.reminderTime != null) "Today at ${task.reminderTime}" else "Today",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                                modifier = Modifier.padding(start = 4.dp)
-                                            )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CalendarToday,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = if (task.reminderTime != null) "${task.deadline} at ${task.reminderTime}" else task.deadline,
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                                    modifier = Modifier.padding(start = 4.dp)
+                                                )
+                                            }
+
+                                            val daysLeftText = com.example.utils.TrackWiseUtils.getDaysLeftText(task.deadline)
+                                            if (daysLeftText.isNotBlank()) {
+                                                val isOverdue = daysLeftText.contains("Overdue", ignoreCase = true)
+                                                Card(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    colors = CardDefaults.cardColors(
+                                                        containerColor = if (isOverdue) MaterialTheme.colorScheme.error.copy(alpha = 0.12f) else BrandCyan.copy(alpha = 0.12f)
+                                                    )
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
+                                                            contentDescription = null,
+                                                            tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan,
+                                                            modifier = Modifier.size(11.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text(
+                                                            text = daysLeftText,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         // Right: Complete Toggle Circle button

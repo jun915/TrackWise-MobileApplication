@@ -42,6 +42,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.ParagraphStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -836,7 +843,7 @@ fun NoteStickyCard(
 
             if (note.content.isNotBlank()) {
                 Text(
-                    text = note.content,
+                    text = parseMarkdownToAnnotatedString(note.content),
                     fontSize = 13.sp,
                     color = Color.Black.copy(alpha = 0.75f),
                     maxLines = 4,
@@ -913,12 +920,81 @@ fun NoteEditorScreen(
     val redoStack = remember { mutableStateListOf<TextFieldValue>() }
 
     fun updateContent(newValue: TextFieldValue) {
+        var processedValue = newValue
         if (newValue.text != contentValue.text) {
             undoStack.add(contentValue)
             redoStack.clear()
             if (undoStack.size > 50) undoStack.removeAt(0)
+
+            // Auto-list continuation on Enter keypress
+            val oldText = contentValue.text
+            val newText = newValue.text
+            val oldSelStart = contentValue.selection.start
+
+            // Check if the difference is exactly one newline character inserted
+            if (newText.length == oldText.length + 1 && 
+                newValue.selection.start > 0 && 
+                newText[newValue.selection.start - 1] == '\n'
+            ) {
+                // The newline was inserted at oldSelStart
+                val lastNewLineBeforeEnter = if (oldSelStart > 0) oldText.lastIndexOf('\n', oldSelStart - 1) else -1
+                val lineStart = lastNewLineBeforeEnter + 1
+                val lineText = oldText.substring(lineStart, oldSelStart)
+
+                // Check if this line has a list prefix
+                val prefixes = listOf("• ", "[ ] ", "[x] ", "# ", "> ", "    ")
+                var detectedPrefix: String? = null
+
+                // Special check for numbered lists (e.g., "1. ", "2. ", etc.)
+                val numberRegex = Regex("^(\\d+)\\.\\s")
+                val numberMatch = numberRegex.find(lineText)
+
+                for (pref in prefixes) {
+                    if (lineText.startsWith(pref)) {
+                        detectedPrefix = pref
+                        break
+                    }
+                }
+
+                if (detectedPrefix == null && numberMatch != null) {
+                    try {
+                        val currentNum = numberMatch.groupValues[1].toInt()
+                        detectedPrefix = "${currentNum + 1}. "
+                    } catch (e: Exception) {}
+                }
+
+                if (detectedPrefix != null) {
+                    // Check if the line was JUST the prefix (i.e. user wants to terminate the list by pressing Enter on an empty list item)
+                    val trimmedLine = lineText.trim()
+                    val isJustPrefix = trimmedLine == detectedPrefix.trim() || 
+                        (numberMatch != null && trimmedLine == "${numberMatch.groupValues[1]}.") ||
+                        trimmedLine == "[ ]" || trimmedLine == "[x]"
+
+                    if (isJustPrefix) {
+                        // User pressed Enter on an empty list item -> terminate list (remove the prefix from the previous line)
+                        val textBeforeLine = oldText.substring(0, lineStart)
+                        val textAfterLine = oldText.substring(oldSelStart)
+                        val cleanText = textBeforeLine + textAfterLine
+                        val newCursor = lineStart
+                        processedValue = TextFieldValue(
+                            text = cleanText,
+                            selection = TextRange(newCursor.coerceIn(0, cleanText.length))
+                        )
+                    } else {
+                        // Continue the list: insert the prefix after the newline
+                        val textBeforeCursor = newText.substring(0, newValue.selection.start)
+                        val textAfterCursor = newText.substring(newValue.selection.start)
+                        val continuedText = textBeforeCursor + detectedPrefix + textAfterCursor
+                        val newCursor = newValue.selection.start + detectedPrefix.length
+                        processedValue = TextFieldValue(
+                            text = continuedText,
+                            selection = TextRange(newCursor.coerceIn(0, continuedText.length))
+                        )
+                    }
+                }
+            }
         }
-        contentValue = newValue
+        contentValue = processedValue
     }
 
     fun handleUndo() {
@@ -951,11 +1027,49 @@ fun NoteEditorScreen(
 
     fun insertLinePrefix(prefix: String) {
         val text = contentValue.text
-        val cursor = contentValue.selection.start.coerceIn(0, text.length)
-        val lineStart = if (cursor > 0) text.lastIndexOf('\n', cursor - 1) + 1 else 0
-        val safeLineStart = lineStart.coerceIn(0, text.length)
-        val newText = text.substring(0, safeLineStart) + prefix + text.substring(safeLineStart)
-        val newCursor = cursor + prefix.length
+        val selStart = contentValue.selection.start.coerceIn(0, text.length)
+        val selEnd = contentValue.selection.end.coerceIn(0, text.length)
+        val minSel = minOf(selStart, selEnd)
+        val maxSel = maxOf(selStart, selEnd)
+        
+        val lineStart = if (minSel > 0) text.lastIndexOf('\n', minSel - 1) + 1 else 0
+        val lineEnd = text.indexOf('\n', maxSel).let { if (it == -1) text.length else it }
+        
+        val selectedBlock = text.substring(lineStart, lineEnd)
+        val lines = selectedBlock.split("\n")
+        val knownPrefixes = listOf("• ", "1. ", "2. ", "3. ", "4. ", "5. ", "[ ] ", "[x] ", "# ", "> ", "    ")
+
+        val updatedLines = lines.mapIndexed { index, line ->
+            if (prefix.isBlank()) {
+                // Outdent action
+                var clean = line
+                for (kp in knownPrefixes) {
+                    if (clean.startsWith(kp)) {
+                        clean = clean.substring(kp.length)
+                        break
+                    }
+                }
+                clean
+            } else if (line.startsWith(prefix)) {
+                // Toggle off existing prefix
+                line.substring(prefix.length)
+            } else {
+                // Strip previous list prefix if any
+                var clean = line
+                for (kp in knownPrefixes) {
+                    if (clean.startsWith(kp)) {
+                        clean = clean.substring(kp.length)
+                        break
+                    }
+                }
+                val actualPrefix = if (prefix == "1. ") "${index + 1}. " else prefix
+                actualPrefix + clean
+            }
+        }
+
+        val newBlock = updatedLines.joinToString("\n")
+        val newText = text.substring(0, lineStart) + newBlock + text.substring(lineEnd)
+        val newCursor = lineStart + newBlock.length
         updateContent(TextFieldValue(text = newText, selection = TextRange(newCursor.coerceIn(0, newText.length))))
     }
 
@@ -1088,66 +1202,51 @@ fun NoteEditorScreen(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 1. Text Format (Bold / Styling)
+                        // 1. Bold
+                        IconButton(onClick = { insertTextAtSelection("**", "**") }) {
+                            Icon(Icons.Default.FormatBold, contentDescription = "Bold")
+                        }
+                        // 2. Italics
                         IconButton(onClick = { insertTextAtSelection("*", "*") }) {
-                            Text("A", fontWeight = FontWeight.Black, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Icon(Icons.Default.FormatItalic, contentDescription = "Italics")
                         }
-                        // 2. Bullet list
+                        // 3. Underline
+                        IconButton(onClick = { insertTextAtSelection("<u>", "</u>") }) {
+                            Icon(Icons.Default.FormatUnderlined, contentDescription = "Underline")
+                        }
+                        // 4. Strike Text
+                        IconButton(onClick = { insertTextAtSelection("~~", "~~") }) {
+                            Icon(Icons.Default.FormatStrikethrough, contentDescription = "Strike Text")
+                        }
+                        // 5. Pointer (Bullet points)
                         IconButton(onClick = { insertLinePrefix("• ") }) {
-                            Icon(Icons.Default.FormatListNumbered, contentDescription = "Bullet List")
+                            Icon(Icons.AutoMirrored.Default.FormatListBulleted, contentDescription = "Bullet List")
                         }
-                        // 3. Numbered list
+                        // 6. Number points
                         IconButton(onClick = { insertLinePrefix("1. ") }) {
-                            Icon(Icons.AutoMirrored.Default.FormatListBulleted, contentDescription = "Numbered List")
+                            Icon(Icons.Default.FormatListNumbered, contentDescription = "Numbered List")
                         }
-                        // 4. Checklist
+                        // 7. Left align
+                        IconButton(onClick = { insertTextAtSelection("<div align=\"left\">\n", "\n</div>") }) {
+                            Icon(Icons.AutoMirrored.Default.FormatAlignLeft, contentDescription = "Left Align")
+                        }
+                        // 8. Center align
+                        IconButton(onClick = { insertTextAtSelection("<div align=\"center\">\n", "\n</div>") }) {
+                            Icon(Icons.Default.FormatAlignCenter, contentDescription = "Center Align")
+                        }
+                        // 9. Right align
+                        IconButton(onClick = { insertTextAtSelection("<div align=\"right\">\n", "\n</div>") }) {
+                            Icon(Icons.AutoMirrored.Default.FormatAlignRight, contentDescription = "Right Align")
+                        }
+                        // 10. Check boxes
                         IconButton(onClick = { insertLinePrefix("[ ] ") }) {
-                            Icon(Icons.Default.CheckBox, contentDescription = "Checklist")
+                            Icon(Icons.Default.CheckBox, contentDescription = "Checkboxes")
                         }
-                        // 5. Heading
-                        IconButton(onClick = { insertLinePrefix("# ") }) {
-                            Icon(Icons.Default.Title, contentDescription = "Heading")
-                        }
-                        // 6. Quote
-                        IconButton(onClick = { insertLinePrefix("> ") }) {
-                            Icon(Icons.Default.FormatQuote, contentDescription = "Quote")
-                        }
-                        // 7. Code Block
-                        IconButton(onClick = { insertTextAtSelection("\n```\n", "\n```\n") }) {
-                            Icon(Icons.Default.Code, contentDescription = "Code Block")
-                        }
-                        // 8. Indent
-                        IconButton(onClick = { insertLinePrefix("    ") }) {
-                            Icon(Icons.AutoMirrored.Default.FormatIndentIncrease, contentDescription = "Indent")
-                        }
-                        // 9. Outdent
-                        IconButton(onClick = { insertLinePrefix("") }) {
-                            Icon(Icons.AutoMirrored.Default.FormatIndentDecrease, contentDescription = "Outdent")
-                        }
-                        // 10. Table
+                        // 11. Table cells
                         IconButton(onClick = {
                             insertTextAtSelection("\n| Col 1 | Col 2 |\n|---|---|\n| Item 1 | Item 2 |\n")
                         }) {
                             Icon(Icons.Default.GridOn, contentDescription = "Insert Table")
-                        }
-                        // 11. Link
-                        IconButton(onClick = { insertTextAtSelection("[Link Title](https://", ")") }) {
-                            Icon(Icons.Default.Link, contentDescription = "Insert Link")
-                        }
-                        // 12. Date Stamp
-                        IconButton(onClick = {
-                            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                            insertTextAtSelection(" $today ")
-                        }) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = "Insert Date")
-                        }
-                        // 13. Horizontal Rule
-                        IconButton(onClick = { insertTextAtSelection("\n---\n") }) {
-                            Icon(Icons.Default.HorizontalRule, contentDescription = "Horizontal Rule")
-                        }
-                        // 14. Note Color
-                        IconButton(onClick = { showColorPicker = true }) {
-                            Icon(Icons.Default.Palette, contentDescription = "Note Color")
                         }
                     }
                 }
@@ -1194,6 +1293,7 @@ fun NoteEditorScreen(
             BasicTextField(
                 value = contentValue,
                 onValueChange = { updateContent(it) },
+                visualTransformation = MarkdownVisualTransformation(),
                 textStyle = TextStyle(
                     fontSize = 16.sp,
                     color = Color.Black.copy(alpha = 0.85f),
@@ -1258,27 +1358,81 @@ fun NoteEditorScreen(
 
     // Reminder Picker Dialog
     if (showReminderPicker) {
+        val context = LocalContext.current
         var selectedDate by remember { mutableStateOf(reminderDate ?: SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())) }
         var selectedTime by remember { mutableStateOf(reminderTime ?: "09:00 AM") }
 
+        fun openDatePicker() {
+            val cal = Calendar.getInstance()
+            try {
+                val parts = selectedDate.split("-")
+                if (parts.size == 3) {
+                    cal.set(Calendar.YEAR, parts[0].toInt())
+                    cal.set(Calendar.MONTH, parts[1].toInt() - 1)
+                    cal.set(Calendar.DAY_OF_MONTH, parts[2].toInt())
+                }
+            } catch (e: Exception) {}
+
+            android.app.DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    selectedDate = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, dayOfMonth)
+                },
+                cal.get(Calendar.YEAR),
+                cal.get(Calendar.MONTH),
+                cal.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        }
+
+        fun openTimePicker() {
+            val cal = Calendar.getInstance()
+            android.app.TimePickerDialog(
+                context,
+                { _, hourOfDay, minute ->
+                    val amPm = if (hourOfDay >= 12) "PM" else "AM"
+                    val h12 = if (hourOfDay % 12 == 0) 12 else hourOfDay % 12
+                    selectedTime = String.format(Locale.US, "%02d:%02d %s", h12, minute, amPm)
+                },
+                cal.get(Calendar.HOUR_OF_DAY),
+                cal.get(Calendar.MINUTE),
+                false
+            ).show()
+        }
+
         AlertDialog(
             onDismissRequest = { showReminderPicker = false },
-            title = { Text("Set Note Reminder", fontWeight = FontWeight.Bold) },
+            title = { Text("Set Note Reminder 🔔", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = selectedDate,
-                        onValueChange = { selectedDate = it },
-                        label = { Text("Reminder Date (YYYY-MM-DD)") },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Reminder Date") },
+                        trailingIcon = {
+                            IconButton(onClick = { openDatePicker() }) {
+                                Icon(Icons.Default.CalendarToday, contentDescription = "Select Calendar Date")
+                            }
+                        },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { openDatePicker() }
                     )
                     OutlinedTextField(
                         value = selectedTime,
-                        onValueChange = { selectedTime = it },
-                        label = { Text("Reminder Time (e.g. 09:00 AM)") },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Reminder Time") },
+                        trailingIcon = {
+                            IconButton(onClick = { openTimePicker() }) {
+                                Icon(Icons.Default.AccessTime, contentDescription = "Select Clock Time")
+                            }
+                        },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { openTimePicker() }
                     )
                 }
             },
@@ -1307,4 +1461,253 @@ fun NoteEditorScreen(
             }
         )
     }
+}
+
+class MarkdownVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val original = text.text
+        val builder = AnnotatedString.Builder()
+        val mapping = ArrayList<Int>()
+        
+        val lines = original.split("\n")
+        var currentOriginalOffset = 0
+        
+        lines.forEachIndexed { lineIdx, line ->
+            val lineStartTransformed = builder.length
+            
+            var alignment: TextAlign? = null
+            var cleanLine = line
+            
+            if (line.startsWith("<div align=\"center\">")) {
+                alignment = TextAlign.Center
+                cleanLine = line.removePrefix("<div align=\"center\">")
+                if (cleanLine.endsWith("</div>")) {
+                    cleanLine = cleanLine.removeSuffix("</div>")
+                }
+            } else if (line.startsWith("<div align=\"right\">")) {
+                alignment = TextAlign.Right
+                cleanLine = line.removePrefix("<div align=\"right\">")
+                if (cleanLine.endsWith("</div>")) {
+                    cleanLine = cleanLine.removeSuffix("</div>")
+                }
+            } else if (line.startsWith("<div align=\"left\">")) {
+                alignment = TextAlign.Left
+                cleanLine = line.removePrefix("<div align=\"left\">")
+                if (cleanLine.endsWith("</div>")) {
+                    cleanLine = cleanLine.removeSuffix("</div>")
+                }
+            }
+            
+            var processedLine = ""
+            val inlineOriginalIndices = ArrayList<Int>()
+            
+            var i = 0
+            val lineLen = cleanLine.length
+            
+            while (i < lineLen) {
+                if (cleanLine.startsWith("**", i)) {
+                    i += 2
+                    continue
+                }
+                if (cleanLine.startsWith("~~", i)) {
+                    i += 2
+                    continue
+                }
+                if (cleanLine.startsWith("*", i)) {
+                    i += 1
+                    continue
+                }
+                if (cleanLine.startsWith("<u>", i)) {
+                    i += 3
+                    continue
+                }
+                if (cleanLine.startsWith("</u>", i)) {
+                    i += 4
+                    continue
+                }
+                if (cleanLine.startsWith("[ ]", i)) {
+                    processedLine += "☐"
+                    inlineOriginalIndices.add(i)
+                    i += 3
+                    continue
+                }
+                if (cleanLine.startsWith("[x]", i)) {
+                    processedLine += "☑"
+                    inlineOriginalIndices.add(i)
+                    i += 3
+                    continue
+                }
+                
+                processedLine += cleanLine[i]
+                inlineOriginalIndices.add(i)
+                i++
+            }
+            
+            val linePrefixInOriginal = line.length - cleanLine.length
+            
+            processedLine.forEachIndexed { charIdx, char ->
+                val origInCleanLine = inlineOriginalIndices[charIdx]
+                val origInOriginalLine = linePrefixInOriginal + origInCleanLine
+                val globalOrigOffset = currentOriginalOffset + origInOriginalLine
+                
+                mapping.add(globalOrigOffset)
+                
+                val startStyle = builder.length
+                builder.append(char)
+                val endStyle = builder.length
+                
+                var activeBold = false
+                var activeItalic = false
+                var activeUnderline = false
+                var activeStrike = false
+                var k = 0
+                while (k < origInCleanLine) {
+                    if (cleanLine.startsWith("**", k)) { activeBold = !activeBold; k += 2 }
+                    else if (cleanLine.startsWith("~~", k)) { activeStrike = !activeStrike; k += 2 }
+                    else if (cleanLine.startsWith("*", k)) { activeItalic = !activeItalic; k += 1 }
+                    else if (cleanLine.startsWith("<u>", k)) { activeUnderline = true; k += 3 }
+                    else if (cleanLine.startsWith("</u>", k)) { activeUnderline = false; k += 4 }
+                    else k++
+                }
+                
+                if (activeBold) builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), startStyle, endStyle)
+                if (activeItalic) builder.addStyle(SpanStyle(fontStyle = FontStyle.Italic), startStyle, endStyle)
+                if (activeUnderline) builder.addStyle(SpanStyle(textDecoration = TextDecoration.Underline), startStyle, endStyle)
+                if (activeStrike) builder.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), startStyle, endStyle)
+            }
+            
+            val lineEndTransformed = builder.length
+            
+            if (alignment != null) {
+                builder.addStyle(ParagraphStyle(textAlign = alignment), lineStartTransformed, lineEndTransformed)
+            }
+            
+            if (lineIdx < lines.size - 1) {
+                mapping.add(currentOriginalOffset + line.length)
+                builder.append("\n")
+            }
+            
+            currentOriginalOffset += line.length + 1
+        }
+        
+        mapping.add(original.length)
+        
+        val transformedAnnotatedString = builder.toAnnotatedString()
+        
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                if (offset <= 0) return 0
+                if (offset >= original.length) return transformedAnnotatedString.length
+                
+                var index = mapping.indexOfFirst { it >= offset }
+                if (index == -1) {
+                    index = transformedAnnotatedString.length
+                }
+                return index.coerceIn(0, transformedAnnotatedString.length)
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                if (offset <= 0) return 0
+                if (offset >= mapping.size) return original.length
+                return mapping[offset].coerceIn(0, original.length)
+            }
+        }
+        
+        return TransformedText(transformedAnnotatedString, offsetMapping)
+    }
+}
+
+fun parseMarkdownToAnnotatedString(original: String): AnnotatedString {
+    val builder = AnnotatedString.Builder()
+    val lines = original.split("\n")
+    
+    lines.forEachIndexed { lineIdx, line ->
+        val lineStartTransformed = builder.length
+        var alignment: TextAlign? = null
+        var cleanLine = line
+        
+        if (line.startsWith("<div align=\"center\">")) {
+            alignment = TextAlign.Center
+            cleanLine = line.removePrefix("<div align=\"center\">")
+            if (cleanLine.endsWith("</div>")) {
+                cleanLine = cleanLine.removeSuffix("</div>")
+            }
+        } else if (line.startsWith("<div align=\"right\">")) {
+            alignment = TextAlign.Right
+            cleanLine = line.removePrefix("<div align=\"right\">")
+            if (cleanLine.endsWith("</div>")) {
+                cleanLine = cleanLine.removeSuffix("</div>")
+            }
+        } else if (line.startsWith("<div align=\"left\">")) {
+            alignment = TextAlign.Left
+            cleanLine = line.removePrefix("<div align=\"left\">")
+            if (cleanLine.endsWith("</div>")) {
+                cleanLine = cleanLine.removeSuffix("</div>")
+            }
+        }
+        
+        var processedLine = ""
+        val inlineOriginalIndices = ArrayList<Int>()
+        var i = 0
+        val lineLen = cleanLine.length
+        
+        while (i < lineLen) {
+            if (cleanLine.startsWith("**", i)) { i += 2; continue }
+            if (cleanLine.startsWith("~~", i)) { i += 2; continue }
+            if (cleanLine.startsWith("*", i)) { i += 1; continue }
+            if (cleanLine.startsWith("<u>", i)) { i += 3; continue }
+            if (cleanLine.startsWith("</u>", i)) { i += 4; continue }
+            if (cleanLine.startsWith("[ ]", i)) {
+                processedLine += "☐"
+                inlineOriginalIndices.add(i)
+                i += 3
+                continue
+            }
+            if (cleanLine.startsWith("[x]", i)) {
+                processedLine += "☑"
+                inlineOriginalIndices.add(i)
+                i += 3
+                continue
+            }
+            processedLine += cleanLine[i]
+            inlineOriginalIndices.add(i)
+            i++
+        }
+        
+        processedLine.forEachIndexed { charIdx, char ->
+            val origInCleanLine = inlineOriginalIndices[charIdx]
+            val startStyle = builder.length
+            builder.append(char)
+            val endStyle = builder.length
+            
+            var activeBold = false
+            var activeItalic = false
+            var activeUnderline = false
+            var activeStrike = false
+            var k = 0
+            while (k < origInCleanLine) {
+                if (cleanLine.startsWith("**", k)) { activeBold = !activeBold; k += 2 }
+                else if (cleanLine.startsWith("~~", k)) { activeStrike = !activeStrike; k += 2 }
+                else if (cleanLine.startsWith("*", k)) { activeItalic = !activeItalic; k += 1 }
+                else if (cleanLine.startsWith("<u>", k)) { activeUnderline = true; k += 3 }
+                else if (cleanLine.startsWith("</u>", k)) { activeUnderline = false; k += 4 }
+                else k++
+            }
+            
+            if (activeBold) builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), startStyle, endStyle)
+            if (activeItalic) builder.addStyle(SpanStyle(fontStyle = FontStyle.Italic), startStyle, endStyle)
+            if (activeUnderline) builder.addStyle(SpanStyle(textDecoration = TextDecoration.Underline), startStyle, endStyle)
+            if (activeStrike) builder.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), startStyle, endStyle)
+        }
+        
+        val lineEndTransformed = builder.length
+        if (alignment != null) {
+            builder.addStyle(ParagraphStyle(textAlign = alignment), lineStartTransformed, lineEndTransformed)
+        }
+        
+        if (lineIdx < lines.size - 1) {
+            builder.append("\n")
+        }
+    }
+    return builder.toAnnotatedString()
 }

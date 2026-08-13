@@ -214,6 +214,23 @@ object TrackWiseUtils {
         return dateStr < APP_LAUNCH_DATE
     }
 
+    fun getDaysLeftText(deadline: String): String {
+        if (deadline.isBlank()) return ""
+        val todayStr = getTodayString()
+        if (deadline == todayStr) return "Due today"
+        val dDate = parseDate(deadline)
+        val tDate = parseDate(todayStr)
+        val diffMs = dDate.time - tDate.time
+        val diffDays = java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
+        return when {
+            diffDays == 0 -> "Due today"
+            diffDays == 1 -> "1 day left"
+            diffDays > 1 -> "$diffDays days left"
+            diffDays == -1 -> "Overdue by 1 day"
+            else -> "Overdue by ${kotlin.math.abs(diffDays)} days"
+        }
+    }
+
     // --- Islamic Calendar (Hijri Date and 99 Names) ---
     // Epoch: 2025-12-21 is Day 100 ("Allah"), so 2025-12-22 is Day 1
     fun getAllahNameForDate(dateStr: String): AllahName {

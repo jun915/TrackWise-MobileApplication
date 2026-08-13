@@ -1072,6 +1072,37 @@ fun TaskCard(
                             )
                         }
 
+                        // Days Left Badge
+                        val daysLeftText = com.example.utils.TrackWiseUtils.getDaysLeftText(task.deadline)
+                        if (daysLeftText.isNotBlank()) {
+                            val isOverdue = daysLeftText.contains("Overdue", ignoreCase = true)
+                            Card(
+                                shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isOverdue) MaterialTheme.colorScheme.error.copy(alpha = 0.12f) else BrandCyan.copy(alpha = 0.12f)
+                                )
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
+                                        contentDescription = null,
+                                        tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = daysLeftText,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan
+                                    )
+                                }
+                            }
+                        }
+
                         // Reminder Time with Alarm Icon
                         if (task.reminderTime != null) {
                             Row(

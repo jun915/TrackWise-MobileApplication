@@ -1193,7 +1193,10 @@ class TrackWiseViewModel(
 
     fun ensureDefaultNotebookSeeded() {
         val user = _sessionUser.value ?: return
+        val prefs = getApplication<Application>().getSharedPreferences("trackwise_notebook_seed_${user.id}", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("seeded", false)) return
         if (allNotebooks.value.isEmpty()) {
+            prefs.edit().putBoolean("seeded", true).apply()
             viewModelScope.launch(Dispatchers.IO) {
                 val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
                 val nb1 = NotebookEntity(
@@ -2764,20 +2767,21 @@ class TrackWiseViewModel(
 
     // --- Water Log Actions ---
     fun adjustWaterLog(glassesDelta: Int) {
-        val user = _sessionUser.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
+            val user = _sessionUser.value ?: allUsers.value.firstOrNull()
+            val userId = user?.id ?: "user-default-syed"
             val today = TrackWiseUtils.getTodayString()
-            val currentLog = repository.getWaterLogForDate(user.id, today)
+            val currentLog = repository.getWaterLogForDate(userId, today)
             
             if (currentLog == null) {
                 val initGlasses = max(0, glassesDelta)
                 repository.insertWaterLog(
                     WaterLogEntity(
-                        id = "${user.id}_$today",
-                        userId = user.id,
+                        id = "${userId}_$today",
+                        userId = userId,
                         date = today,
                         glasses = initGlasses,
-                        goal = user.waterGoalGlasses
+                        goal = user?.waterGoalGlasses ?: 8
                     )
                 )
             } else {
@@ -5018,6 +5022,28 @@ class TrackWiseViewModel(
                                     addNotification(
                                         title = "Occasion Reminder: ${bday.name}",
                                         message = "Category: ${bday.category} • Date: ${bday.date}${if (!bday.giftIdea.isNullOrBlank()) " • Gift Idea: " + bday.giftIdea else ""}",
+                                        showSystem = true,
+                                        canSnooze = true
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Check Notes
+                    val activeUid = _sessionUser.value?.id ?: allUsers.value.firstOrNull()?.id
+                    if (activeUid != null) {
+                        val notesList = repository.getAllNotesFlow(activeUid).first()
+                        notesList.forEach { note ->
+                            val rDate = note.reminderDate?.take(10)
+                            val rTime = note.reminderTime?.trim()
+                            if (!rDate.isNullOrBlank() && rDate == todayStr && rTime == currentTimeStr) {
+                                val key = "note-${note.id}-$rDate-$rTime"
+                                if (!triggeredReminders.contains(key)) {
+                                    triggeredReminders.add(key)
+                                    addNotification(
+                                        title = "Note Reminder: ${note.title}",
+                                        message = if (note.content.isNotBlank()) note.content.take(100) else "You have a note reminder set for today.",
                                         showSystem = true,
                                         canSnooze = true
                                     )

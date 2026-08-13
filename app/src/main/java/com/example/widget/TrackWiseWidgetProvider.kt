@@ -126,28 +126,16 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                 // --- 1. Top Right: Small Date & Time + Urdu Date + Today's Allah Name ---
                 val now = Date()
                 val calendar = Calendar.getInstance()
+                val todayStr = TrackWiseUtils.getTodayString()
                 val displayDateStr = SimpleDateFormat("EEE, MMM d • hh:mm a", Locale.US).format(now)
                 views.setTextViewText(R.id.widget_header_time_date, displayDateStr)
                 views.setTextColor(R.id.widget_header_time_date, textSecondaryColor)
 
-                val dayOfYear = calendar.get(Calendar.DAY_OF_YEAR)
-                val allahNameObj = TrackWiseUtils.ALLAH_NAMES[(dayOfYear) % 99]
+                val allahNameObj = TrackWiseUtils.getAllahNameForDate(todayStr)
                 val allahNameStr = "ﷲ ${allahNameObj.transliteration} (${allahNameObj.arabic})"
 
-                val hijriDateStr = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        val hijrah = java.time.chrono.HijrahDate.now()
-                        val day = hijrah.get(java.time.temporal.ChronoField.DAY_OF_MONTH)
-                        val monthIdx = hijrah.get(java.time.temporal.ChronoField.MONTH_OF_YEAR)
-                        val year = hijrah.get(java.time.temporal.ChronoField.YEAR)
-                        val hijriMonths = arrayOf("", "Muharram", "Safar", "Rabi' I", "Rabi' II", "Jumada I", "Jumada II", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah")
-                        "$day ${hijriMonths.getOrElse(monthIdx) { "Safar" }} $year AH"
-                    } else {
-                        "23 Safar 1448 AH"
-                    }
-                } catch (e: Exception) {
-                    "23 Safar 1448 AH"
-                }
+                val hijriInfo = TrackWiseUtils.getHijriInfo(todayStr)
+                val hijriDateStr = "${hijriInfo.day} ${hijriInfo.monthNameUr} ${hijriInfo.year} AH"
 
                 views.setTextViewText(R.id.widget_header_urdu_allah, "$hijriDateStr • $allahNameStr")
 
@@ -163,7 +151,6 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_finance_balance, "💰 Net Balance: ₹${netBalance.toInt()}")
 
                 // --- 3. Max 2 Countdown Events Today (GONE if no events today) ---
-                val todayStr = TrackWiseUtils.getTodayString().take(10)
                 val birthdays = dao.getBirthdaysForUserFlow(userId).first()
                 val todayBirthdays = birthdays.filter { it.date.endsWith(todayStr.substring(5)) }.map { "🎉 ${it.name}'s Birthday" }
                 val todayFestivals = TrackWiseUtils.getIndianFestivalsForDate(todayStr).map { "🎆 $it" }
