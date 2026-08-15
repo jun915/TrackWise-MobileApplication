@@ -1258,36 +1258,83 @@ class TrackWiseViewModel(
         val todayStr = TrackWiseUtils.getTodayString()
         if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@combine 0
         
-        // 1. Dynamic Task Points (High: 50 pts, Medium: 30 pts, Low: 15 pts + 10 pts early bonus)
+        // 1. Dynamic Task Points (High: 50 pts, Medium: 30 pts, Low: 15 pts + early/late proportional bonus)
         val taskPoints = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && it.completed }.sumOf { 
             val base = when (it.priority.lowercase()) {
                 "high" -> 50
                 "medium" -> 30
                 else -> 15
             }
-            val bonus = if (it.deadline >= todayStr) 10 else 0
-            base + bonus
+            val daysDiff = try {
+                val dDate = TrackWiseUtils.parseDate(it.deadline)
+                val tDate = TrackWiseUtils.parseDate(todayStr)
+                val diffMs = dDate.time - tDate.time
+                (diffMs / (1000 * 60 * 60 * 24)).toInt()
+            } catch (e: Exception) {
+                0
+            }
+            if (daysDiff >= 0) {
+                // Completed on time or early! Reward them based on how soon they did it
+                val earlyBonus = (daysDiff * 5).coerceAtMost(30)
+                base + 10 + earlyBonus
+            } else {
+                // Completed late. Scale reward down depending on how late they were
+                val penaltyFactor = 1f / (1f + (-daysDiff) * 0.15f)
+                val scaledPoints = (base * 0.5f) + (base * 0.5f * penaltyFactor)
+                scaledPoints.toInt()
+            }
         }
         
-        // 2. Dynamic Habit Points: 10 pts per completion count, plus 15 pts bonus if they reach the target
+        // 2. Dynamic Habit Points: 10 pts per completion count, plus streak/early proportional bonuses
         val habitPoints = habits.sumOf { habit ->
             val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
             val completionsToday = days.count { it == todayStr }
             if (completionsToday > 0) {
-                if (habit.isMultipleTimesPerDay) {
-                    val base = completionsToday * 10
-                    val bonus = if (completionsToday >= habit.multipleTimesTarget) 15 else 0
-                    base + bonus
+                val base = if (habit.isMultipleTimesPerDay) {
+                    val compBase = completionsToday * 10
+                    val compBonus = if (completionsToday >= habit.multipleTimesTarget) 15 else 0
+                    compBase + compBonus
                 } else {
                     20
                 }
+                // Consistency/Schedule streak bonus: reward them more if they kept the consistency schedule up soon
+                val streakBonus = (habit.streak * 2).coerceAtMost(20)
+                // Early-Bird/Scheduling Reward: completed early in the day (before noon)
+                val calendar = Calendar.getInstance()
+                val hour = calendar.get(Calendar.HOUR_OF_DAY)
+                val earlyBirdBonus = if (hour < 12) 10 else 0
+                
+                base + streakBonus + earlyBirdBonus
             } else {
                 0
             }
         }
 
-        // 3. Dynamic Wishlist Points: 100 points for each purchased wishlist item
-        val wishPoints = wishlist.filter { it.purchased }.size * 100
+        // 3. Dynamic Wishlist Points: 100 points + soon purchase proportional rewards
+        val wishPoints = wishlist.filter { it.purchased }.sumOf { item ->
+            val base = 100
+            if (!item.reminderDate.isNullOrBlank()) {
+                val daysDiff = try {
+                    val rDate = TrackWiseUtils.parseDate(item.reminderDate)
+                    val tDate = TrackWiseUtils.parseDate(todayStr)
+                    val diffMs = rDate.time - tDate.time
+                    (diffMs / (1000 * 60 * 60 * 24)).toInt()
+                } catch (e: Exception) {
+                    0
+                }
+                if (daysDiff >= 0) {
+                    // Purchased on/before the reminder!
+                    val soonBonus = (daysDiff * 3).coerceAtMost(40)
+                    base + 20 + soonBonus
+                } else {
+                    // Purchased late relative to reminder. Scale the remaining 50 XP
+                    val penaltyFactor = 1f / (1f + (-daysDiff) * 0.1f)
+                    (50 + (50 * penaltyFactor)).toInt()
+                }
+            } else {
+                base
+            }
+        }
 
         // 4. Dynamic Grocery Points: 10 points for each completed grocery item
         val groceryPoints = groceries.filter { it.completed }.size * 10

@@ -31,6 +31,10 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 
 @Composable
 fun SettingsScreen(
@@ -1154,6 +1158,14 @@ fun BackupAndSyncSection(
     val autoBackupFreq by viewModel.autoBackupFrequency.collectAsState()
     val lastBackupTime by viewModel.lastAutoBackupTime.collectAsState()
     val themeColor = MaterialTheme.colorScheme.primary
+    var showLogExplorer by remember { mutableStateOf(false) }
+
+    if (showLogExplorer) {
+        AllLogsExplorerDialog(
+            viewModel = viewModel,
+            onDismiss = { showLogExplorer = false }
+        )
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1220,6 +1232,38 @@ fun BackupAndSyncSection(
                         Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Import", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = { showLogExplorer = true },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            tint = themeColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "View All Logged Records",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColor,
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                        )
                     }
                 }
             }
@@ -1541,3 +1585,544 @@ fun AccountSection(
         }
     }
 }
+
+@Composable
+fun AllLogsExplorerDialog(
+    viewModel: TrackWiseViewModel,
+    onDismiss: () -> Unit
+) {
+    val tasks by viewModel.allTasks.collectAsState()
+    val habits by viewModel.allHabits.collectAsState()
+    val financeLogs by viewModel.allFinanceLogs.collectAsState()
+    
+    val sleepLogs by viewModel.sleepLogs.collectAsState()
+    val waterLogs by viewModel.waterLogs.collectAsState()
+    val exerciseLogs by viewModel.exerciseLogs.collectAsState()
+    val weightEntries by viewModel.weightEntries.collectAsState()
+    val vitalReadings by viewModel.vitalReadings.collectAsState()
+    val healthIssueLogs by viewModel.healthIssueLogs.collectAsState()
+
+    var selectedTabIndex by remember { mutableStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchExpanded by remember { mutableStateOf(false) }
+
+    val combinedHealth = remember(sleepLogs, waterLogs, exerciseLogs, weightEntries, vitalReadings, healthIssueLogs) {
+        val list = ArrayList<HealthLogItem>()
+        sleepLogs.forEach { list.add(HealthLogItem(it.date, "Sleep Logged", "Duration: ${it.hoursSlept} hours (${it.startTime} - ${it.endTime})", "sleep", BrandCyan)) }
+        waterLogs.forEach { list.add(HealthLogItem(it.date, "Water Logged", "Drank ${it.glasses} glasses of ${it.goal} target", "water", BrandCyan)) }
+        exerciseLogs.forEach { list.add(HealthLogItem(it.date, "Exercise Completed", "${it.exerciseType} for ${it.durationMinutes} mins", "exercise", BrandGreen)) }
+        weightEntries.forEach { list.add(HealthLogItem(it.date, "Weight Recorded", "Logged: ${it.weightKg} kg", "weight", BrandRose)) }
+        vitalReadings.forEach { list.add(HealthLogItem(it.date, "Vital: ${it.type.replace("_", " ").uppercase()}", "Value: ${it.value} (${it.context ?: "general"})", "vital", BrandAmber)) }
+        healthIssueLogs.forEach { list.add(HealthLogItem(it.date, "Health Issue Reported", "${it.issueName} (${it.severity.uppercase()})", "issue", BrandRose)) }
+        list.sortedByDescending { it.date }
+    }
+
+    val filteredTasks = remember(tasks, searchQuery) {
+        if (searchQuery.isBlank()) tasks
+        else tasks.filter { it.title.contains(searchQuery, ignoreCase = true) || it.project.contains(searchQuery, ignoreCase = true) || it.priority.contains(searchQuery, ignoreCase = true) }
+    }
+
+    val filteredHabits = remember(habits, searchQuery) {
+        if (searchQuery.isBlank()) habits
+        else habits.filter { it.name.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true) }
+    }
+
+    val filteredFinance = remember(financeLogs, searchQuery) {
+        if (searchQuery.isBlank()) financeLogs
+        else financeLogs.filter { it.title.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true) || (it.notes ?: "").contains(searchQuery, ignoreCase = true) }
+    }
+
+    val filteredHealth = remember(combinedHealth, searchQuery) {
+        if (searchQuery.isBlank()) combinedHealth
+        else combinedHealth.filter { it.title.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true) || it.date.contains(searchQuery, ignoreCase = true) }
+    }
+
+    val tabs = listOf(
+        "Tasks (${filteredTasks.size})",
+        "Habits (${filteredHabits.size})",
+        "Finance (${filteredFinance.size})",
+        "Health (${filteredHealth.size})"
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
+                // Top App Bar / Page Header
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp,
+                    shadowElevation = 2.dp
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Historical Log Explorer",
+                                        fontSize = 19.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Unified activity & completion records",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    isSearchExpanded = !isSearchExpanded
+                                    if (!isSearchExpanded) searchQuery = ""
+                                },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
+                                    contentDescription = if (isSearchExpanded) "Close Search" else "Search Logs",
+                                    tint = if (isSearchExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        // Search Bar expansion
+                        AnimatedVisibility(visible = isSearchExpanded) {
+                            Column(modifier = Modifier.padding(top = 10.dp)) {
+                                OutlinedTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("Filter logs in this tab...", fontSize = 13.sp) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { searchQuery = "" }) {
+                                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Tab Navigation
+                        ScrollableTabRow(
+                            selectedTabIndex = selectedTabIndex,
+                            modifier = Modifier.fillMaxWidth(),
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.primary,
+                            edgePadding = 0.dp,
+                            divider = {}
+                        ) {
+                            tabs.forEachIndexed { index, title ->
+                                val isSelected = selectedTabIndex == index
+                                Tab(
+                                    selected = isSelected,
+                                    onClick = { selectedTabIndex = index },
+                                    text = {
+                                        Text(
+                                            title,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Page Content List
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    when (selectedTabIndex) {
+                        0 -> {
+                            if (filteredTasks.isEmpty()) {
+                                HistoricalEmptyState(
+                                    icon = Icons.Default.TaskAlt,
+                                    title = if (searchQuery.isBlank()) "No Task Records" else "No matching tasks found",
+                                    subtitle = if (searchQuery.isBlank()) "Tasks you create and complete will appear here as historic logs." else "Try adjusting your search query."
+                                )
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    contentPadding = PaddingValues(bottom = 24.dp)
+                                ) {
+                                    items(filteredTasks.size) { i ->
+                                        val task = filteredTasks[i]
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(14.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(
+                                                        task.title,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 14.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                                        ) {
+                                                            Text(
+                                                                task.project.ifBlank { "General" },
+                                                                fontSize = 10.sp,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = MaterialTheme.colorScheme.primary,
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                        Surface(
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            color = when (task.priority.lowercase()) {
+                                                                "high" -> BrandRose.copy(alpha = 0.15f)
+                                                                "medium" -> BrandAmber.copy(alpha = 0.15f)
+                                                                else -> BrandGreen.copy(alpha = 0.15f)
+                                                            }
+                                                        ) {
+                                                            Text(
+                                                                "${task.priority.uppercase()} Priority",
+                                                                fontSize = 10.sp,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = when (task.priority.lowercase()) {
+                                                                    "high" -> BrandRose
+                                                                    "medium" -> BrandAmber
+                                                                    else -> BrandGreen
+                                                                },
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                    if (task.deadline.isNotBlank()) {
+                                                        Text("Due: ${task.deadline}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                val statusText = if (task.completed) "Done" else "Pending"
+                                                val statusColor = if (task.completed) BrandGreen else BrandAmber
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = statusColor.copy(alpha = 0.15f)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (task.completed) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                                                            contentDescription = null,
+                                                            tint = statusColor,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                        Text(statusText, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = statusColor)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        1 -> {
+                            if (filteredHabits.isEmpty()) {
+                                HistoricalEmptyState(
+                                    icon = Icons.Default.Whatshot,
+                                    title = if (searchQuery.isBlank()) "No Habit Records" else "No matching habits found",
+                                    subtitle = if (searchQuery.isBlank()) "Track habits daily to build streaks and maintain logs." else "Try adjusting your search query."
+                                )
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    contentPadding = PaddingValues(bottom = 24.dp)
+                                ) {
+                                    items(filteredHabits.size) { i ->
+                                        val habit = filteredHabits[i]
+                                        val days = com.example.utils.TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(habit.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                    Surface(
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        color = BrandRose.copy(alpha = 0.15f)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.Whatshot, contentDescription = null, tint = BrandRose, modifier = Modifier.size(14.dp))
+                                                            Text("${habit.streak} d streak", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = BrandRose)
+                                                        }
+                                                    }
+                                                }
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                                    ) {
+                                                        Text(habit.category, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                                    }
+                                                    Text("• ${habit.frequency}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                                }
+                                                if (days.isNotEmpty()) {
+                                                    Text("Completions (${days.size}): ${days.takeLast(10).joinToString(", ")}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), maxLines = 2)
+                                                } else {
+                                                    Text("No completions logged yet.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        2 -> {
+                            if (filteredFinance.isEmpty()) {
+                                HistoricalEmptyState(
+                                    icon = Icons.Default.AttachMoney,
+                                    title = if (searchQuery.isBlank()) "No Financial Records" else "No matching transactions found",
+                                    subtitle = if (searchQuery.isBlank()) "Transactions and expense logs will be presented here in chronological order." else "Try adjusting your search query."
+                                )
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    contentPadding = PaddingValues(bottom = 24.dp)
+                                ) {
+                                    items(filteredFinance.size) { i ->
+                                        val log = filteredFinance[i]
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(14.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(log.title.ifBlank { log.category }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                    Row(
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                                        ) {
+                                                            Text(log.category, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                                        }
+                                                        Text("• ${log.date}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                                    }
+                                                    if (!log.notes.isNullOrBlank()) {
+                                                        Text("Note: ${log.notes}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                val prefix = when (log.type) {
+                                                    "income" -> "+"
+                                                    "savings" -> "🐖"
+                                                    else -> "-"
+                                                }
+                                                val amtColor = when (log.type) {
+                                                    "income" -> BrandGreen
+                                                    "savings" -> BrandCyan
+                                                    else -> BrandRose
+                                                }
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = amtColor.copy(alpha = 0.15f)
+                                                ) {
+                                                    Text(
+                                                        "$prefix${String.format(Locale.getDefault(), "%.2f", log.amount)}",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp,
+                                                        color = amtColor,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        3 -> {
+                            if (filteredHealth.isEmpty()) {
+                                HistoricalEmptyState(
+                                    icon = Icons.Default.Favorite,
+                                    title = if (searchQuery.isBlank()) "No Health Records" else "No matching health entries found",
+                                    subtitle = if (searchQuery.isBlank()) "Sleep, water, workouts, vitals, and health issues will be chronicled here." else "Try adjusting your search query."
+                                )
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    contentPadding = PaddingValues(bottom = 24.dp)
+                                ) {
+                                    items(filteredHealth.size) { i ->
+                                        val item = filteredHealth[i]
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(14.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(item.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                    Text(item.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
+                                                }
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = item.themeColor.copy(alpha = 0.15f)
+                                                ) {
+                                                    Text(
+                                                        item.date,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = item.themeColor,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HistoricalEmptyState(
+    icon: ImageVector,
+    title: String,
+    subtitle: String
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(64.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+data class HealthLogItem(
+    val date: String,
+    val title: String,
+    val description: String,
+    val type: String,
+    val themeColor: Color
+)

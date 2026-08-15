@@ -1072,37 +1072,6 @@ fun TaskCard(
                             )
                         }
 
-                        // Days Left Badge
-                        val daysLeftText = com.example.utils.TrackWiseUtils.getDaysLeftText(task.deadline)
-                        if (daysLeftText.isNotBlank()) {
-                            val isOverdue = daysLeftText.contains("Overdue", ignoreCase = true)
-                            Card(
-                                shape = RoundedCornerShape(6.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isOverdue) MaterialTheme.colorScheme.error.copy(alpha = 0.12f) else BrandCyan.copy(alpha = 0.12f)
-                                )
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
-                                        contentDescription = null,
-                                        tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = daysLeftText,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan
-                                    )
-                                }
-                            }
-                        }
-
                         // Reminder Time with Alarm Icon
                         if (task.reminderTime != null) {
                             Row(
@@ -1257,6 +1226,42 @@ fun TaskCard(
                             fontWeight = FontWeight.Bold,
                             color = if (task.completed) tileTextColor.copy(alpha = 0.5f) else adaptiveBrandViolet,
                             modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+
+                // Days Left: just icon and number (right top corner of the card)
+                val diffDays = remember(task.deadline) {
+                    if (task.deadline.isBlank()) null else {
+                        try {
+                            val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
+                            val dDate = com.example.utils.TrackWiseUtils.parseDate(task.deadline)
+                            val tDate = com.example.utils.TrackWiseUtils.parseDate(todayStr)
+                            val diffMs = dDate.time - tDate.time
+                            java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
+                        } catch(e: Exception) {
+                            0
+                        }
+                    }
+                }
+                diffDays?.let { days ->
+                    val isOverdue = days < 0
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        modifier = Modifier.padding(top = 4.dp, start = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "$days",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan
                         )
                     }
                 }
@@ -4266,7 +4271,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
             Pair("Vivid Amber", "#F59E0B")
         )
 
-        Dialog(
+            Dialog(
             onDismissRequest = { detailedBirthday = null },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
@@ -4274,10 +4279,26 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
             ) {
+                val wallpaperToUse = remember(activeBday.customBgImage, bdayType) {
+                    val custom = activeBday.customBgImage
+                    when {
+                        !custom.isNullOrEmpty() && (custom.startsWith("http://") || custom.startsWith("https://") || custom.startsWith("content://") || custom.startsWith("file://")) -> custom
+                        custom == "ocean" -> "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800"
+                        custom == "sunset" -> "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800"
+                        custom == "velvet" -> "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800"
+                        custom == "solid_pink" -> "https://images.unsplash.com/photo-1557683316-973673baf926?w=800"
+                        bdayType.equals("countdown", ignoreCase = true) || activeBday.category.contains("countdown", ignoreCase = true) -> "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800"
+                        bdayType.equals("birthday", ignoreCase = true) -> "https://images.unsplash.com/photo-1513151233558-d860c5398176?w=800"
+                        bdayType.equals("marriage anniversary", ignoreCase = true) || bdayType.equals("anniversary", ignoreCase = true) -> "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800"
+                        bdayType.equals("holiday", ignoreCase = true) -> "https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=800"
+                        else -> "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800"
+                    }
+                }
+
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Background image
-                    if (!activeBday.customBgImage.isNullOrEmpty()) {
-                        val optimizedBg = com.example.ui.theme.BackgroundPresets.getOptimizedUnsplashUrl(activeBday.customBgImage!!, width = 1080, quality = 75)
+                    // Background wallpaper
+                    if (wallpaperToUse.isNotBlank()) {
+                        val optimizedBg = com.example.ui.theme.BackgroundPresets.getOptimizedUnsplashUrl(wallpaperToUse, width = 1080, quality = 75)
                         AsyncImage(
                             model = optimizedBg,
                             contentDescription = null,
@@ -4288,7 +4309,7 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.5f))
+                                .background(Color.Black.copy(alpha = 0.55f))
                         )
                     }
 

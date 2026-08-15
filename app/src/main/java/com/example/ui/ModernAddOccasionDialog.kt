@@ -42,6 +42,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import com.example.data.BirthdayEntity
 import com.example.ui.theme.*
 import java.text.SimpleDateFormat
@@ -1587,9 +1589,23 @@ private fun AppearanceSelectionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(getBrushForPreset(selectedBgPreset, parsedColor))
-                    .padding(20.dp)
             ) {
+                if (selectedBgPreset.startsWith("http://") || selectedBgPreset.startsWith("https://") || selectedBgPreset.startsWith("content://")) {
+                    AsyncImage(
+                        model = com.example.ui.theme.BackgroundPresets.getOptimizedUnsplashUrl(selectedBgPreset, width = 600, quality = 70),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.45f))
+                    )
+                }
+
                 Row(
+                    modifier = Modifier.padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {

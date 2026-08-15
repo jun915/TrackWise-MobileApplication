@@ -715,79 +715,7 @@ fun MoneyTrackerHomeView(
     onEditLog: (FinanceLogEntity) -> Unit = {},
     onDeleteLog: (FinanceLogEntity) -> Unit = {}
 ) {
-    var longPressLog by remember { mutableStateOf<FinanceLogEntity?>(null) }
-
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
-    if (longPressLog != null) {
-        val log = longPressLog!!
-        val isPinned = pinnedFinanceLogIds.contains(log.id)
-        if (showDeleteConfirm) {
-            AlertDialog(
-                onDismissRequest = { showDeleteConfirm = false },
-                title = { Text("Confirm Delete", fontWeight = FontWeight.Bold) },
-                text = { Text("Are you sure you want to delete this transaction (${log.category} - ${log.amount})? This action cannot be undone.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showDeleteConfirm = false
-                        val currentLog = longPressLog
-                        longPressLog = null
-                        if (currentLog != null) onDeleteLog(currentLog)
-                    }) {
-                        Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
-                }
-            )
-        } else {
-            AlertDialog(
-                onDismissRequest = { longPressLog = null },
-                title = { Text(log.category, fontWeight = FontWeight.Bold) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(
-                            onClick = {
-                                longPressLog = null
-                                onEditLog(log)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Edit Transaction", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        }
-                        TextButton(
-                            onClick = {
-                                onTogglePinLog(log.id)
-                                longPressLog = null
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.PushPin, contentDescription = null, tint = Color(0xFFF59E0B))
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (isPinned) "Unpin from Top" else "Pin to Top", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        }
-                        TextButton(
-                            onClick = {
-                                showDeleteConfirm = true
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Delete Transaction", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { longPressLog = null }) { Text("Cancel") }
-                }
-            )
-        }
-    }
+    var menuTargetLog by remember { mutableStateOf<FinanceLogEntity?>(null) }
 
     if (monthLogs.isEmpty()) {
         Box(
@@ -866,12 +794,46 @@ fun MoneyTrackerHomeView(
 
                         // List of items
                         sortedLogs.forEach { log ->
-                            FinanceItemRow(
-                                log = log,
-                                isPinned = pinnedFinanceLogIds.contains(log.id),
-                                onClick = { onSelectLog(log) },
-                                onLongClick = { longPressLog = log }
-                            )
+                            val isPinned = pinnedFinanceLogIds.contains(log.id)
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                FinanceItemRow(
+                                    log = log,
+                                    isPinned = isPinned,
+                                    onClick = { onSelectLog(log) },
+                                    onLongClick = { menuTargetLog = log }
+                                )
+
+                                DropdownMenu(
+                                    expanded = menuTargetLog?.id == log.id,
+                                    onDismissRequest = { menuTargetLog = null }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit Transaction") },
+                                        onClick = {
+                                            menuTargetLog = null
+                                            onEditLog(log)
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (isPinned) "Unpin from Top" else "Pin to Top") },
+                                        onClick = {
+                                            menuTargetLog = null
+                                            onTogglePinLog(log.id)
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = Color(0xFFF59E0B)) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete Transaction", color = MaterialTheme.colorScheme.error) },
+                                        onClick = {
+                                            val target = log
+                                            menuTargetLog = null
+                                            onDeleteLog(target)
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.height(6.dp))
                         }
                     }

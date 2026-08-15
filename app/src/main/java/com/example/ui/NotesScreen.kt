@@ -135,6 +135,7 @@ fun NotebooksGridScreen(
     var localShowCreateDialog by remember { mutableStateOf(false) }
     var notebookToEdit by remember { mutableStateOf<NotebookEntity?>(null) }
     var notebookMenuTarget by remember { mutableStateOf<NotebookEntity?>(null) }
+    var notebookToDelete by remember { mutableStateOf<NotebookEntity?>(null) }
 
     val showDialog = showCreateDialogFromVm || localShowCreateDialog || notebookToEdit != null
 
@@ -239,9 +240,9 @@ fun NotebooksGridScreen(
                                 DropdownMenuItem(
                                     text = { Text("Delete Notebook", color = MaterialTheme.colorScheme.error) },
                                     onClick = {
-                                        val id = notebook.id
+                                        val target = notebook
                                         notebookMenuTarget = null
-                                        viewModel.deleteNotebook(id)
+                                        notebookToDelete = target
                                     },
                                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                                 )
@@ -251,6 +252,33 @@ fun NotebooksGridScreen(
                 }
             }
         }
+    }
+
+    if (notebookToDelete != null) {
+        val targetNotebook = notebookToDelete!!
+        AlertDialog(
+            onDismissRequest = { notebookToDelete = null },
+            icon = { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Notebook?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete \"${targetNotebook.title}\" and all its notes? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val id = targetNotebook.id
+                        notebookToDelete = null
+                        viewModel.deleteNotebook(id)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { notebookToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     // Create / Edit Notebook Dialog
@@ -623,6 +651,7 @@ fun NotebookDetailScreen(
     var searchQuery by remember { mutableStateOf("") }
     val isSearchActive by viewModel.isNoteSearchActive.collectAsState()
     var noteMenuTarget by remember { mutableStateOf<NoteEntity?>(null) }
+    var noteToDelete by remember { mutableStateOf<NoteEntity?>(null) }
 
     val filteredNotes = remember(notes, searchQuery) {
         if (searchQuery.isBlank()) notes
@@ -728,9 +757,9 @@ fun NotebookDetailScreen(
                                     DropdownMenuItem(
                                         text = { Text("Delete Note", color = MaterialTheme.colorScheme.error) },
                                         onClick = {
-                                            val id = note.id
+                                            val target = note
                                             noteMenuTarget = null
-                                            viewModel.deleteNote(id)
+                                            noteToDelete = target
                                         },
                                         leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                                     )
@@ -774,9 +803,9 @@ fun NotebookDetailScreen(
                                     DropdownMenuItem(
                                         text = { Text("Delete Note", color = MaterialTheme.colorScheme.error) },
                                         onClick = {
-                                            val id = note.id
+                                            val target = note
                                             noteMenuTarget = null
-                                            viewModel.deleteNote(id)
+                                            noteToDelete = target
                                         },
                                         leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                                     )
@@ -787,6 +816,33 @@ fun NotebookDetailScreen(
                 }
             }
         }
+    }
+
+    if (noteToDelete != null) {
+        val targetNote = noteToDelete!!
+        AlertDialog(
+            onDismissRequest = { noteToDelete = null },
+            icon = { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Note?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete \"${targetNote.title.ifBlank { "this note" }}\"? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val id = targetNote.id
+                        noteToDelete = null
+                        viewModel.deleteNote(id)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { noteToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -914,6 +970,7 @@ fun NoteEditorScreen(
     var showReminderPicker by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     // Undo & Redo History Stack
     val undoStack = remember { mutableStateListOf<TextFieldValue>() }
@@ -1173,7 +1230,7 @@ fun NoteEditorScreen(
                                     text = { Text("Delete Note", color = MaterialTheme.colorScheme.error) },
                                     onClick = {
                                         showMenu = false
-                                        onDelete()
+                                        showDeleteConfirmation = true
                                     },
                                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                                 )
@@ -1457,6 +1514,31 @@ fun NoteEditorScreen(
                     }
                 ) {
                     Text("Clear")
+                }
+            }
+        )
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            icon = { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete Note?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete this note? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel")
                 }
             }
         )

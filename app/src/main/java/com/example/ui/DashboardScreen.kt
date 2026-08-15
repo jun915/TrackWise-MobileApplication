@@ -1185,23 +1185,60 @@ fun TodayItemsWidget(
                                             )
                                         }
 
-                                        Spacer(modifier = Modifier.width(8.dp))
-
-                                        // XP capsule tag (Amanah style)
-                                        Card(
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
-                                                                else BrandCyan.copy(alpha = 0.12f)
-                                            ),
-                                            shape = RoundedCornerShape(6.dp)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Text(
-                                                text = "+${task.points} XP",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (task.completed) BrandGreen else BrandCyan,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
+                                            val diffDays = remember(task.deadline) {
+                                                if (task.deadline.isBlank()) null else {
+                                                    try {
+                                                        val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
+                                                        val dDate = com.example.utils.TrackWiseUtils.parseDate(task.deadline)
+                                                        val tDate = com.example.utils.TrackWiseUtils.parseDate(todayStr)
+                                                        val diffMs = dDate.time - tDate.time
+                                                        java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
+                                                    } catch(e: Exception) {
+                                                        0
+                                                    }
+                                                }
+                                            }
+                                            diffDays?.let { days ->
+                                                val isOverdue = days < 0
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
+                                                        contentDescription = null,
+                                                        tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Text(
+                                                        text = "$days",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan
+                                                    )
+                                                }
+                                            }
+
+                                            // XP capsule tag (Amanah style)
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
+                                                                    else BrandCyan.copy(alpha = 0.12f)
+                                                ),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "+${task.points} XP",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (task.completed) BrandGreen else BrandCyan,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
                                         }
                                     }
 
@@ -1238,36 +1275,6 @@ fun TodayItemsWidget(
                                                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                                                     modifier = Modifier.padding(start = 4.dp)
                                                 )
-                                            }
-
-                                            val daysLeftText = com.example.utils.TrackWiseUtils.getDaysLeftText(task.deadline)
-                                            if (daysLeftText.isNotBlank()) {
-                                                val isOverdue = daysLeftText.contains("Overdue", ignoreCase = true)
-                                                Card(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    colors = CardDefaults.cardColors(
-                                                        containerColor = if (isOverdue) MaterialTheme.colorScheme.error.copy(alpha = 0.12f) else BrandCyan.copy(alpha = 0.12f)
-                                                    )
-                                                ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
-                                                            contentDescription = null,
-                                                            tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan,
-                                                            modifier = Modifier.size(11.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(3.dp))
-                                                        Text(
-                                                            text = daysLeftText,
-                                                            fontSize = 10.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = if (isOverdue) MaterialTheme.colorScheme.error else BrandCyan
-                                                        )
-                                                    }
-                                                }
                                             }
                                         }
 
@@ -1495,23 +1502,60 @@ fun PriorityItemsWidget(
                                             )
                                         }
 
-                                        Spacer(modifier = Modifier.width(8.dp))
-
-                                        // XP capsule tag
-                                        Card(
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
-                                                                else BrandRose.copy(alpha = 0.12f)
-                                            ),
-                                            shape = RoundedCornerShape(6.dp)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Text(
-                                                text = "+${task.points} XP",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (task.completed) BrandGreen else BrandRose,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
+                                            val diffDays = remember(task.deadline) {
+                                                if (task.deadline.isBlank()) null else {
+                                                    try {
+                                                        val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
+                                                        val dDate = com.example.utils.TrackWiseUtils.parseDate(task.deadline)
+                                                        val tDate = com.example.utils.TrackWiseUtils.parseDate(todayStr)
+                                                        val diffMs = dDate.time - tDate.time
+                                                        java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
+                                                    } catch(e: Exception) {
+                                                        0
+                                                    }
+                                                }
+                                            }
+                                            diffDays?.let { days ->
+                                                val isOverdue = days < 0
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
+                                                        contentDescription = null,
+                                                        tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandRose,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Text(
+                                                        text = "$days",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isOverdue) MaterialTheme.colorScheme.error else BrandRose
+                                                    )
+                                                }
+                                            }
+
+                                            // XP capsule tag
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
+                                                                    else BrandRose.copy(alpha = 0.12f)
+                                                ),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "+${task.points} XP",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (task.completed) BrandGreen else BrandRose,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
                                         }
                                     }
 
