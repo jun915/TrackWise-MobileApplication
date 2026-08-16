@@ -251,15 +251,27 @@ class TrackWiseViewModel(
     fun updateAppWidget() {
         try {
             val context = getApplication<Application>().applicationContext
-            val intent = android.content.Intent(context, com.example.widget.TrackWiseWidgetProvider::class.java).apply {
+            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+
+            // Update Summary Widget
+            val summaryIntent = android.content.Intent(context, com.example.widget.TrackWiseWidgetProvider::class.java).apply {
                 action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
             }
-            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-            val appWidgetIds = appWidgetManager.getAppWidgetIds(
+            val summaryIds = appWidgetManager.getAppWidgetIds(
                 android.content.ComponentName(context, com.example.widget.TrackWiseWidgetProvider::class.java)
             )
-            intent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
-            context.sendBroadcast(intent)
+            summaryIntent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, summaryIds)
+            context.sendBroadcast(summaryIntent)
+
+            // Update Analytics Chart Widget
+            val analyticsIntent = android.content.Intent(context, com.example.widget.TrackWiseAnalyticsWidgetProvider::class.java).apply {
+                action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            }
+            val analyticsIds = appWidgetManager.getAppWidgetIds(
+                android.content.ComponentName(context, com.example.widget.TrackWiseAnalyticsWidgetProvider::class.java)
+            )
+            analyticsIntent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, analyticsIds)
+            context.sendBroadcast(analyticsIntent)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -1012,6 +1024,12 @@ class TrackWiseViewModel(
     val allNotebooks: StateFlow<List<NotebookEntity>> = _sessionUser
         .flatMapLatest { user ->
             if (user != null) repository.getNotebooksFlow(user.id) else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allNotes: StateFlow<List<NoteEntity>> = _sessionUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getAllNotesFlow(user.id) else flowOf(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

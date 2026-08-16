@@ -17,11 +17,14 @@ import com.example.ui.TrackWiseViewModel
 import com.example.ui.theme.MyApplicationTheme
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.remember
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -140,15 +143,18 @@ class MainActivity : ComponentActivity() {
             ) {
                 val isLoggedIn by viewModel.isLoggedIn.collectAsState(initial = false)
                 val focusManager = LocalFocusManager.current
+                val keyboardController = LocalSoftwareKeyboardController.current
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            focusManager.clearFocus()
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = {
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
+                                }
+                            )
                         }
                 ) {
                     if (isLoggedIn) {

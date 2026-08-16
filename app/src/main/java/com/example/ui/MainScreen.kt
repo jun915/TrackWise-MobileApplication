@@ -1,7 +1,9 @@
 package com.example.ui
 
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.focus.FocusRequester
@@ -443,10 +445,19 @@ fun MainScreen(
         }
     }
 
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     com.example.ui.theme.AppBackground(
         viewModel = viewModel,
         isDark = isDark,
-        modifier = modifier
+        modifier = modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onTap = {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                }
+            )
+        }
     ) {
         val activeSubTab by viewModel.workspaceSubTab.collectAsState()
         val isMoreMenuActive = showMoreMenu || 

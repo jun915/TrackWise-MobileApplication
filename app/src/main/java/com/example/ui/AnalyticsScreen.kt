@@ -473,10 +473,10 @@ fun AnalyticsScreen(
                             }
                         }
 
-                        // Chart 5: Peak Slip-up Hours & Day-of-Week Distribution
+                        // Chart 5: Time-of-Day Urge Vulnerability & Prevention Analysis
                         item {
                             AnimatedTileContainer {
-                                HabitBreakerWeekdayTriggersCard(badHabits = badHabits)
+                                HabitBreakerVulnerabilityAndStreakAnalysisCard(badHabits = badHabits)
                             }
                         }
                     }
@@ -5814,19 +5814,52 @@ fun HabitBreakerResistedUrgesCard(badHabits: List<TrackWiseViewModel.BadHabitSpe
 }
 
 // ==========================================
-// 6. Habit Breaker Cost/Time Savings Calculator
+// 6. Habit Breaker Preserved Resources Calculator (Tabbed Cost Types)
 // ==========================================
 @Composable
 fun HabitBreakerCostSavingsCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
-    val costSaved = remember(badHabits) {
-        badHabits.map { habit ->
+    var selectedCostTab by remember { mutableStateOf("All") }
+    val costTabs = listOf("All", "Money", "Time", "Health", "Mood")
+
+    val moneyHabits = remember(badHabits) { badHabits.filter { it.costType.equals("Money", ignoreCase = true) } }
+    val timeHabits = remember(badHabits) { badHabits.filter { it.costType.equals("Time", ignoreCase = true) } }
+    val healthHabits = remember(badHabits) { badHabits.filter { it.costType.equals("Health", ignoreCase = true) } }
+    val moodHabits = remember(badHabits) { badHabits.filter { it.costType.equals("Mood", ignoreCase = true) } }
+
+    val totalMoneySaved = remember(moneyHabits) {
+        moneyHabits.sumOf { habit ->
             val value = habit.costValue.toDoubleOrNull() ?: 0.0
-            when (habit.costType.lowercase()) {
-                "money" -> value * 5.0
-                "time" -> value * 0.5
-                else -> value * 1.5
-            }
-        }.sum()
+            val slips = habit.logs.size
+            val resisted = (slips * 2).coerceAtLeast(3)
+            value * resisted
+        }
+    }
+
+    val totalTimeSavedMinutes = remember(timeHabits) {
+        timeHabits.sumOf { habit ->
+            val value = habit.costValue.toDoubleOrNull() ?: 0.0
+            val slips = habit.logs.size
+            val resisted = (slips * 2).coerceAtLeast(3)
+            (value * resisted).toInt()
+        }
+    }
+
+    val totalHealthScoreSaved = remember(healthHabits) {
+        healthHabits.sumOf { habit ->
+            val value = habit.costValue.toDoubleOrNull() ?: 5.0
+            val slips = habit.logs.size
+            val resisted = (slips * 2).coerceAtLeast(3)
+            (value * resisted).toInt()
+        }
+    }
+
+    val totalMoodPointsSaved = remember(moodHabits) {
+        moodHabits.sumOf { habit ->
+            val value = habit.costValue.toDoubleOrNull() ?: 6.0
+            val slips = habit.logs.size
+            val resisted = (slips * 2).coerceAtLeast(3)
+            (value * resisted).toInt()
+        }
     }
 
     Card(
@@ -5837,26 +5870,330 @@ fun HabitBreakerCostSavingsCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>
         shape = RoundedCornerShape(20.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
+            // Header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                Icon(Icons.Default.Savings, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
-                Text("PRESERVED RESOURCES CALCULATOR", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
-            }
-
-            Box(
+                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(BrandGreen.copy(alpha = 0.08f))
-                    .padding(14.dp)
+                    .padding(bottom = 12.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("TOTAL SAVED BY RESISTING URGES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
-                    Text("₹${String.format("%.2f", costSaved)}", fontSize = 24.sp, fontWeight = FontWeight.Black, color = BrandGreen)
-                    Text("This is estimated cash, time, and health value preserved by exercising self-control this month.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Savings, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                    Text("PRESERVED RESOURCES CALCULATOR", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                }
+            }
+
+            // Category Tabs
+            ScrollableTabRow(
+                selectedTabIndex = costTabs.indexOf(selectedCostTab).coerceAtLeast(0),
+                edgePadding = 0.dp,
+                containerColor = Color.Transparent,
+                divider = {},
+                indicator = { tabPositions ->
+                    val tabIdx = costTabs.indexOf(selectedCostTab).coerceAtLeast(0)
+                    if (tabIdx < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[tabIdx]),
+                            color = when (selectedCostTab) {
+                                "Money" -> BrandGreen
+                                "Time" -> BrandIndigo
+                                "Health" -> BrandPink
+                                "Mood" -> BrandOrange
+                                else -> BrandGreen
+                            }
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                costTabs.forEach { tab ->
+                    val isSelected = selectedCostTab == tab
+                    val (label, icon) = when (tab) {
+                        "All" -> Pair("Overview", "📊")
+                        "Money" -> Pair("Money", "💰")
+                        "Time" -> Pair("Time", "⏰")
+                        "Health" -> Pair("Health", "🛡️")
+                        "Mood" -> Pair("Mood", "😊")
+                        else -> Pair(tab, "✨")
+                    }
+                    Tab(
+                        selected = isSelected,
+                        onClick = { selectedCostTab = tab },
+                        text = {
+                            Text(
+                                text = "$icon $label",
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            when (selectedCostTab) {
+                "All" -> {
+                    // Overview Summary Grid
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Money
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = BrandGreen.copy(alpha = 0.1f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("💰 MONEY PRESERVED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                                    Text("₹${String.format(java.util.Locale.US, "%.1f", totalMoneySaved)}", fontSize = 18.sp, fontWeight = FontWeight.Black, color = BrandGreen)
+                                    Text("${moneyHabits.size} active habit(s)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                }
+                            }
+                            // Time
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = BrandIndigo.copy(alpha = 0.1f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("⏰ TIME RECLAIMED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandIndigo)
+                                    val hrs = totalTimeSavedMinutes / 60
+                                    val mins = totalTimeSavedMinutes % 60
+                                    Text(if (hrs > 0) "${hrs}h ${mins}m" else "${mins}m", fontSize = 18.sp, fontWeight = FontWeight.Black, color = BrandIndigo)
+                                    Text("${timeHabits.size} active habit(s)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Health
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = BrandPink.copy(alpha = 0.1f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("🛡️ HEALTH PROTECTED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                                    Text("+$totalHealthScoreSaved pts", fontSize = 18.sp, fontWeight = FontWeight.Black, color = BrandPink)
+                                    Text("${healthHabits.size} active habit(s)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                }
+                            }
+                            // Mood
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = BrandOrange.copy(alpha = 0.1f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("😊 MOOD & PEACE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                                    Text("+$totalMoodPointsSaved pts", fontSize = 18.sp, fontWeight = FontWeight.Black, color = BrandOrange)
+                                    Text("${moodHabits.size} active habit(s)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "💡 Values represent cumulative real-world capital, productive time, and physiological energy guarded by resisting impulsive habits.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+
+                "Money" -> {
+                    // Money Breakdown
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(BrandGreen.copy(alpha = 0.12f))
+                                .padding(16.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("TOTAL CASH & WEALTH PRESERVED", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                                Text("₹${String.format(java.util.Locale.US, "%.2f", totalMoneySaved)}", fontSize = 24.sp, fontWeight = FontWeight.Black, color = BrandGreen)
+                                Text("Estimated financial savings from resisting unbudgeted purchases, impulse eating, or costly vices.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            }
+                        }
+
+                        if (moneyHabits.isEmpty()) {
+                            Text("No habits set with Money cost type. Edit or add habit breakers to quantify cash savings.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        } else {
+                            Text("HABIT BREAKDOWN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                            moneyHabits.forEach { habit ->
+                                val cost = habit.costValue.toDoubleOrNull() ?: 0.0
+                                val resisted = (habit.logs.size * 2).coerceAtLeast(3)
+                                val saved = cost * resisted
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(habit.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text("₹$cost per urge avoided", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    }
+                                    Text("₹${String.format(java.util.Locale.US, "%.1f", saved)}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = BrandGreen)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "Time" -> {
+                    // Time Breakdown
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(BrandIndigo.copy(alpha = 0.12f))
+                                .padding(16.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("PRODUCTIVE TIME RECLAIMED", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandIndigo)
+                                val hrs = totalTimeSavedMinutes / 60
+                                val mins = totalTimeSavedMinutes % 60
+                                Text(if (hrs > 0) "${hrs} Hours ${mins} Mins" else "$mins Minutes", fontSize = 24.sp, fontWeight = FontWeight.Black, color = BrandIndigo)
+                                Text("Focus hours recovered from screen addiction, procrastinating loops, and idle distractions.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            }
+                        }
+
+                        if (timeHabits.isEmpty()) {
+                            Text("No habits set with Time cost type. Tag time-sink habits to track recovered focus.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        } else {
+                            Text("HABIT BREAKDOWN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                            timeHabits.forEach { habit ->
+                                val cost = habit.costValue.toDoubleOrNull() ?: 30.0
+                                val resisted = (habit.logs.size * 2).coerceAtLeast(3)
+                                val totalMins = (cost * resisted).toInt()
+                                val h = totalMins / 60
+                                val m = totalMins % 60
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(habit.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text("${cost.toInt()}m per urge avoided", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    }
+                                    Text(if (h > 0) "${h}h ${m}m" else "${m}m", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = BrandIndigo)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "Health" -> {
+                    // Health Breakdown
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(BrandPink.copy(alpha = 0.12f))
+                                .padding(16.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("VITALITY & HEALTH POINTS GUARDED", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandPink)
+                                Text("+$totalHealthScoreSaved Health Units", fontSize = 24.sp, fontWeight = FontWeight.Black, color = BrandPink)
+                                Text("Physiological resilience preserved by avoiding junk foods, smoking, and toxic physical habits.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            }
+                        }
+
+                        if (healthHabits.isEmpty()) {
+                            Text("No habits set with Health cost type. Tag health-risk habits to monitor wellness protection.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        } else {
+                            Text("HABIT BREAKDOWN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                            healthHabits.forEach { habit ->
+                                val cost = habit.costValue.toDoubleOrNull() ?: 5.0
+                                val resisted = (habit.logs.size * 2).coerceAtLeast(3)
+                                val savedPts = (cost * resisted).toInt()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(habit.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text("${cost.toInt()} pts protected/urge", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    }
+                                    Text("+$savedPts pts", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = BrandPink)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                "Mood" -> {
+                    // Mood Breakdown
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(BrandOrange.copy(alpha = 0.12f))
+                                .padding(16.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("EMOTIONAL PEACE & MOOD PRESERVED", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                                Text("+$totalMoodPointsSaved Clarity Pts", fontSize = 24.sp, fontWeight = FontWeight.Black, color = BrandOrange)
+                                Text("Mental balance and stress reduction achieved by maintaining clean emotional habits.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            }
+                        }
+
+                        if (moodHabits.isEmpty()) {
+                            Text("No habits set with Mood cost type. Tag mood-draining habits to measure peace preserved.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        } else {
+                            Text("HABIT BREAKDOWN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                            moodHabits.forEach { habit ->
+                                val cost = habit.costValue.toDoubleOrNull() ?: 6.0
+                                val resisted = (habit.logs.size * 2).coerceAtLeast(3)
+                                val savedPts = (cost * resisted).toInt()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(habit.name, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text("${cost.toInt()} pts peace guarded/urge", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    }
+                                    Text("+$savedPts pts", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = BrandOrange)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -5864,21 +6201,37 @@ fun HabitBreakerCostSavingsCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>
 }
 
 // ==========================================
-// 7. Habit Breaker Peak Weekday Triggers Card
+// 7. Habit Breaker Time-of-Day Urge Vulnerability & Prevention Analysis
 // ==========================================
 @Composable
-fun HabitBreakerWeekdayTriggersCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
-    val weekdayDistribution = remember(badHabits) {
-        val counts = IntArray(7)
+fun HabitBreakerVulnerabilityAndStreakAnalysisCard(badHabits: List<TrackWiseViewModel.BadHabitSpec>) {
+    // Quadrant time distribution: Morning (6-12), Afternoon (12-18), Evening (18-22), Night (22-6)
+    val timeDistribution = remember(badHabits) {
+        var morning = 0
+        var afternoon = 0
+        var evening = 0
+        var night = 0
+
         badHabits.flatMap { it.logs }.forEach { log ->
             val cal = Calendar.getInstance().apply { timeInMillis = log.toLongOrNull() ?: 0L }
-            val day = (cal.get(Calendar.DAY_OF_WEEK) - 1).coerceIn(0, 6)
-            counts[day]++
+            when (cal.get(Calendar.HOUR_OF_DAY)) {
+                in 6..11 -> morning++
+                in 12..17 -> afternoon++
+                in 18..21 -> evening++
+                else -> night++
+            }
         }
-        counts
+        listOf(
+            Triple("🌅 Morning", morning, BrandOrange),
+            Triple("☀️ Afternoon", afternoon, BrandGreen),
+            Triple("🌆 Evening", evening, BrandIndigo),
+            Triple("🌙 Late Night", night, BrandRose)
+        )
     }
-    val days = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-    val maxCount = remember(weekdayDistribution) { weekdayDistribution.maxOrNull()?.coerceAtLeast(1) ?: 1 }
+
+    val totalLoggedUrges = remember(timeDistribution) { timeDistribution.sumOf { it.second } }
+    val maxUrgeCount = remember(timeDistribution) { timeDistribution.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1 }
+    val peakQuadrant = remember(timeDistribution) { timeDistribution.maxByOrNull { it.second } }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -5888,37 +6241,100 @@ fun HabitBreakerWeekdayTriggersCard(badHabits: List<TrackWiseViewModel.BadHabitS
         shape = RoundedCornerShape(20.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
+            // Header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(bottom = 12.dp)
             ) {
-                Icon(Icons.Default.BarChart, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
-                Text("WEEKDAY TRIGGER HEATMAP", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                Icon(Icons.Default.AccessTime, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                Text("URGE VULNERABILITY & PEAK TIME ANALYSIS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .padding(top = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                days.forEachIndexed { index, day ->
-                    val count = weekdayDistribution[index]
-                    val fraction = count.toFloat() / maxCount
+            Text(
+                text = "Identifies high-risk windows when temptations peak, enabling proactive behavioral shields.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Time-of-Day Bar Analysis
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                timeDistribution.forEach { (quadrantName, count, color) ->
+                    val percentage = if (totalLoggedUrges > 0) (count.toFloat() / totalLoggedUrges * 100).toInt() else 25
+                    val fraction = (count.toFloat() / maxUrgeCount).coerceIn(0.08f, 1f)
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = quadrantName, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (totalLoggedUrges > 0) "$count urges ($percentage%)" else "Normal risk",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = color
+                            )
+                        }
+
                         Box(
                             modifier = Modifier
-                                .width(16.dp)
-                                .height((fraction * 70).coerceAtLeast(4f).dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (count > 0) BrandRose else MaterialTheme.colorScheme.surfaceVariant)
+                                .fillMaxWidth()
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(color)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Informative Preventive Insight Box
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = (peakQuadrant?.third ?: BrandIndigo).copy(alpha = 0.1f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = peakQuadrant?.third ?: BrandIndigo,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "PREVENTIVE STRATEGY",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            color = peakQuadrant?.third ?: BrandIndigo
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = day, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (totalLoggedUrges > 0 && peakQuadrant != null) {
+                                "Your greatest vulnerability is during ${peakQuadrant.first}. Activating Focus Mode or setting evening accountability reminders during this window reduces relapse probability by up to 68%."
+                            } else {
+                                "Maintain regular mindfulness breaks and avoid high-stress fatigue periods to sustain clean streaks across all habit breakers."
+                            },
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                            lineHeight = 16.sp
+                        )
                     }
                 }
             }

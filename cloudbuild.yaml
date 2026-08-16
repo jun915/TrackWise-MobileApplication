@@ -1,0 +1,36 @@
+steps:
+  # Step 1: Decode the debug keystore
+  - name: 'ubuntu'
+    id: 'prepare-keystore'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ -f "debug.keystore.base64" ]; then
+          echo "Decoding debug.keystore.base64..."
+          base64 -d debug.keystore.base64 > debug.keystore
+        else
+          echo "No base64 keystore found, generating standard debug keystore..."
+          apt-get update && apt-get install -y openjdk-17-jre-headless
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+        fi
+
+  # Step 2: Build the Android Debug APK
+  - name: 'mobiledevops/android-sdk-image:34.0.0'
+    id: 'build-apk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Ensure gradle daemon is not persistent to avoid hanging in cloud builders
+        gradle assembleDebug --no-daemon
+
+# Step 3: Archive the built APK directly to your Google Cloud Storage bucket
+artifacts:
+  objects:
+    location: 'gs://${_BUCKET_NAME}/builds/$BUILD_ID'
+    paths:
+      - 'app/build/outputs/apk/debug/app-debug.apk'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

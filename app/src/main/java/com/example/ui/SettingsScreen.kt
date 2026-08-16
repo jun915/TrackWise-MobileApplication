@@ -35,6 +35,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import com.example.data.*
+import com.example.utils.TrackWiseUtils
 
 @Composable
 fun SettingsScreen(
@@ -1591,8 +1598,12 @@ fun AllLogsExplorerDialog(
     viewModel: TrackWiseViewModel,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+
     val tasks by viewModel.allTasks.collectAsState()
     val habits by viewModel.allHabits.collectAsState()
+    val badHabits by viewModel.badHabits.collectAsState()
     val financeLogs by viewModel.allFinanceLogs.collectAsState()
     
     val sleepLogs by viewModel.sleepLogs.collectAsState()
@@ -1601,47 +1612,328 @@ fun AllLogsExplorerDialog(
     val weightEntries by viewModel.weightEntries.collectAsState()
     val vitalReadings by viewModel.vitalReadings.collectAsState()
     val healthIssueLogs by viewModel.healthIssueLogs.collectAsState()
+    val tabletReminders by viewModel.tabletReminders.collectAsState()
+
+    val notes by viewModel.allNotes.collectAsState()
+    val notebooks by viewModel.allNotebooks.collectAsState()
+    val birthdays by viewModel.allBirthdays.collectAsState()
 
     var selectedTabIndex by remember { mutableStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchExpanded by remember { mutableStateOf(false) }
 
-    val combinedHealth = remember(sleepLogs, waterLogs, exerciseLogs, weightEntries, vitalReadings, healthIssueLogs) {
-        val list = ArrayList<HealthLogItem>()
-        sleepLogs.forEach { list.add(HealthLogItem(it.date, "Sleep Logged", "Duration: ${it.hoursSlept} hours (${it.startTime} - ${it.endTime})", "sleep", BrandCyan)) }
-        waterLogs.forEach { list.add(HealthLogItem(it.date, "Water Logged", "Drank ${it.glasses} glasses of ${it.goal} target", "water", BrandCyan)) }
-        exerciseLogs.forEach { list.add(HealthLogItem(it.date, "Exercise Completed", "${it.exerciseType} for ${it.durationMinutes} mins", "exercise", BrandGreen)) }
-        weightEntries.forEach { list.add(HealthLogItem(it.date, "Weight Recorded", "Logged: ${it.weightKg} kg", "weight", BrandRose)) }
-        vitalReadings.forEach { list.add(HealthLogItem(it.date, "Vital: ${it.type.replace("_", " ").uppercase()}", "Value: ${it.value} (${it.context ?: "general"})", "vital", BrandAmber)) }
-        healthIssueLogs.forEach { list.add(HealthLogItem(it.date, "Health Issue Reported", "${it.issueName} (${it.severity.uppercase()})", "issue", BrandRose)) }
-        list.sortedByDescending { it.date }
+    // 1. Task entries
+    val taskItems = remember(tasks) {
+        tasks.map { task ->
+            val dueStr = if (task.deadline.isNotBlank()) {
+                "${task.deadline}${if (!task.dueTime.isNullOrBlank()) " ${task.dueTime}" else if (!task.reminderTime.isNullOrBlank()) " ${task.reminderTime}" else ""}".trim()
+            } else "N/A"
+            PlainLogEntry(
+                dateTime = if (!task.startDate.isNullOrBlank()) task.startDate else if (task.deadline.isNotBlank()) task.deadline else "2026-08-15",
+                activityName = task.title,
+                type = "Task",
+                dueDateTime = dueStr,
+                folderName = task.project.ifBlank { "General" },
+                streak = "-",
+                habitBreakerCostType = "-",
+                details = "Status: ${if (task.completed) "COMPLETED" else "PENDING"} | Priority: ${task.priority.uppercase()} | Points: ${task.points}${if (task.notes.isNotBlank()) " | Notes: ${task.notes}" else ""}",
+                sortTimestamp = if (task.deadline.isNotBlank()) task.deadline else "2026-08-15"
+            )
+        }
     }
 
-    val filteredTasks = remember(tasks, searchQuery) {
-        if (searchQuery.isBlank()) tasks
-        else tasks.filter { it.title.contains(searchQuery, ignoreCase = true) || it.project.contains(searchQuery, ignoreCase = true) || it.priority.contains(searchQuery, ignoreCase = true) }
+    // 2. Habit entries (Individual completions as actions, plus active habit definitions)
+    val habitItems = remember(habits) {
+        val list = mutableListOf<PlainLogEntry>()
+        habits.forEach { habit ->
+            val completedDays = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+            val dueStr = if (!habit.reminderTime.isNullOrBlank()) "Daily ${habit.reminderTime}" else habit.frequency
+            if (completedDays.isNotEmpty()) {
+                completedDays.forEach { dateStr ->
+                    list.add(
+                        PlainLogEntry(
+                            dateTime = "$dateStr${if (!habit.reminderTime.isNullOrBlank()) " ${habit.reminderTime}" else ""}".trim(),
+                            activityName = "${habit.name} (Completed)",
+                            type = "Habit: Completion",
+                            dueDateTime = dueStr,
+                            folderName = habit.category.ifBlank { "Wellness" },
+                            streak = "${habit.streak} Days (Max: ${habit.maxStreak}d)",
+                            habitBreakerCostType = "-",
+                            details = "Frequency: ${habit.frequency} | Goal: ${habit.goalType}${if (habit.notes.isNotBlank()) " | Notes: ${habit.notes}" else ""}",
+                            sortTimestamp = dateStr
+                        )
+                    )
+                }
+            } else {
+                list.add(
+                    PlainLogEntry(
+                        dateTime = "${habit.createdAt}${if (!habit.reminderTime.isNullOrBlank()) " ${habit.reminderTime}" else ""}".trim(),
+                        activityName = habit.name,
+                        type = "Habit: Active Goal",
+                        dueDateTime = dueStr,
+                        folderName = habit.category.ifBlank { "Wellness" },
+                        streak = "${habit.streak} Days (Max: ${habit.maxStreak}d)",
+                        habitBreakerCostType = "-",
+                        details = "Frequency: ${habit.frequency} | Goal: ${habit.goalType} | Status: In Progress",
+                        sortTimestamp = habit.createdAt
+                    )
+                )
+            }
+        }
+        list
     }
 
-    val filteredHabits = remember(habits, searchQuery) {
-        if (searchQuery.isBlank()) habits
-        else habits.filter { it.name.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true) }
+    // 3. Habit Breaker entries (Each slip occurrence & surveillance entry)
+    val breakerItems = remember(badHabits) {
+        val list = mutableListOf<PlainLogEntry>()
+        badHabits.forEach { breaker ->
+            val costStr = "${breaker.costType}${if (breaker.costValue.isNotBlank()) " (${breaker.costValue})" else ""}"
+            val surveillanceDue = if (breaker.reminderTime.isNotBlank()) "Surveillance: ${breaker.reminderTime}" else "Continuous"
+            if (breaker.logs.isNotEmpty()) {
+                breaker.logs.forEach { timestamp ->
+                    list.add(
+                        PlainLogEntry(
+                            dateTime = timestamp,
+                            activityName = "${breaker.name} (Slip-Up)",
+                            type = "Habit Breaker: Slip-Up",
+                            dueDateTime = surveillanceDue,
+                            folderName = breaker.avoidType.ifBlank { "Habit Breaker" },
+                            streak = "Clean: 0 Days",
+                            habitBreakerCostType = costStr,
+                            details = "Slip logged | Avoided: ${breaker.avoidCount} times | Priority: ${breaker.priority.uppercase()}",
+                            sortTimestamp = timestamp
+                        )
+                    )
+                }
+            }
+            list.add(
+                PlainLogEntry(
+                    dateTime = breaker.eventDate.ifBlank { "2026-08-15" },
+                    activityName = breaker.name,
+                    type = "Habit Breaker: Defense",
+                    dueDateTime = surveillanceDue,
+                    folderName = breaker.avoidType.ifBlank { "Habit Breaker" },
+                    streak = "Avoided: ${breaker.avoidCount} times",
+                    habitBreakerCostType = costStr,
+                    details = "Total Slips: ${breaker.logs.size} | Avoid Count: ${breaker.avoidCount} | Priority: ${breaker.priority.uppercase()}",
+                    sortTimestamp = breaker.eventDate.ifBlank { "2026-08-15" }
+                )
+            )
+        }
+        list
     }
 
-    val filteredFinance = remember(financeLogs, searchQuery) {
-        if (searchQuery.isBlank()) financeLogs
-        else financeLogs.filter { it.title.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true) || (it.notes ?: "").contains(searchQuery, ignoreCase = true) }
+    // 4. Finance entries
+    val financeItems = remember(financeLogs) {
+        financeLogs.map { log ->
+            val amountFormatted = String.format(Locale.getDefault(), "%.2f", log.amount)
+            PlainLogEntry(
+                dateTime = log.date,
+                activityName = log.title.ifBlank { log.category },
+                type = "Finance: ${log.type.uppercase()}",
+                dueDateTime = "N/A",
+                folderName = log.category,
+                streak = "-",
+                habitBreakerCostType = "-",
+                details = "Amount: ₹$amountFormatted${if (!log.spendSource.isNullOrBlank()) " | Source: ${log.spendSource}" else ""}${if (!log.notes.isNullOrBlank()) " | Notes: ${log.notes}" else ""}",
+                sortTimestamp = log.date
+            )
+        }
     }
 
-    val filteredHealth = remember(combinedHealth, searchQuery) {
-        if (searchQuery.isBlank()) combinedHealth
-        else combinedHealth.filter { it.title.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true) || it.date.contains(searchQuery, ignoreCase = true) }
+    // 5. Health entries
+    val healthItems = remember(sleepLogs, waterLogs, exerciseLogs, weightEntries, vitalReadings, healthIssueLogs, tabletReminders) {
+        val list = mutableListOf<PlainLogEntry>()
+        sleepLogs.forEach {
+            list.add(
+                PlainLogEntry(
+                    dateTime = "${it.date} ${it.startTime}",
+                    activityName = "Sleep Session",
+                    type = "Health: Sleep",
+                    dueDateTime = "Wake: ${it.endTime}",
+                    folderName = "Sleep & Recovery",
+                    streak = "-",
+                    habitBreakerCostType = "-",
+                    details = "Duration: ${it.hoursSlept} hrs (${it.startTime} - ${it.endTime})${if (!it.notes.isNullOrBlank()) " | Notes: ${it.notes}" else ""}",
+                    sortTimestamp = it.date
+                )
+            )
+        }
+        waterLogs.forEach {
+            val pct = (it.glasses.toFloat() / it.goal.coerceAtLeast(1) * 100).toInt()
+            list.add(
+                PlainLogEntry(
+                    dateTime = it.date,
+                    activityName = "Water Hydration",
+                    type = "Health: Water",
+                    dueDateTime = "Goal: ${it.goal} glasses",
+                    folderName = "Hydration",
+                    streak = "-",
+                    habitBreakerCostType = "-",
+                    details = "Drank: ${it.glasses} / ${it.goal} glasses ($pct%)",
+                    sortTimestamp = it.date
+                )
+            )
+        }
+        exerciseLogs.forEach {
+            list.add(
+                PlainLogEntry(
+                    dateTime = "${it.date}${if (!it.time.isNullOrBlank()) " ${it.time}" else ""}".trim(),
+                    activityName = it.exerciseType,
+                    type = "Health: Exercise",
+                    dueDateTime = "N/A",
+                    folderName = "Fitness",
+                    streak = "-",
+                    habitBreakerCostType = "-",
+                    details = "Duration: ${it.durationMinutes} mins | Completed: ${if (it.completed) "YES" else "NO"}${if (!it.notes.isNullOrBlank()) " | Notes: ${it.notes}" else ""}",
+                    sortTimestamp = it.date
+                )
+            )
+        }
+        weightEntries.forEach {
+            list.add(
+                PlainLogEntry(
+                    dateTime = "${it.date}${if (!it.time.isNullOrBlank()) " ${it.time}" else ""}".trim(),
+                    activityName = "Weight Measurement",
+                    type = "Health: Weight",
+                    dueDateTime = "N/A",
+                    folderName = "Body Metrics",
+                    streak = "-",
+                    habitBreakerCostType = "-",
+                    details = "Weight: ${it.weightKg} kg${if (!it.notes.isNullOrBlank()) " | Notes: ${it.notes}" else ""}",
+                    sortTimestamp = it.date
+                )
+            )
+        }
+        vitalReadings.forEach {
+            list.add(
+                PlainLogEntry(
+                    dateTime = "${it.date}${if (!it.time.isNullOrBlank()) " ${it.time}" else ""}".trim(),
+                    activityName = "Vital: ${it.type.replace("_", " ").uppercase()}",
+                    type = "Health: Vital",
+                    dueDateTime = "N/A",
+                    folderName = "Clinical Readings",
+                    streak = "-",
+                    habitBreakerCostType = "-",
+                    details = "Reading: ${it.value}${if (!it.context.isNullOrBlank()) " (${it.context})" else ""}${if (!it.notes.isNullOrBlank()) " | Notes: ${it.notes}" else ""}",
+                    sortTimestamp = it.date
+                )
+            )
+        }
+        healthIssueLogs.forEach {
+            list.add(
+                PlainLogEntry(
+                    dateTime = "${it.date}${if (!it.time.isNullOrBlank()) " ${it.time}" else ""}".trim(),
+                    activityName = it.issueName,
+                    type = "Health: Issue",
+                    dueDateTime = "N/A",
+                    folderName = "Symptom Journal",
+                    streak = "-",
+                    habitBreakerCostType = "-",
+                    details = "Severity: ${it.severity.uppercase()} | Resolved: ${if (it.resolved) "YES" else "NO"}${if (!it.notes.isNullOrBlank()) " | Notes: ${it.notes}" else ""}",
+                    sortTimestamp = it.date
+                )
+            )
+        }
+        tabletReminders.forEach {
+            list.add(
+                PlainLogEntry(
+                    dateTime = "Daily ${it.timeOfDay}",
+                    activityName = it.tabletName,
+                    type = "Health: Medication",
+                    dueDateTime = it.timeOfDay,
+                    folderName = "Medication Tracker",
+                    streak = "-",
+                    habitBreakerCostType = "-",
+                    details = "Dosage: ${it.dosage} | Schedule: ${it.scheduleType}${if (!it.notes.isNullOrBlank()) " | Notes: ${it.notes}" else ""}",
+                    sortTimestamp = "2026-08-15"
+                )
+            )
+        }
+        list
+    }
+
+    // 6. Notes entries
+    val noteItems = remember(notes, notebooks) {
+        val notebookTitleMap = notebooks.associate { it.id to it.title }
+        notes.map { note ->
+            val dueStr = if (!note.reminderDate.isNullOrBlank()) {
+                "${note.reminderDate}${if (!note.reminderTime.isNullOrBlank()) " ${note.reminderTime}" else ""}".trim()
+            } else "N/A"
+            val folder = notebookTitleMap[note.notebookId] ?: "My Notebook"
+            PlainLogEntry(
+                dateTime = note.updatedAt.ifBlank { note.createdAt },
+                activityName = note.title.ifBlank { "Untitled Note" },
+                type = "Note",
+                dueDateTime = dueStr,
+                folderName = folder,
+                streak = "-",
+                habitBreakerCostType = "-",
+                details = "Pinned: ${if (note.isPinned) "YES" else "NO"} | Created: ${note.createdAt} | Length: ${note.content.length} chars",
+                sortTimestamp = note.updatedAt.ifBlank { note.createdAt }
+            )
+        }
+    }
+
+    // 7. Occasion entries
+    val occasionItems = remember(birthdays) {
+        birthdays.map { occ ->
+            val dueStr = "${occ.date}${if (!occ.reminderTime.isNullOrBlank()) " ${occ.reminderTime}" else ""}".trim()
+            PlainLogEntry(
+                dateTime = occ.date,
+                activityName = occ.name,
+                type = "Occasion / Milestone",
+                dueDateTime = dueStr,
+                folderName = occ.category.ifBlank { "Occasions" },
+                streak = "-",
+                habitBreakerCostType = "-",
+                details = "Event Date: ${occ.date}${if (!occ.giftIdea.isNullOrBlank()) " | Gift/Plan: ${occ.giftIdea}" else ""}",
+                sortTimestamp = occ.date
+            )
+        }
+    }
+
+    // All combined master logs list
+    val allCombinedItems = remember(taskItems, habitItems, breakerItems, financeItems, healthItems, noteItems, occasionItems) {
+        (taskItems + habitItems + breakerItems + financeItems + healthItems + noteItems + occasionItems)
+            .sortedByDescending { it.sortTimestamp }
+    }
+
+    val activeList = when (selectedTabIndex) {
+        0 -> allCombinedItems
+        1 -> taskItems.sortedByDescending { it.sortTimestamp }
+        2 -> habitItems.sortedByDescending { it.sortTimestamp }
+        3 -> breakerItems.sortedByDescending { it.sortTimestamp }
+        4 -> financeItems.sortedByDescending { it.sortTimestamp }
+        5 -> healthItems.sortedByDescending { it.sortTimestamp }
+        6 -> noteItems.sortedByDescending { it.sortTimestamp }
+        7 -> occasionItems.sortedByDescending { it.sortTimestamp }
+        else -> allCombinedItems
+    }
+
+    val filteredList = remember(activeList, searchQuery) {
+        if (searchQuery.isBlank()) activeList
+        else activeList.filter { entry ->
+            entry.activityName.contains(searchQuery, ignoreCase = true) ||
+            entry.type.contains(searchQuery, ignoreCase = true) ||
+            entry.dateTime.contains(searchQuery, ignoreCase = true) ||
+            entry.dueDateTime.contains(searchQuery, ignoreCase = true) ||
+            entry.folderName.contains(searchQuery, ignoreCase = true) ||
+            entry.streak.contains(searchQuery, ignoreCase = true) ||
+            entry.habitBreakerCostType.contains(searchQuery, ignoreCase = true) ||
+            entry.details.contains(searchQuery, ignoreCase = true)
+        }
     }
 
     val tabs = listOf(
-        "Tasks (${filteredTasks.size})",
-        "Habits (${filteredHabits.size})",
-        "Finance (${filteredFinance.size})",
-        "Health (${filteredHealth.size})"
+        "All (${allCombinedItems.size})",
+        "Tasks (${taskItems.size})",
+        "Habits (${habitItems.size})",
+        "Breakers (${breakerItems.size})",
+        "Finance (${financeItems.size})",
+        "Health (${healthItems.size})",
+        "Notes (${noteItems.size})",
+        "Occasions (${occasionItems.size})"
     )
 
     Dialog(
@@ -1660,7 +1952,7 @@ fun AllLogsExplorerDialog(
                     .statusBarsPadding()
                     .navigationBarsPadding()
             ) {
-                // Top App Bar / Page Header
+                // Top App Bar / Page Header (Plain & High Contrast)
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surface,
@@ -1691,30 +1983,49 @@ fun AllLogsExplorerDialog(
                                 Column {
                                     Text(
                                         text = "Historical Log Explorer",
-                                        fontSize = 19.sp,
+                                        fontSize = 18.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "Unified activity & completion records",
+                                        text = "Plain Text Ledger • ${filteredList.size} Entries",
                                         fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        fontFamily = FontFamily.Monospace,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
 
-                            IconButton(
-                                onClick = {
-                                    isSearchExpanded = !isSearchExpanded
-                                    if (!isSearchExpanded) searchQuery = ""
-                                },
-                                modifier = Modifier.size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
-                                    contentDescription = if (isSearchExpanded) "Close Search" else "Search Logs",
-                                    tint = if (isSearchExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Copy All Plain Text Button
+                                IconButton(
+                                    onClick = {
+                                        val ledgerText = generatePlainTextLedger(filteredList)
+                                        clipboardManager.setText(AnnotatedString(ledgerText))
+                                        Toast.makeText(context, "Copied ${filteredList.size} plain text log entries to clipboard", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Copy Plain Text Ledger",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        isSearchExpanded = !isSearchExpanded
+                                        if (!isSearchExpanded) searchQuery = ""
+                                    },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
+                                        contentDescription = if (isSearchExpanded) "Close Search" else "Search Logs",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
 
@@ -1725,8 +2036,8 @@ fun AllLogsExplorerDialog(
                                     value = searchQuery,
                                     onValueChange = { searchQuery = it },
                                     modifier = Modifier.fillMaxWidth(),
-                                    placeholder = { Text("Filter logs in this tab...", fontSize = 13.sp) },
-                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                    placeholder = { Text("Filter logs by activity, type, date, folder, cost type...", fontSize = 12.sp) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                                     trailingIcon = {
                                         if (searchQuery.isNotEmpty()) {
                                             IconButton(onClick = { searchQuery = "" }) {
@@ -1735,10 +2046,10 @@ fun AllLogsExplorerDialog(
                                         }
                                     },
                                     singleLine = true,
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(8.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
                                     )
                                 )
                             }
@@ -1746,12 +2057,12 @@ fun AllLogsExplorerDialog(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Tab Navigation
+                        // Plain Tab Navigation (Clean, High-Contrast)
                         ScrollableTabRow(
                             selectedTabIndex = selectedTabIndex,
                             modifier = Modifier.fillMaxWidth(),
                             containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                             edgePadding = 0.dp,
                             divider = {}
                         ) {
@@ -1763,9 +2074,9 @@ fun AllLogsExplorerDialog(
                                     text = {
                                         Text(
                                             title,
-                                            fontSize = 13.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 )
@@ -1774,297 +2085,31 @@ fun AllLogsExplorerDialog(
                     }
                 }
 
-                // Page Content List
+                // Page Content List in Plain Text Format
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
-                    when (selectedTabIndex) {
-                        0 -> {
-                            if (filteredTasks.isEmpty()) {
-                                HistoricalEmptyState(
-                                    icon = Icons.Default.TaskAlt,
-                                    title = if (searchQuery.isBlank()) "No Task Records" else "No matching tasks found",
-                                    subtitle = if (searchQuery.isBlank()) "Tasks you create and complete will appear here as historic logs." else "Try adjusting your search query."
+                    if (filteredList.isEmpty()) {
+                        HistoricalEmptyState(
+                            icon = Icons.Default.History,
+                            title = if (searchQuery.isBlank()) "No Action Records" else "No matching records found",
+                            subtitle = if (searchQuery.isBlank()) "All activities, completions, and measurements will be chronicled here in plain text." else "Try adjusting your search query."
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            items(filteredList.size) { index ->
+                                val entry = filteredList[index]
+                                PlainTextLogRow(
+                                    rowNumber = index + 1,
+                                    entry = entry
                                 )
-                            } else {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    contentPadding = PaddingValues(bottom = 24.dp)
-                                ) {
-                                    items(filteredTasks.size) { i ->
-                                        val task = filteredTasks[i]
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(14.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    Text(
-                                                        task.title,
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 14.sp,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Row(
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                                        ) {
-                                                            Text(
-                                                                task.project.ifBlank { "General" },
-                                                                fontSize = 10.sp,
-                                                                fontWeight = FontWeight.SemiBold,
-                                                                color = MaterialTheme.colorScheme.primary,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = when (task.priority.lowercase()) {
-                                                                "high" -> BrandRose.copy(alpha = 0.15f)
-                                                                "medium" -> BrandAmber.copy(alpha = 0.15f)
-                                                                else -> BrandGreen.copy(alpha = 0.15f)
-                                                            }
-                                                        ) {
-                                                            Text(
-                                                                "${task.priority.uppercase()} Priority",
-                                                                fontSize = 10.sp,
-                                                                fontWeight = FontWeight.SemiBold,
-                                                                color = when (task.priority.lowercase()) {
-                                                                    "high" -> BrandRose
-                                                                    "medium" -> BrandAmber
-                                                                    else -> BrandGreen
-                                                                },
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                    if (task.deadline.isNotBlank()) {
-                                                        Text("Due: ${task.deadline}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                                    }
-                                                }
-                                                Spacer(modifier = Modifier.width(12.dp))
-                                                val statusText = if (task.completed) "Done" else "Pending"
-                                                val statusColor = if (task.completed) BrandGreen else BrandAmber
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = statusColor.copy(alpha = 0.15f)
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = if (task.completed) Icons.Default.CheckCircle else Icons.Default.Schedule,
-                                                            contentDescription = null,
-                                                            tint = statusColor,
-                                                            modifier = Modifier.size(14.dp)
-                                                        )
-                                                        Text(statusText, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = statusColor)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        1 -> {
-                            if (filteredHabits.isEmpty()) {
-                                HistoricalEmptyState(
-                                    icon = Icons.Default.Whatshot,
-                                    title = if (searchQuery.isBlank()) "No Habit Records" else "No matching habits found",
-                                    subtitle = if (searchQuery.isBlank()) "Track habits daily to build streaks and maintain logs." else "Try adjusting your search query."
-                                )
-                            } else {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    contentPadding = PaddingValues(bottom = 24.dp)
-                                ) {
-                                    items(filteredHabits.size) { i ->
-                                        val habit = filteredHabits[i]
-                                        val days = com.example.utils.TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) {
-                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(habit.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                                                    Surface(
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        color = BrandRose.copy(alpha = 0.15f)
-                                                    ) {
-                                                        Row(
-                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.Whatshot, contentDescription = null, tint = BrandRose, modifier = Modifier.size(14.dp))
-                                                            Text("${habit.streak} d streak", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = BrandRose)
-                                                        }
-                                                    }
-                                                }
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                                    ) {
-                                                        Text(habit.category, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                                    }
-                                                    Text("• ${habit.frequency}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                                }
-                                                if (days.isNotEmpty()) {
-                                                    Text("Completions (${days.size}): ${days.takeLast(10).joinToString(", ")}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), maxLines = 2)
-                                                } else {
-                                                    Text("No completions logged yet.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        2 -> {
-                            if (filteredFinance.isEmpty()) {
-                                HistoricalEmptyState(
-                                    icon = Icons.Default.AttachMoney,
-                                    title = if (searchQuery.isBlank()) "No Financial Records" else "No matching transactions found",
-                                    subtitle = if (searchQuery.isBlank()) "Transactions and expense logs will be presented here in chronological order." else "Try adjusting your search query."
-                                )
-                            } else {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    contentPadding = PaddingValues(bottom = 24.dp)
-                                ) {
-                                    items(filteredFinance.size) { i ->
-                                        val log = filteredFinance[i]
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(14.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    Text(log.title.ifBlank { log.category }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                                                    Row(
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                                        ) {
-                                                            Text(log.category, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                                        }
-                                                        Text("• ${log.date}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                                    }
-                                                    if (!log.notes.isNullOrBlank()) {
-                                                        Text("Note: ${log.notes}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                                                    }
-                                                }
-                                                Spacer(modifier = Modifier.width(12.dp))
-                                                val prefix = when (log.type) {
-                                                    "income" -> "+"
-                                                    "savings" -> "🐖"
-                                                    else -> "-"
-                                                }
-                                                val amtColor = when (log.type) {
-                                                    "income" -> BrandGreen
-                                                    "savings" -> BrandCyan
-                                                    else -> BrandRose
-                                                }
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = amtColor.copy(alpha = 0.15f)
-                                                ) {
-                                                    Text(
-                                                        "$prefix${String.format(Locale.getDefault(), "%.2f", log.amount)}",
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 13.sp,
-                                                        color = amtColor,
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        3 -> {
-                            if (filteredHealth.isEmpty()) {
-                                HistoricalEmptyState(
-                                    icon = Icons.Default.Favorite,
-                                    title = if (searchQuery.isBlank()) "No Health Records" else "No matching health entries found",
-                                    subtitle = if (searchQuery.isBlank()) "Sleep, water, workouts, vitals, and health issues will be chronicled here." else "Try adjusting your search query."
-                                )
-                            } else {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    contentPadding = PaddingValues(bottom = 24.dp)
-                                ) {
-                                    items(filteredHealth.size) { i ->
-                                        val item = filteredHealth[i]
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(14.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    Text(item.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                                                    Text(item.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
-                                                }
-                                                Spacer(modifier = Modifier.width(12.dp))
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = item.themeColor.copy(alpha = 0.15f)
-                                                ) {
-                                                    Text(
-                                                        item.date,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = item.themeColor,
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
@@ -2073,6 +2118,146 @@ fun AllLogsExplorerDialog(
         }
     }
 }
+
+/**
+ * Plain text log row representing a single action entry with all requested metadata fields:
+ * - Row Number
+ * - Date and Time
+ * - Activity Name
+ * - Type
+ * - Due Time and Date
+ * - Folder Name
+ * - Streak
+ * - Habit Breaker Cost Type
+ * - Details
+ * Rendered in clean, neutral plain text without colorful badges or pills.
+ */
+@Composable
+fun PlainTextLogRow(
+    rowNumber: Int,
+    entry: PlainLogEntry,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            // Row Number and Date/Time
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Row #$rowNumber",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Date & Time: ${entry.dateTime}",
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 2.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+            )
+
+            // Activity Name
+            Text(
+                text = "Activity: ${entry.activityName}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Type & Due Date & Time
+            Text(
+                text = "Type: ${entry.type}  |  Due: ${entry.dueDateTime}",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Folder Name & Streak
+            Text(
+                text = "Folder: ${entry.folderName}  |  Streak: ${entry.streak}",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Habit Breaker Cost Type
+            Text(
+                text = "Habit Breaker Cost Type: ${entry.habitBreakerCostType}",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Details / Notes / Status
+            Text(
+                text = "Details: ${entry.details}",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Generates an exportable plain-text table ledger of all records.
+ */
+fun generatePlainTextLedger(entries: List<PlainLogEntry>): String {
+    val sb = StringBuilder()
+    sb.appendLine("================================================================================")
+    sb.appendLine("                     TRACKWISE HISTORICAL LOG LEDGER                           ")
+    sb.appendLine("================================================================================")
+    sb.appendLine("Total Action Entries: ${entries.size}")
+    sb.appendLine("--------------------------------------------------------------------------------")
+    entries.forEachIndexed { index, entry ->
+        val rowNum = index + 1
+        sb.appendLine("[ROW #$rowNum]")
+        sb.appendLine("• Date & Time            : ${entry.dateTime}")
+        sb.appendLine("• Activity Name          : ${entry.activityName}")
+        sb.appendLine("• Type                   : ${entry.type}")
+        sb.appendLine("• Due Time & Date        : ${entry.dueDateTime}")
+        sb.appendLine("• Folder Name            : ${entry.folderName}")
+        sb.appendLine("• Streak                 : ${entry.streak}")
+        sb.appendLine("• Habit Breaker Cost Type: ${entry.habitBreakerCostType}")
+        sb.appendLine("• Details                : ${entry.details}")
+        sb.appendLine("--------------------------------------------------------------------------------")
+    }
+    return sb.toString()
+}
+
+data class PlainLogEntry(
+    val rowNumber: Int = 0,
+    val dateTime: String,
+    val activityName: String,
+    val type: String,
+    val dueDateTime: String,
+    val folderName: String,
+    val streak: String,
+    val habitBreakerCostType: String,
+    val details: String,
+    val sortTimestamp: String
+)
 
 @Composable
 fun HistoricalEmptyState(
@@ -2098,7 +2283,7 @@ fun HistoricalEmptyState(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(32.dp)
                     )
                 }

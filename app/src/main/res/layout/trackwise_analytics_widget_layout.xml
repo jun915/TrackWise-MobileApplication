@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_analytics_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="10dp">
+
+    <!-- Top Header: Title + Timestamp -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <TextView
+            android:id="@+id/txt_analytics_widget_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📊 TrackWise Analytics"
+            android:textColor="#0F172A"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txt_analytics_timestamp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Live Sync"
+            android:textColor="#64748B"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Tab Strip Row: Habits | Tasks | Finance | Health | Breakers -->
+    <LinearLayout
+        android:id="@+id/layout_analytics_tabs"
+        android:layout_width="match_parent"
+        android:layout_height="28dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <TextView
+            android:id="@+id/tab_btn_habits"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_tab_active"
+            android:gravity="center"
+            android:text="Habits"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="2dp" />
+
+        <TextView
+            android:id="@+id/tab_btn_tasks"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_tab_inactive"
+            android:gravity="center"
+            android:text="Tasks"
+            android:textColor="#64748B"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="2dp" />
+
+        <TextView
+            android:id="@+id/tab_btn_finance"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_tab_inactive"
+            android:gravity="center"
+            android:text="Finance"
+            android:textColor="#64748B"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="2dp" />
+
+        <TextView
+            android:id="@+id/tab_btn_health"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_tab_inactive"
+            android:gravity="center"
+            android:text="Health"
+            android:textColor="#64748B"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="2dp" />
+
+        <TextView
+            android:id="@+id/tab_btn_breakers"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_tab_inactive"
+            android:gravity="center"
+            android:text="Breaker"
+            android:textColor="#64748B"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Key Metrics Summary Banner -->
+    <LinearLayout
+        android:id="@+id/layout_analytics_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <TextView
+            android:id="@+id/txt_analytics_headline"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="7-Day Consistency: 88%"
+            android:textColor="#7C3AED"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txt_analytics_subtext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="6/7 Days Met"
+            android:textColor="#0EA5E9"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Dynamic Chart Canvas Canvas (ImageView) -->
+    <ImageView
+        android:id="@+id/img_analytics_chart"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scaleType="fitCenter"
+        android:contentDescription="Analytics Chart"
+        android:layout_marginBottom="4dp" />
+
+    <!-- Bottom Insights / Key Stat Indicators -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/txt_analytics_footer_left"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🔥 Streak: 12 Days"
+            android:textColor="#64748B"
+            android:textSize="9sp"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/txt_analytics_footer_right"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tap to open app"
+            android:textColor="#94A3B8"
+            android:textSize="9sp"
+            android:gravity="end" />
+    </LinearLayout>
+
+</LinearLayout>

@@ -2708,14 +2708,36 @@ private fun calculateDashboardOccasionDays(bday: com.example.data.BirthdayEntity
             return 999
         }
 
-        if (eventDate.timeInMillis == today.timeInMillis) {
+        // Single-target countdown or holiday event
+        if (bday.category.contains("Countdown", ignoreCase = true) || bday.category.contains("Holiday", ignoreCase = true)) {
+            if (eventDate.timeInMillis == today.timeInMillis) {
+                return 0
+            } else if (eventDate.after(today)) {
+                val diffMs = eventDate.timeInMillis - today.timeInMillis
+                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
+            } else {
+                return -1 // Past target
+            }
+        }
+
+        // Recurring events like Birthdays and Anniversaries
+        val bdayThisYear = Calendar.getInstance().apply {
+            set(Calendar.YEAR, today.get(Calendar.YEAR))
+            set(Calendar.MONTH, month - 1)
+            set(Calendar.DAY_OF_MONTH, day)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        if (bdayThisYear.timeInMillis == today.timeInMillis) {
             return 0
-        } else if (eventDate.after(today)) {
-            val diffMs = eventDate.timeInMillis - today.timeInMillis
+        } else if (bdayThisYear.after(today)) {
+            val diffMs = bdayThisYear.timeInMillis - today.timeInMillis
             return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
         } else {
-            val bdayThisYear = Calendar.getInstance().apply {
-                set(Calendar.YEAR, today.get(Calendar.YEAR))
+            val bdayNextYear = Calendar.getInstance().apply {
+                set(Calendar.YEAR, today.get(Calendar.YEAR) + 1)
                 set(Calendar.MONTH, month - 1)
                 set(Calendar.DAY_OF_MONTH, day)
                 set(Calendar.HOUR_OF_DAY, 0)
@@ -2723,24 +2745,8 @@ private fun calculateDashboardOccasionDays(bday: com.example.data.BirthdayEntity
                 set(Calendar.SECOND, 0)
                 set(Calendar.MILLISECOND, 0)
             }
-            if (bdayThisYear.timeInMillis == today.timeInMillis) {
-                return 0
-            } else if (bdayThisYear.after(today)) {
-                val diffMs = bdayThisYear.timeInMillis - today.timeInMillis
-                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
-            } else {
-                val bdayNextYear = Calendar.getInstance().apply {
-                    set(Calendar.YEAR, today.get(Calendar.YEAR) + 1)
-                    set(Calendar.MONTH, month - 1)
-                    set(Calendar.DAY_OF_MONTH, day)
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                val diffMs = bdayNextYear.timeInMillis - today.timeInMillis
-                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
-            }
+            val diffMs = bdayNextYear.timeInMillis - today.timeInMillis
+            return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
         }
     }
     return 999
@@ -2753,11 +2759,10 @@ fun DashboardOccasionsCountdownWidget(
 ) {
     val countdownItems = remember(birthdays) {
         birthdays.map { it to calculateDashboardOccasionDays(it) }
-            .filter { it.second in 0..3 }
+            .filter { it.second >= 0 && it.second < 999 }
             .sortedBy { it.second }
+            .take(4)
     }
-
-    if (countdownItems.isEmpty()) return
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -2788,7 +2793,7 @@ fun DashboardOccasionsCountdownWidget(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Event,
+                            imageVector = Icons.Default.HourglassEmpty,
                             contentDescription = null,
                             tint = BrandOrange,
                             modifier = Modifier.size(20.dp)
@@ -2796,14 +2801,14 @@ fun DashboardOccasionsCountdownWidget(
                     }
                     Column {
                         Text(
-                            text = "UPCOMING OCCASION COUNTDOWNS",
+                            text = "UPCOMING COUNTDOWNS & OCCASIONS",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = BrandOrange,
                             letterSpacing = 1.sp
                         )
                         Text(
-                            text = "3 Days or Fewer Remaining",
+                            text = if (countdownItems.isNotEmpty()) "Next upcoming milestones & events" else "Countdowns & Milestones",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -2827,56 +2832,93 @@ fun DashboardOccasionsCountdownWidget(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                countdownItems.forEach { (bday, daysLeft) ->
-                    val badgeColor = when (daysLeft) {
-                        0 -> Color(0xFFEF4444)
-                        1 -> Color(0xFFF59E0B)
-                        else -> BrandCyan
-                    }
-                    val badgeText = when (daysLeft) {
-                        0 -> "TODAY! 🎉"
-                        1 -> "1 DAY LEFT ⏰"
-                        else -> "$daysLeft DAYS LEFT ⏳"
-                    }
-
-                    Surface(
-                        onClick = { onNavigate("countdown") },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        modifier = Modifier.fillMaxWidth()
+            if (countdownItems.isEmpty()) {
+                Surface(
+                    onClick = { onNavigate("countdown") },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Icon(
+                            imageVector = Icons.Default.AddCircleOutline,
+                            contentDescription = null,
+                            tint = BrandOrange,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Track Your Next Milestone",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Add birthdays, target countdowns, and anniversaries to monitor progress here.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    countdownItems.forEach { (bday, daysLeft) ->
+                        val badgeColor = when (daysLeft) {
+                            0 -> Color(0xFFEF4444)
+                            1 -> Color(0xFFF59E0B)
+                            in 2..7 -> BrandOrange
+                            else -> BrandCyan
+                        }
+                        val badgeText = when (daysLeft) {
+                            0 -> "TODAY! 🎉"
+                            1 -> "TOMORROW ⏰"
+                            in 2..7 -> "$daysLeft DAYS LEFT ⏳"
+                            else -> "$daysLeft DAYS LEFT 📅"
+                        }
+
+                        Surface(
+                            onClick = { onNavigate("countdown") },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = bday.name,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = bday.category.split("|").firstOrNull() ?: "Occasion",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = badgeColor.copy(alpha = 0.15f)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = badgeText,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = badgeColor,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = bday.name,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${bday.category.split("|").firstOrNull() ?: "Occasion"} • ${bday.date}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = badgeColor.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = badgeText,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = badgeColor,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
                             }
                         }
                     }

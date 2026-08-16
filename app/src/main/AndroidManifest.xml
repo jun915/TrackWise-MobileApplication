@@ -44,6 +44,18 @@
         </receiver>
 
         <receiver
+            android:name="com.example.widget.TrackWiseAnalyticsWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.widget.ACTION_CHANGE_ANALYTICS_TAB" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/trackwise_analytics_widget_info" />
+        </receiver>
+
+        <receiver
             android:name="com.example.receiver.ReminderReceiver"
             android:exported="true">
             <intent-filter>

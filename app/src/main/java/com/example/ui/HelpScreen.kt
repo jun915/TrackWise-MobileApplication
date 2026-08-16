@@ -264,27 +264,126 @@ fun HelpScreen(
             """.trimIndent()
         ),
         ChapterSpec(
-            title = "10. Analytics & Completed Archive",
-            subtitle = "Spending breakdowns, completion rates, and historical logs",
-            icon = Icons.Default.Assessment,
+            title = "10. Habit Breakers & Urge Tracking",
+            subtitle = "Urge logging, cost impacts (Money, Time, Health, Mood), and preserved resources",
+            icon = Icons.Default.Block,
+            color = BrandRose,
+            content = """
+                Overcoming destructive habits requires continuous awareness, relapse tracking, and quantifying the actual cost of indulgence.
+                
+                ■ Urge Logging & Relapse Management:
+                When a slip-up occurs or an urge is recorded, tap the habit breaker tile to register a log timestamp. The system records the incident, updates consecutive clean-streak counters, and resets the timer since your last slip.
+                
+                ■ Preserved Resources Calculator:
+                Quantify the true benefits of self-control across 4 distinct cost types:
+                - 💰 Money: Calculates direct rupees/currency saved by avoiding costly habits (e.g. junk food, impulse shopping, paid vices).
+                - ⏰ Time: Quantifies focus hours and minutes reclaimed from digital addictions, infinite scrolling, or procrastination loops.
+                - 🛡️ Health: Measures physiological resilience points guarded against smoking, late sleeping, or skipping physical wellness.
+                - 😊 Mood: Tracks mental tranquility and stress reduction points preserved by staying clean.
+                
+                ■ Time-of-Day Vulnerability Analysis:
+                The analytics engine analyzes slip-up hours into Morning (6-12), Afternoon (12-18), Evening (18-22), and Late Night (22-6). It highlights your peak high-risk window so you can activate proactive focus shields and avoid temptations.
+            """.trimIndent()
+        ),
+        ChapterSpec(
+            title = "11. Notes, Checklists & Scratchpad",
+            subtitle = "Rich markdown styling, folder organization, pinned notes, and custom reminders",
+            icon = Icons.Default.Book,
             color = BrandOrange,
             content = """
-                Make data-driven decisions to optimize your routines and finance.
+                Capture your thoughts, drafts, and meeting notes in a fast, flexible notepad environment.
                 
-                ■ Categorical Spending Analysis:
-                The Finance Analytics dashboard presents full charts breaking down expenses by category (e.g., Food, Travel, Medical, Shopping). It calculates saving ratios and compares active spending against monthly targets.
+                ■ Notebook Folders & Pinned Notes:
+                Categorize your notes into color-coded folders. Pin crucial notes to keep them permanently fixed to the top of your workspace.
                 
-                ■ Habit Consistency Analytics:
-                Track completion ratios over 7-day, 30-day, and 12-month periods. Bar charts show which habits are fully automated and which need attention.
+                ■ Dynamic Markdown & Checklist Support:
+                Write with standard Markdown syntax for headings, bold, italic, and quotes. Add interactive checkable lists (- [ ] Task) directly inside note bodies.
                 
-                ■ Completed Items Archive:
-                Your historical record of achievements:
-                - Completed Tasks.
-                - Resolved Medical Symptoms.
-                - Purchased Grocery & Wishlist Items.
-                - Past Workouts & Sleep Logs.
+                ■ Custom Note Reminders:
+                Set exact reminder dates and times on notes. TrackWise will dispatch an Android notification when the reminder triggers, taking you straight to the note.
+            """.trimIndent()
+        ),
+        ChapterSpec(
+            title = "12. Unified Historical Log Explorer",
+            subtitle = "Full-page audit trail across Tasks, Habits, Finance, and Health logs",
+            icon = Icons.Default.History,
+            color = BrandIndigo,
+            content = """
+                The Unified Historical Log Explorer provides a single, high-performance audit ledger for every recorded activity across your journey.
                 
-                This archive ensures your active lists remain light and fast, while keeping your historical data secure for auditing and reviews.
+                ■ Universal Category Filters:
+                Switch effortlessly between All Activities, Habits, Tasks, Financial Transactions, and Health Metrics.
+                
+                ■ Real-time Search & Chronological Timeline:
+                Quickly search through months of historical completions, payments, and symptom entries with instant matching and detailed time stamps.
+            """.trimIndent()
+        ),
+        ChapterSpec(
+            title = "13. Islamic Urdu Calendar & 99 Names of Allah",
+            subtitle = "Authentic moon-sighting alignment, daily Asma-ul-Husna, and Urdu dates",
+            icon = Icons.Default.Mosque,
+            color = BrandGreen,
+            content = """
+                Deepen your spiritual connection with our Islamic calendar and daily Asma-ul-Husna integration.
+                
+                ■ Subcontinent Moon-Sighting Urdu Date:
+                Displays authentic lunar Hijri dates synchronized with the Indian subcontinent calendar convention across the calendar grid and widgets.
+                
+                ■ Daily 99 Names of Allah (Asma-ul-Husna):
+                Features a rotating daily Divine Name complete with elegant Arabic calligraphy, Urdu translation, English transliteration, and spiritual benefits.
+            """.trimIndent()
+        ),
+        ChapterSpec(
+            title = "14. App Customization & Theming Engine",
+            subtitle = "AMOLED dark mode, custom palettes, background art, and typography scales",
+            icon = Icons.Default.Palette,
+            color = BrandPink,
+            content = """
+                Tailor TrackWise to your personal aesthetic tastes and ergonomic preferences.
+                
+                ■ Theme Modes & Accents:
+                Choose between Pure Dark (AMOLED friendly), Clean Light, or System Default, paired with vibrant accent palettes.
+                
+                ■ Dynamic Backgrounds & Custom Fonts:
+                Select solid minimalist backgrounds, subtle gradient tints, or scenic photographic wallpapers. Adjust global typography scales and font styling.
+            """.trimIndent()
+        ),
+        ChapterSpec(
+            title = "15. Home Screen Widgets & Notifications",
+            subtitle = "Daily Summary Widget, Interactive Analytics Chart Widget with Tabs, and background alarms",
+            icon = Icons.Default.Widgets,
+            color = BrandViolet,
+            content = """
+                Access your core metrics and dynamic visual analytics directly from your Android launcher without opening the application.
+                
+                ■ Widget 1 — Daily Overview & Urgency Hub:
+                Shows today's date, current Urdu date, daily 99 Name of Allah, urgent hourly tasks, habits, net financial balance, and countdown occasions.
+                
+                ■ Widget 2 — Interactive Analytics Chart Hub (Multi-Tab):
+                An advanced home widget featuring 5 interactive tabs with high-resolution visual charts:
+                - 💪 Habits: 7-day completion bar chart with percentage breakdown and momentum analysis.
+                - 📝 Tasks: Velocity and priority distribution chart (High, Med, Low, Done vs Pending).
+                - 💰 Finance: Multi-bar breakdown of Monthly Income, Expenses, Savings, and Net Balance with savings rate %.
+                - 💧 Health: 5-day hydration tracking bars compared against the 2.5L daily target.
+                - 🛡️ Breakers: Preserved resources multi-factor defense chart across Money, Time, Health, and Mood.
+                
+                ■ Smart Background Alarms:
+                Receive scheduled alarms for habits, task deadlines, custom reminders, and occasions with reliable Android AlarmManager integration.
+            """.trimIndent()
+        ),
+        ChapterSpec(
+            title = "16. Cloud Backup, Local Export & Sync",
+            subtitle = "Encrypted JSON data exports, seamless imports, and multi-device sync",
+            icon = Icons.Default.CloudSync,
+            color = BrandCyan,
+            content = """
+                Your personal data is your property. TrackWise guarantees total ownership and privacy.
+                
+                ■ Encrypted Local Backup & JSON Export:
+                Export your entire application state (Habits, Tasks, Finance, Notes, Health, Settings) as a portable, standardized JSON file at any time.
+                
+                ■ Instant Restore & Sync:
+                Import past backups or sync across devices seamlessly without data loss or corruption.
             """.trimIndent()
         )
     )

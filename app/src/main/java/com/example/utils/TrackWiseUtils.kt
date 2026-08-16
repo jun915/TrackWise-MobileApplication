@@ -270,9 +270,9 @@ object TrackWiseUtils {
         val m = month + 12 * a - 3
         val jdn = day + floor((153 * m + 2) / 5.0).toInt() + 365 * y + floor(y / 4.0).toInt() - floor(y / 100.0).toInt() + floor(y / 400.0).toInt() - 32045
 
-        // Estimate Hijri date from Julian Day
+        // Estimate Hijri date from Julian Day (adjusted to match Indian Urdu / Subcontinent moon sighting convention)
         val jd = jdn.toDouble()
-        val l = jd - 1948440 + 10633 // Adjusted by +1 to match India's moon sighting calendar (e.g. 21 Safar on 2026-08-05)
+        val l = jd - 1948440 + 10632 // 1 day previous (Subcontinent / Indian Urdu calendar)
         val n = floor((l - 1) / 10631.0).toInt()
         val l2 = l - 10631 * n + 354
         val j = (floor((10985 - l2) / 5316.0) * floor((50 * l2) / 17719.0) + floor(l2 / 5670.0) * floor((43 * l2) / 15238.0)).toInt()

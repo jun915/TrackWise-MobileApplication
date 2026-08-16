@@ -505,7 +505,7 @@ fun ModernAddOccasionDialog(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.height(16.dp))
 
                             // Bottom "Next" Button
                             Button(
@@ -529,7 +529,8 @@ fun ModernAddOccasionDialog(
                                 Text("Next", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.navigationBarsPadding())
+                            Spacer(modifier = Modifier.height(28.dp))
                         }
                     } else {
                         // STEP 2: Appearance Selection Screen
@@ -1779,7 +1780,7 @@ private fun AppearanceSelectionScreen(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Action Buttons: Back & Save
         Row(
@@ -1809,7 +1810,8 @@ private fun AppearanceSelectionScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.navigationBarsPadding())
+        Spacer(modifier = Modifier.height(28.dp))
     }
 }
 

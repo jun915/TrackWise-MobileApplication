@@ -967,7 +967,7 @@ fun TaskCard(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Task Title Row with Clock/Repeat icons if configured
+                    // Task Title Row
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -980,14 +980,6 @@ fun TaskCard(
                             color = tileTextColor,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (task.remindMe || task.reminderTime != null) {
-                            Icon(
-                                imageVector = Icons.Default.AccessTime,
-                                contentDescription = "Reminder configured",
-                                tint = BrandOrange,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
                         if (task.repeatType != "none") {
                             Icon(
                                 imageVector = Icons.Default.Autorenew,
