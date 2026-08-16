@@ -55,6 +55,12 @@ interface TrackWiseDao {
     @Query("SELECT * FROM birthdays WHERE userId = :userId")
     fun getBirthdaysForUserFlow(userId: String): Flow<List<BirthdayEntity>>
 
+    @Query("SELECT * FROM birthdays WHERE userId = :userId")
+    suspend fun getBirthdaysForUser(userId: String): List<BirthdayEntity>
+
+    @Query("SELECT * FROM birthdays")
+    suspend fun getAllBirthdays(): List<BirthdayEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBirthday(birthday: BirthdayEntity)
 

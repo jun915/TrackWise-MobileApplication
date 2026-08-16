@@ -424,7 +424,7 @@ fun DashboardScreen(
             }
         }
 
-        // --- Occasions Countdown Widget (<= 3 Days Left) ---
+        // --- Occasions Countdown Widget (< 5 Days Left) ---
         item {
             StaggeredItem(index = 6) {
                 DashboardOccasionsCountdownWidget(
@@ -2759,7 +2759,7 @@ fun DashboardOccasionsCountdownWidget(
 ) {
     val countdownItems = remember(birthdays) {
         birthdays.map { it to calculateDashboardOccasionDays(it) }
-            .filter { it.second >= 0 && it.second < 999 }
+            .filter { it.second in 0..4 }
             .sortedBy { it.second }
             .take(4)
     }
@@ -2808,7 +2808,7 @@ fun DashboardOccasionsCountdownWidget(
                             letterSpacing = 1.sp
                         )
                         Text(
-                            text = if (countdownItems.isNotEmpty()) "Next upcoming milestones & events" else "Countdowns & Milestones",
+                            text = if (countdownItems.isNotEmpty()) "Upcoming in the next 5 days" else "Countdowns & Milestones",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
@@ -2852,13 +2852,13 @@ fun DashboardOccasionsCountdownWidget(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Track Your Next Milestone",
+                                text = "No Occasions in Next 5 Days",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Add birthdays, target countdowns, and anniversaries to monitor progress here.",
+                                text = "Milestones and occasions will appear here when due within 5 days. Tap View All to see all countdowns.",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -2871,14 +2871,12 @@ fun DashboardOccasionsCountdownWidget(
                         val badgeColor = when (daysLeft) {
                             0 -> Color(0xFFEF4444)
                             1 -> Color(0xFFF59E0B)
-                            in 2..7 -> BrandOrange
-                            else -> BrandCyan
+                            else -> BrandOrange
                         }
                         val badgeText = when (daysLeft) {
                             0 -> "TODAY! 🎉"
                             1 -> "TOMORROW ⏰"
-                            in 2..7 -> "$daysLeft DAYS LEFT ⏳"
-                            else -> "$daysLeft DAYS LEFT 📅"
+                            else -> "$daysLeft DAYS LEFT ⏳"
                         }
 
                         Surface(

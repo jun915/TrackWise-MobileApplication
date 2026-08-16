@@ -80,20 +80,20 @@
         android:background="#E2E8F0"
         android:layout_marginBottom="6dp" />
 
-    <!-- Section 1: Today's Countdown Events (Max 2) - GONE if no events today -->
+    <!-- Section 1: Upcoming Occasions & Countdowns -->
     <LinearLayout
         android:id="@+id/layout_events_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_marginBottom="6dp"
-        android:visibility="gone">
+        android:visibility="visible">
 
         <TextView
             android:id="@+id/txt_events_header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🎉 Today's Countdown Events"
+            android:text="🎉 Upcoming Occasions"
             android:textColor="#0F172A"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -102,7 +102,7 @@
             android:id="@+id/txt_event_1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="• Event 1"
+            android:text="• No upcoming occasions (Tap to add)"
             android:textColor="#64748B"
             android:textSize="10sp"
             android:singleLine="true"

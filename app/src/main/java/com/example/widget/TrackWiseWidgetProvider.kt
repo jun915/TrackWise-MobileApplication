@@ -150,29 +150,50 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
 
                 views.setTextViewText(R.id.widget_finance_balance, "💰 Net Balance: ₹${netBalance.toInt()}")
 
-                // --- 3. Max 2 Countdown Events Today (GONE if no events today) ---
-                val birthdays = dao.getBirthdaysForUserFlow(userId).first()
-                val todayBirthdays = birthdays.filter { it.date.endsWith(todayStr.substring(5)) }.map { "🎉 ${it.name}'s Birthday" }
-                val todayFestivals = TrackWiseUtils.getIndianFestivalsForDate(todayStr).map { "🎆 $it" }
-                val todayEvents = (todayBirthdays + todayFestivals)
+                // --- 3. Occasions & Countdowns Section (Always Visible with real-time countdown) ---
+                val birthdays = dao.getBirthdaysForUser(userId).ifEmpty { dao.getAllBirthdays() }
+                val upcomingOccasions = birthdays.map { bday ->
+                    val daysLeft = calculateOccasionDays(bday)
+                    val prefix = when {
+                        bday.category.contains("Birthday", ignoreCase = true) -> "🎂"
+                        bday.category.contains("Anniversary", ignoreCase = true) -> "💍"
+                        bday.category.contains("Holiday", ignoreCase = true) -> "🎆"
+                        else -> "🎯"
+                    }
+                    val badgeStr = when (daysLeft) {
+                        0 -> "TODAY! 🎉"
+                        1 -> "Tomorrow ⏰"
+                        in 2..4 -> "In $daysLeft days ⏳"
+                        else -> "In $daysLeft days 📅"
+                    }
+                    Triple(bday, daysLeft, "$prefix ${bday.name} • $badgeStr")
+                }.filter { it.second in 0..998 }
+                .sortedBy { it.second }
 
-                if (todayEvents.isEmpty()) {
-                    views.setViewVisibility(R.id.layout_events_container, View.GONE)
-                } else {
-                    views.setViewVisibility(R.id.layout_events_container, View.VISIBLE)
-                    views.setTextViewText(R.id.txt_events_header, "🎉 Today's Countdown Events")
-                    views.setTextColor(R.id.txt_events_header, textPrimaryColor)
+                val todayFestivals = TrackWiseUtils.getIndianFestivalsForDate(todayStr).map { "🎆 $it • TODAY!" }
+                val allDisplayEvents = mutableListOf<String>()
+                allDisplayEvents.addAll(todayFestivals)
+                upcomingOccasions.forEach { allDisplayEvents.add(it.third) }
 
-                    views.setTextViewText(R.id.txt_event_1, "• " + todayEvents[0])
+                views.setViewVisibility(R.id.layout_events_container, View.VISIBLE)
+                views.setTextViewText(R.id.txt_events_header, "🎉 Occasions & Countdowns (${allDisplayEvents.size})")
+                views.setTextColor(R.id.txt_events_header, textPrimaryColor)
+
+                if (allDisplayEvents.isNotEmpty()) {
+                    views.setTextViewText(R.id.txt_event_1, "• " + allDisplayEvents[0])
                     views.setTextColor(R.id.txt_event_1, textSecondaryColor)
 
-                    if (todayEvents.size >= 2) {
+                    if (allDisplayEvents.size >= 2) {
                         views.setViewVisibility(R.id.txt_event_2, View.VISIBLE)
-                        views.setTextViewText(R.id.txt_event_2, "• " + todayEvents[1])
+                        views.setTextViewText(R.id.txt_event_2, "• " + allDisplayEvents[1])
                         views.setTextColor(R.id.txt_event_2, textSecondaryColor)
                     } else {
                         views.setViewVisibility(R.id.txt_event_2, View.GONE)
                     }
+                } else {
+                    views.setTextViewText(R.id.txt_event_1, "• No upcoming occasions (Tap to add)")
+                    views.setTextColor(R.id.txt_event_1, textSecondaryColor)
+                    views.setViewVisibility(R.id.txt_event_2, View.GONE)
                 }
 
                 // --- 4. Max 2 Habits for Today / Current Hour ---
@@ -292,5 +313,79 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                 e.printStackTrace()
             }
         }
+    }
+
+    private fun calculateOccasionDays(bday: com.example.data.BirthdayEntity): Int {
+        val dateStr = bday.date
+        val parts = dateStr.split("-")
+        if (parts.size == 3) {
+            val year = parts[0].toIntOrNull() ?: 2000
+            val month = parts[1].toIntOrNull() ?: 1
+            val day = parts[2].toIntOrNull() ?: 1
+
+            val today = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+
+            val eventDate = Calendar.getInstance().apply {
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month - 1)
+                set(Calendar.DAY_OF_MONTH, day)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+
+            if (bday.countingMode == "Count Up") {
+                return 999
+            }
+
+            // Single-target countdown or holiday event
+            if (bday.category.contains("Countdown", ignoreCase = true) || bday.category.contains("Holiday", ignoreCase = true)) {
+                if (eventDate.timeInMillis == today.timeInMillis) {
+                    return 0
+                } else if (eventDate.after(today)) {
+                    val diffMs = eventDate.timeInMillis - today.timeInMillis
+                    return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
+                } else {
+                    return 999
+                }
+            }
+
+            // Recurring events like Birthdays and Anniversaries
+            val bdayThisYear = Calendar.getInstance().apply {
+                set(Calendar.YEAR, today.get(Calendar.YEAR))
+                set(Calendar.MONTH, month - 1)
+                set(Calendar.DAY_OF_MONTH, day)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+
+            if (bdayThisYear.timeInMillis == today.timeInMillis) {
+                return 0
+            } else if (bdayThisYear.after(today)) {
+                val diffMs = bdayThisYear.timeInMillis - today.timeInMillis
+                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
+            } else {
+                val bdayNextYear = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, today.get(Calendar.YEAR) + 1)
+                    set(Calendar.MONTH, month - 1)
+                    set(Calendar.DAY_OF_MONTH, day)
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val diffMs = bdayNextYear.timeInMillis - today.timeInMillis
+                return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
+            }
+        }
+        return 999
     }
 }

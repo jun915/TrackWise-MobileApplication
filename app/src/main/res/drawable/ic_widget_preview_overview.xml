@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="250dp"
+    android:viewportWidth="250"
+    android:viewportHeight="250">
+
+    <!-- Card Background with subtle stroke -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M16,0 H234 A16,16 0 0,1 250,16 V234 A16,16 0 0,1 234,250 H16 A16,16 0 0,1 0,234 V16 A16,16 0 0,1 16,0 Z" />
+    <path
+        android:strokeColor="#CBD5E1"
+        android:strokeWidth="1.5"
+        android:pathData="M16,0 H234 A16,16 0 0,1 250,16 V234 A16,16 0 0,1 234,250 H16 A16,16 0 0,1 0,234 V16 A16,16 0 0,1 16,0 Z" />
+
+    <!-- Top Header: Brand Pill & Date -->
+    <path
+        android:fillColor="#7C3AED"
+        android:pathData="M16,16 H85 A6,6 0 0,1 91,22 V36 A6,6 0 0,1 85,42 H16 A6,6 0 0,1 10,36 V22 A6,6 0 0,1 16,16 Z" />
+    <!-- Net Balance Badge -->
+    <path
+        android:fillColor="#E0F2FE"
+        android:pathData="M16,48 H100 A4,4 0 0,1 104,52 V66 A4,4 0 0,1 100,70 H16 A4,4 0 0,1 12,66 V52 A4,4 0 0,1 16,48 Z" />
+    <!-- Header Right Date Indicator -->
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M150,22 H235 A3,3 0 0,1 238,25 V33 A3,3 0 0,1 235,36 H150 A3,3 0 0,1 147,33 V25 A3,3 0 0,1 150,22 Z" />
+    <path
+        android:fillColor="#A855F7"
+        android:pathData="M130,42 H235 A3,3 0 0,1 238,45 V53 A3,3 0 0,1 235,56 H130 A3,3 0 0,1 127,45 V45 A3,3 0 0,1 130,42 Z" />
+
+    <!-- Divider Line -->
+    <path
+        android:strokeColor="#E2E8F0"
+        android:strokeWidth="1.5"
+        android:pathData="M12,78 H238" />
+
+    <!-- Occasion Card Box (Orange / Amber accent) -->
+    <path
+        android:fillColor="#FFF7ED"
+        android:strokeColor="#FDBA74"
+        android:strokeWidth="1"
+        android:pathData="M16,86 H234 A6,6 0 0,1 240,92 V122 A6,6 0 0,1 234,128 H16 A6,6 0 0,1 10,122 V92 A6,6 0 0,1 16,86 Z" />
+    <!-- Occasion Title Bar & Badge -->
+    <path
+        android:fillColor="#EA580C"
+        android:pathData="M20,94 H120 A3,3 0 0,1 123,97 V105 A3,3 0 0,1 120,108 H20 A3,3 0 0,1 17,105 V97 A3,3 0 0,1 20,94 Z" />
+    <path
+        android:fillColor="#FDBA74"
+        android:pathData="M20,112 H180 A2,2 0 0,1 182,114 V120 A2,2 0 0,1 180,122 H20 A2,2 0 0,1 18,120 V114 A2,2 0 0,1 20,112 Z" />
+    <path
+        android:fillColor="#FB923C"
+        android:pathData="M185,94 H230 A4,4 0 0,1 234,98 V110 A4,4 0 0,1 230,114 H185 A4,4 0 0,1 181,110 V98 A4,4 0 0,1 185,94 Z" />
+
+    <!-- Habits & Tasks Row Indicators -->
+    <!-- Habits Section -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M16,138 H80 A3,3 0 0,1 83,141 V149 A3,3 0 0,1 80,152 H16 A3,3 0 0,1 13,149 V141 A3,3 0 0,1 16,138 Z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M16,158 H170 A2,2 0 0,1 172,160 V166 A2,2 0 0,1 170,168 H16 A2,2 0 0,1 14,166 V160 A2,2 0 0,1 16,158 Z" />
+
+    <!-- Tasks Section -->
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M16,176 H75 A3,3 0 0,1 78,179 V187 A3,3 0 0,1 75,190 H16 A3,3 0 0,1 13,187 V179 A3,3 0 0,1 16,176 Z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M16,196 H160 A2,2 0 0,1 162,198 V204 A2,2 0 0,1 160,206 H16 A2,2 0 0,1 14,204 V198 A2,2 0 0,1 16,196 Z" />
+
+    <!-- Bottom Quick Stats Row: Water (Cyan) + Habit Breaker (Rose) -->
+    <path
+        android:fillColor="#0EA5E9"
+        android:pathData="M16,218 H90 A4,4 0 0,1 94,222 V234 A4,4 0 0,1 90,238 H16 A4,4 0 0,1 12,234 V222 A4,4 0 0,1 16,218 Z" />
+    <path
+        android:fillColor="#F43F5E"
+        android:pathData="M140,218 H234 A4,4 0 0,1 238,222 V234 A4,4 0 0,1 234,238 H140 A4,4 0 0,1 136,234 V222 A4,4 0 0,1 140,218 Z" />
+</vector>

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="280dp"
+    android:height="180dp"
+    android:viewportWidth="280"
+    android:viewportHeight="180">
+
+    <!-- Card Background with stroke -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M16,0 H264 A16,16 0 0,1 280,16 V164 A16,16 0 0,1 264,180 H16 A16,16 0 0,1 0,164 V16 A16,16 0 0,1 16,0 Z" />
+    <path
+        android:strokeColor="#CBD5E1"
+        android:strokeWidth="1.5"
+        android:pathData="M16,0 H264 A16,16 0 0,1 280,16 V164 A16,16 0 0,1 264,180 H16 A16,16 0 0,1 0,164 V16 A16,16 0 0,1 16,0 Z" />
+
+    <!-- Top Header: Title & Live Sync -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M14,12 H130 A3,3 0 0,1 133,15 V23 A3,3 0 0,1 130,26 H14 A3,3 0 0,1 11,23 V15 A3,3 0 0,1 14,12 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M220,12 H266 A3,3 0 0,1 269,15 V23 A3,3 0 0,1 266,26 H220 A3,3 0 0,1 217,23 V15 A3,3 0 0,1 220,12 Z" />
+
+    <!-- Category Tabs Bar: Habits (Active purple), Tasks, Finance, Health, Breaker -->
+    <path
+        android:fillColor="#7C3AED"
+        android:pathData="M12,34 H60 A4,4 0 0,1 64,38 V54 A4,4 0 0,1 60,58 H12 A4,4 0 0,1 8,54 V38 A4,4 0 0,1 12,34 Z" />
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M68,34 H116 A4,4 0 0,1 120,38 V54 A4,4 0 0,1 116,58 H68 A4,4 0 0,1 64,54 V38 A4,4 0 0,1 68,34 Z" />
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M124,34 H172 A4,4 0 0,1 176,38 V54 A4,4 0 0,1 172,58 H124 A4,4 0 0,1 120,54 V38 A4,4 0 0,1 124,34 Z" />
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M180,34 H228 A4,4 0 0,1 232,38 V54 A4,4 0 0,1 228,58 H180 A4,4 0 0,1 176,54 V38 A4,4 0 0,1 180,34 Z" />
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M236,34 H268 A4,4 0 0,1 272,38 V54 A4,4 0 0,1 268,58 H236 A4,4 0 0,1 232,54 V38 A4,4 0 0,1 236,34 Z" />
+
+    <!-- Sub-Headline: 7-Day Consistency (Purple) + Status Badge (Cyan) -->
+    <path
+        android:fillColor="#7C3AED"
+        android:pathData="M14,66 H140 A3,3 0 0,1 143,69 V77 A3,3 0 0,1 140,80 H14 A3,3 0 0,1 11,77 V69 A3,3 0 0,1 14,66 Z" />
+    <path
+        android:fillColor="#0EA5E9"
+        android:pathData="M210,66 H266 A3,3 0 0,1 269,69 V77 A3,3 0 0,1 266,80 H210 A3,3 0 0,1 207,77 V69 A3,3 0 0,1 210,66 Z" />
+
+    <!-- Chart Visualizer: 7 Dynamic Bars & Trendline -->
+    <!-- Grid baseline -->
+    <path
+        android:strokeColor="#E2E8F0"
+        android:strokeWidth="1"
+        android:pathData="M14,142 H266" />
+
+    <!-- Bar 1 (Mon) -->
+    <path
+        android:fillColor="#A78BFA"
+        android:pathData="M24,105 H42 A3,3 0 0,1 45,108 V142 H21 V108 A3,3 0 0,1 24,105 Z" />
+    <!-- Bar 2 (Tue) -->
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M60,95 H78 A3,3 0 0,1 81,98 V142 H57 V98 A3,3 0 0,1 60,95 Z" />
+    <!-- Bar 3 (Wed) -->
+    <path
+        android:fillColor="#A78BFA"
+        android:pathData="M96,115 H114 A3,3 0 0,1 117,118 V142 H93 V118 A3,3 0 0,1 96,115 Z" />
+    <!-- Bar 4 (Thu) -->
+    <path
+        android:fillColor="#7C3AED"
+        android:pathData="M132,88 H150 A3,3 0 0,1 153,91 V142 H129 V91 A3,3 0 0,1 132,88 Z" />
+    <!-- Bar 5 (Fri) -->
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M168,98 H186 A3,3 0 0,1 189,101 V142 H165 V101 A3,3 0 0,1 168,98 Z" />
+    <!-- Bar 6 (Sat) -->
+    <path
+        android:fillColor="#7C3AED"
+        android:pathData="M204,82 H222 A3,3 0 0,1 225,85 V142 H201 V85 A3,3 0 0,1 204,82 Z" />
+    <!-- Bar 7 (Sun) -->
+    <path
+        android:fillColor="#6D28D9"
+        android:pathData="M240,90 H258 A3,3 0 0,1 261,93 V142 H237 V93 A3,3 0 0,1 240,90 Z" />
+
+    <!-- Trend line overlay -->
+    <path
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="2"
+        android:pathData="M33,105 L69,95 L105,115 L141,88 L177,98 L213,82 L249,90" />
+
+    <!-- Bottom Footer Info -->
+    <path
+        android:fillColor="#F97316"
+        android:pathData="M14,156 H90 A2,2 0 0,1 92,158 V164 A2,2 0 0,1 90,166 H14 A2,2 0 0,1 12,164 V158 A2,2 0 0,1 14,156 Z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M190,156 H266 A2,2 0 0,1 268,158 V164 A2,2 0 0,1 266,166 H190 A2,2 0 0,1 188,164 V158 A2,2 0 0,1 190,156 Z" />
+</vector>

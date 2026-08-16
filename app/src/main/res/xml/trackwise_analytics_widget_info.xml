@@ -8,5 +8,8 @@
     android:minResizeHeight="140dp"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/trackwise_analytics_widget_layout"
+    android:previewLayout="@layout/trackwise_analytics_widget_layout"
+    android:previewImage="@drawable/ic_widget_preview_analytics"
+    android:description="@string/widget_analytics_description"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

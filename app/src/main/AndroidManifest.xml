@@ -33,6 +33,7 @@
 
         <receiver
             android:name="com.example.widget.TrackWiseWidgetProvider"
+            android:label="@string/widget_overview_label"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -45,6 +46,7 @@
 
         <receiver
             android:name="com.example.widget.TrackWiseAnalyticsWidgetProvider"
+            android:label="@string/widget_analytics_label"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

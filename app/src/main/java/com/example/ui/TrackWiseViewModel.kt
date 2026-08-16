@@ -3075,6 +3075,7 @@ class TrackWiseViewModel(
     fun triggerFakeSync() {
         _isSyncing.value = false
         _syncMessage.value = "Auto-saved offline data"
+        updateAppWidget()
     }
 
     // --- Sleep Tracker Actions ---
