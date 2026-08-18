@@ -78,6 +78,7 @@ class TrackWiseAnalyticsWidgetProvider : AppWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             updateWidget(context, appWidgetManager, appWidgetId)
         }
+        scheduleNextUpdate(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -92,13 +93,68 @@ class TrackWiseAnalyticsWidgetProvider : AppWidgetProvider() {
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 updateWidget(context, appWidgetManager, appWidgetId)
             }
-        } else if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+        } else if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE || intent.action == "com.example.widget.ACTION_ANALYTICS_WIDGET_AUTOREFRESH") {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
                 ?: appWidgetManager.getAppWidgetIds(ComponentName(context, TrackWiseAnalyticsWidgetProvider::class.java))
             for (id in appWidgetIds) {
                 updateWidget(context, appWidgetManager, id)
             }
+            scheduleNextUpdate(context)
+        }
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        scheduleNextUpdate(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        cancelNextUpdate(context)
+    }
+
+    private fun scheduleNextUpdate(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(context, TrackWiseAnalyticsWidgetProvider::class.java).apply {
+            action = "com.example.widget.ACTION_ANALYTICS_WIDGET_AUTOREFRESH"
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pendingIntent = PendingIntent.getBroadcast(context, 202609, intent, flags)
+
+        // 15 minutes from now (900_000 ms)
+        val triggerTime = System.currentTimeMillis() + 900_000L
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setAndAllowWhileIdle(android.app.AlarmManager.RTC, triggerTime, pendingIntent)
+            } else {
+                alarmManager.set(android.app.AlarmManager.RTC, triggerTime, pendingIntent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun cancelNextUpdate(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(context, TrackWiseAnalyticsWidgetProvider::class.java).apply {
+            action = "com.example.widget.ACTION_ANALYTICS_WIDGET_AUTOREFRESH"
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pendingIntent = PendingIntent.getBroadcast(context, 202609, intent, flags)
+        try {
+            alarmManager.cancel(pendingIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -127,7 +183,7 @@ class TrackWiseAnalyticsWidgetProvider : AppWidgetProvider() {
                 }
 
                 val widgetPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val activeTab = widgetPrefs.getString("active_tab_$appWidgetId", "habits") ?: "habits"
+                val activeTab = widgetPrefs.getString("active_tab_$appWidgetId", "stocks") ?: "stocks"
 
                 val widgetBgRes = if (isDark) R.drawable.widget_background_dark else R.drawable.widget_background_light
                 val textPrimaryColor = if (isDark) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A")
@@ -142,8 +198,9 @@ class TrackWiseAnalyticsWidgetProvider : AppWidgetProvider() {
                 views.setTextColor(R.id.txt_analytics_timestamp, textSecondaryColor)
 
                 // Setup Tab buttons state and click listeners
-                val tabs = listOf("habits", "tasks", "finance", "health", "breakers")
+                val tabs = listOf("stocks", "habits", "tasks", "finance", "health", "breakers")
                 val tabViewIds = listOf(
+                    R.id.tab_btn_stocks,
                     R.id.tab_btn_habits,
                     R.id.tab_btn_tasks,
                     R.id.tab_btn_finance,
@@ -173,6 +230,7 @@ class TrackWiseAnalyticsWidgetProvider : AppWidgetProvider() {
 
                 // Global widget clicks open corresponding app section
                 val targetScreen = when (activeTab) {
+                    "stocks" -> "stock_market"
                     "habits" -> "habits"
                     "tasks" -> "tasks"
                     "finance" -> "finance"
@@ -188,6 +246,56 @@ class TrackWiseAnalyticsWidgetProvider : AppWidgetProvider() {
 
                 // Generate Dynamic Bitmap Chart and Analytics Stats based on Active Tab
                 when (activeTab) {
+                    "stocks" -> {
+                        val stockTrades = dao.getStockTradesForUser(userId)
+                        val totalProfit = stockTrades.sumOf { if (it.netProfit > 0) it.netProfit else 0.0 }
+                        val totalLoss = stockTrades.sumOf { if (it.netProfit < 0) -it.netProfit else 0.0 }
+                        val netProfit = totalProfit - totalLoss
+
+                        // Headline/Subtexts
+                        views.setTextViewText(R.id.txt_analytics_headline, "📈 Stocks Net P&L: ₹${netProfit.toInt()}")
+                        views.setTextColor(R.id.txt_analytics_headline, if (netProfit >= 0) Color.parseColor("#10B981") else Color.parseColor("#F43F5E"))
+                        views.setTextViewText(R.id.txt_analytics_subtext, "Profit: ₹${totalProfit.toInt()} • Loss: ₹${totalLoss.toInt()}")
+                        views.setTextColor(R.id.txt_analytics_subtext, textSecondaryColor)
+
+                        // Footers
+                        views.setTextViewText(R.id.txt_analytics_footer_left, "💼 Active Positions: ${stockTrades.map { it.stockName }.distinct().size}")
+                        views.setTextViewText(R.id.txt_analytics_footer_right, "Total: ${stockTrades.size} trade(s)")
+
+                        // Build top 4 stock items for the bar chart
+                        val stockMap = stockTrades.groupBy { it.stockName }
+                        val stockPnLList = stockMap.map { (stock, trades) ->
+                            stock to trades.sumOf { it.netProfit }
+                        }.sortedByDescending { Math.abs(it.second) }.take(4)
+
+                        val labels = mutableListOf<String>()
+                        val values = mutableListOf<Float>()
+                        val colors = mutableListOf<Int>()
+
+                        if (stockPnLList.isNotEmpty()) {
+                            stockPnLList.forEach { (stock, pnl) ->
+                                labels.add(stock)
+                                values.add(Math.abs(pnl).toFloat())
+                                colors.add(if (pnl >= 0) Color.parseColor("#10B981") else Color.parseColor("#F43F5E"))
+                            }
+                        } else {
+                            labels.addAll(listOf("RELIANCE", "TCS", "INFY", "HDFC"))
+                            values.addAll(listOf(0f, 0f, 0f, 0f))
+                            colors.addAll(listOf(Color.parseColor("#10B981"), Color.parseColor("#10B981"), Color.parseColor("#10B981"), Color.parseColor("#10B981")))
+                        }
+
+                        val maxVal = values.maxOrNull()?.coerceAtLeast(100f) ?: 100f
+                        val chartBitmap = drawMultiBarChart(
+                            labels = labels,
+                            values = values,
+                            maxValue = maxVal,
+                            colors = colors,
+                            isDark = isDark,
+                            currencyPrefix = "₹"
+                        )
+                        views.setImageViewBitmap(R.id.img_analytics_chart, chartBitmap)
+                    }
+
                     "habits" -> {
                         val allHabits = dao.getHabitsForUser(userId)
                         val last7Days = (6 downTo 0).map { offset ->

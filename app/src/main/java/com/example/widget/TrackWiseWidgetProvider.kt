@@ -49,17 +49,73 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
         for (appWidgetId in appWidgetIds) {
             updateWidget(context, appWidgetManager, appWidgetId)
         }
+        scheduleNextUpdate(context)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
+        if (intent.action == AppWidgetManager.ACTION_APPWIDGET_UPDATE || intent.action == "com.example.widget.ACTION_WIDGET_AUTOREFRESH") {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val appWidgetIds = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
                 ?: appWidgetManager.getAppWidgetIds(ComponentName(context, TrackWiseWidgetProvider::class.java))
             for (id in appWidgetIds) {
                 updateWidget(context, appWidgetManager, id)
             }
+            scheduleNextUpdate(context)
+        }
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        scheduleNextUpdate(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        cancelNextUpdate(context)
+    }
+
+    private fun scheduleNextUpdate(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(context, TrackWiseWidgetProvider::class.java).apply {
+            action = "com.example.widget.ACTION_WIDGET_AUTOREFRESH"
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pendingIntent = PendingIntent.getBroadcast(context, 202608, intent, flags)
+
+        // 15 minutes from now (900_000 ms)
+        val triggerTime = System.currentTimeMillis() + 900_000L
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setAndAllowWhileIdle(android.app.AlarmManager.RTC, triggerTime, pendingIntent)
+            } else {
+                alarmManager.set(android.app.AlarmManager.RTC, triggerTime, pendingIntent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun cancelNextUpdate(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(context, TrackWiseWidgetProvider::class.java).apply {
+            action = "com.example.widget.ACTION_WIDGET_AUTOREFRESH"
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pendingIntent = PendingIntent.getBroadcast(context, 202608, intent, flags)
+        try {
+            alarmManager.cancel(pendingIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -315,6 +371,53 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    private fun daysUntilBirthday(storedDate: String): Int {
+        val parts = storedDate.split("-")
+        val (month, day) = if (parts.size == 3) {
+            Pair(parts[1].toIntOrNull() ?: 1, parts[2].toIntOrNull() ?: 1)
+        } else if (parts.size == 2) {
+            Pair(parts[0].toIntOrNull() ?: 1, parts[1].toIntOrNull() ?: 1)
+        } else {
+            return 999
+        }
+
+        val today = Calendar.getInstance()
+        today.set(Calendar.HOUR_OF_DAY, 0)
+        today.set(Calendar.MINUTE, 0)
+        today.set(Calendar.SECOND, 0)
+        today.set(Calendar.MILLISECOND, 0)
+
+        val bdayThisYear = Calendar.getInstance()
+        bdayThisYear.set(Calendar.YEAR, today.get(Calendar.YEAR))
+        bdayThisYear.set(Calendar.MONTH, month - 1)
+        bdayThisYear.set(Calendar.DAY_OF_MONTH, day)
+        bdayThisYear.set(Calendar.HOUR_OF_DAY, 0)
+        bdayThisYear.set(Calendar.MINUTE, 0)
+        bdayThisYear.set(Calendar.SECOND, 0)
+        bdayThisYear.set(Calendar.MILLISECOND, 0)
+
+        if (bdayThisYear.timeInMillis == today.timeInMillis) {
+            return 0
+        }
+
+        if (bdayThisYear.before(today)) {
+            val bdayNextYear = Calendar.getInstance()
+            bdayNextYear.set(Calendar.YEAR, today.get(Calendar.YEAR) + 1)
+            bdayNextYear.set(Calendar.MONTH, month - 1)
+            bdayNextYear.set(Calendar.DAY_OF_MONTH, day)
+            bdayNextYear.set(Calendar.HOUR_OF_DAY, 0)
+            bdayNextYear.set(Calendar.MINUTE, 0)
+            bdayNextYear.set(Calendar.SECOND, 0)
+            bdayNextYear.set(Calendar.MILLISECOND, 0)
+            
+            val diffMs = bdayNextYear.timeInMillis - today.timeInMillis
+            return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+        } else {
+            val diffMs = bdayThisYear.timeInMillis - today.timeInMillis
+            return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+        }
+    }
+
     private fun calculateOccasionDays(bday: com.example.data.BirthdayEntity): Int {
         val dateStr = bday.date
         val parts = dateStr.split("-")
@@ -386,6 +489,6 @@ class TrackWiseWidgetProvider : AppWidgetProvider() {
                 return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
             }
         }
-        return 999
+        return daysUntilBirthday(bday.date)
     }
 }

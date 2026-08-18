@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">TrackWise</string>
-    <string name="widget_overview_label">TrackWise: Daily Overview &amp; Habits</string>
-    <string name="widget_overview_description">Today\'s schedule with upcoming occasions, active habits, tasks, net balance, hydration, and Islamic calendar info.</string>
-    <string name="widget_analytics_label">TrackWise: Analytics &amp; Visual Charts</string>
-    <string name="widget_analytics_description">Live interactive charts and 7-day progress breakdown for habits, tasks, finances, health, and breaker defenses.</string>
+    <string name="widget_overview_label">TrackWise Daily Overview &amp; Habits Hub</string>
+    <string name="widget_overview_description">Today\'s complete dashboard with upcoming occasions, active habits, pending tasks, net balance, hydration, and Islamic calendar info.</string>
+    <string name="widget_analytics_label">TrackWise Interactive Progress Analytics</string>
+    <string name="widget_analytics_description">Live interactive charts and 7-day progress breakdown for habits, tasks, finances, health, and breaker defenses with tab controls.</string>
 </resources>

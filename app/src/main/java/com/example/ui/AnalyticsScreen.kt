@@ -89,6 +89,7 @@ fun AnalyticsScreen(
     val netWorthItems by viewModel.allNetWorthItems.collectAsState()
     val wishlist by viewModel.allWishlist.collectAsState()
     val groceries by viewModel.allGroceryItems.collectAsState()
+    val stockTrades by viewModel.allStockTrades.collectAsState()
     val currentUser by viewModel.sessionUser.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val periodCycles by viewModel.periodCycles.collectAsState()
@@ -98,8 +99,8 @@ fun AnalyticsScreen(
         g == "female" || g == "woman" || g == "women" || g == "girl"
     }
 
-    // Modern 7-tab Scrollable Layout
-    val categories = listOf("Finance", "Task", "Habit", "Habit Breaker", "Health", "Wishlist", "Grocery List")
+    // Modern 8-tab Scrollable Layout
+    val categories = listOf("Finance", "Stocks", "Task", "Habit", "Habit Breaker", "Health", "Wishlist", "Grocery List")
     val pagerState = rememberPagerState(pageCount = { categories.size })
     val coroutineScope = rememberCoroutineScope()
 
@@ -123,6 +124,7 @@ fun AnalyticsScreen(
                         modifier = Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
                         color = when (categories[pagerState.currentPage]) {
                             "Finance" -> BrandGreen
+                            "Stocks" -> BrandCyan
                             "Task" -> BrandViolet
                             "Habit" -> BrandCyan
                             "Habit Breaker" -> BrandRose
@@ -141,6 +143,7 @@ fun AnalyticsScreen(
                 val isSelected = pagerState.currentPage == index
                 val categoryColor = when (category) {
                     "Finance" -> BrandGreen
+                    "Stocks" -> BrandCyan
                     "Task" -> BrandViolet
                     "Habit" -> BrandCyan
                     "Habit Breaker" -> BrandRose
@@ -150,6 +153,7 @@ fun AnalyticsScreen(
                 }
                 val icon = when (category) {
                     "Finance" -> Icons.Default.AttachMoney
+                    "Stocks" -> Icons.Default.TrendingUp
                     "Task" -> Icons.Default.CheckCircle
                     "Habit" -> Icons.Default.Autorenew
                     "Habit Breaker" -> Icons.Default.Block
@@ -366,6 +370,65 @@ fun AnalyticsScreen(
                         item {
                             AnimatedTileContainer {
                                 FinanceSavingsDistributionCard(financeLogs = financeLogs)
+                            }
+                        }
+                    }
+
+                    "Stocks" -> {
+                        if (stockTrades.isEmpty()) {
+                            item {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = "No Stock Trade Data Available 📈",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Please log some stock transactions in the Stock Market section to view analytics.",
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            // Chart 1: Net Profit and Loss Line Chart
+                            item {
+                                StockNetProfitLineChart(trades = stockTrades)
+                            }
+
+                            // Chart 2: Amount Invested Pie Chart
+                            item {
+                                StockInvestmentPieChart(trades = stockTrades)
+                            }
+
+                            // Chart 3: Performance Extremes Bar Chart
+                            item {
+                                StockPerformanceExtremesChart(trades = stockTrades)
+                            }
+
+                            // Chart 4: Winning vs Losing Trades Bar Chart
+                            item {
+                                StockWinLossChart(trades = stockTrades)
+                            }
+
+                            // Chart 5: Gross vs Net Profit Bar Chart
+                            item {
+                                StockGrossVsNetChart(trades = stockTrades)
                             }
                         }
                     }
@@ -6950,4 +7013,794 @@ fun GroceryBudgetPacingCard(groceries: List<GroceryItemEntity>) {
         }
     }
 }
+
+// ==========================================
+// STOCK MARKET ANALYTICS CUSTOM CHARTS
+// ==========================================
+
+@Composable
+fun StockNetProfitLineChart(trades: List<StockTradeEntity>) {
+    var intervalMode by remember { mutableStateOf(0) } // 0: Week, 1: Month, 2: Year
+    
+    val aggregatedData = remember(trades, intervalMode) {
+        val dailyNetProfits = trades.groupBy { it.date }
+            .mapValues { (_, tradesList) -> tradesList.sumOf { it.netProfit } }
+            .toList()
+            .sortedBy { it.first }
+
+        when (intervalMode) {
+            0 -> { // Week: Last 7 daily net profits
+                dailyNetProfits.takeLast(7)
+            }
+            1 -> { // Month: Last 30 daily net profits
+                dailyNetProfits.takeLast(30)
+            }
+            else -> { // Year: Last 12 months net profits
+                trades.groupBy {
+                    if (it.date.length >= 7) it.date.substring(0, 7) else "Unknown"
+                }
+                .mapValues { (_, tradesList) -> tradesList.sumOf { it.netProfit } }
+                .toList()
+                .sortedBy { it.first }
+                .takeLast(12)
+            }
+        }
+    }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(16.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Net Profit & Loss Trend 📈",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Real-time earnings curve",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+                
+                // Toggle Switches
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(2.dp)
+                ) {
+                    listOf("W", "M", "Y").forEachIndexed { idx, label ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (intervalMode == idx) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                .clickable { intervalMode = idx }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (intervalMode == idx) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (aggregatedData.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Not enough trade logs for this interval",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                }
+            } else {
+                val values = aggregatedData.map { it.second }
+                val maxVal = kotlin.math.max(values.maxOrNull() ?: 100.0, 100.0)
+                val minVal = kotlin.math.min(values.minOrNull() ?: -100.0, -100.0)
+                val valSpan = maxVal - minVal
+
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(surfaceVariantColor.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                ) {
+                    val width = size.width
+                    val height = size.height
+                    val pointsCount = aggregatedData.size
+
+                    // Draw center baseline (Y = 0)
+                    val zeroY = height - (((0.0 - minVal) / valSpan) * height).toFloat()
+                    if (zeroY in 0f..height) {
+                        drawLine(
+                            color = Color.LightGray.copy(alpha = 0.5f),
+                            start = Offset(0f, zeroY),
+                            end = Offset(width, zeroY),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
+
+                    if (pointsCount > 1) {
+                        val path = Path()
+                        val stepX = width / (pointsCount - 1)
+
+                        aggregatedData.forEachIndexed { idx, (_, amount) ->
+                            val x = idx * stepX
+                            val normalizedY = ((amount - minVal) / valSpan).toFloat()
+                            val y = height - (normalizedY * (height - 40.dp.toPx()) + 20.dp.toPx())
+
+                            if (idx == 0) {
+                                path.moveTo(x, y)
+                            } else {
+                                path.lineTo(x, y)
+                            }
+
+                            // Draw individual dots
+                            drawCircle(
+                                color = if (amount >= 0) BrandGreen else BrandRose,
+                                radius = 4.dp.toPx(),
+                                center = Offset(x, y)
+                            )
+                        }
+
+                        // Draw path line
+                        drawPath(
+                            path = path,
+                            color = primaryColor,
+                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Labels info
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Start: ${aggregatedData.first().first}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = "Peak: ₹${java.text.DecimalFormat("#,##0").format(maxVal)}",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandGreen
+                    )
+                    Text(
+                        text = "End: ${aggregatedData.last().first}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StockInvestmentPieChart(trades: List<StockTradeEntity>) {
+    var timeMode by remember { mutableStateOf(0) } // 0: Day, 1: Month
+    val decFormat = remember { java.text.DecimalFormat("#,##0") }
+
+    val pieSlices = remember(trades, timeMode) {
+        val today = TrackWiseUtils.getTodayString()
+        val currentMonth = if (today.length >= 7) today.substring(0, 7) else ""
+
+        val filteredTrades = if (timeMode == 0) {
+            val daily = trades.filter { it.date == today }
+            if (daily.isEmpty()) trades.filter { it.date == trades.maxOf { t -> t.date } } else daily
+        } else {
+            val monthly = trades.filter { it.date.startsWith(currentMonth) }
+            if (monthly.isEmpty()) trades.filter { it.date.startsWith(trades.maxOf { t -> t.date }.substring(0, 7)) } else monthly
+        }
+
+        filteredTrades.groupBy { it.stockName }
+            .mapValues { (_, tradesList) -> tradesList.sumOf { it.quantity }.toDouble() }
+            .toList()
+            .sortedByDescending { it.second }
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(16.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Stock Asset Allocation 🍕",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Shares quantity weight",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(2.dp)
+                ) {
+                    listOf("Latest Day", "This Month").forEachIndexed { idx, label ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (timeMode == idx) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                .clickable { timeMode = idx }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (timeMode == idx) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (pieSlices.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No trade transactions logged yet", fontSize = 12.sp)
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    val total = pieSlices.sumOf { it.second }
+                    val colorsList = listOf(
+                        Color(0xFF0EA5E9), // Ocean Blue
+                        Color(0xFF8B5CF6), // Purple / Violet
+                        Color(0xFF10B981), // Emerald Green
+                        Color(0xFFEC4899), // Hot Pink
+                        Color(0xFFEAB308), // Yellow / Gold
+                        Color(0xFF3B82F6), // Royal Blue
+                        Color(0xFFF43F5E), // Rose Red
+                        Color(0xFF06B6D4), // Cyan
+                        Color(0xFF14B8A6), // Teal
+                        Color(0xFFF97316), // Orange
+                        Color(0xFF6366F1)  // Indigo
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(110.dp)
+                            .weight(1.2f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val sizeMin = kotlin.math.min(size.width, size.height)
+                            val strokeWidth = sizeMin * 0.18f
+                            val arcSize = sizeMin - strokeWidth
+                            
+                            var startAngle = -90f
+                            pieSlices.forEachIndexed { index, (_, value) ->
+                                if (value > 0.0) {
+                                    val sweepAngle = ((value / total) * 360f).toFloat()
+                                    drawArc(
+                                        color = colorsList.getOrElse(index) { Color.Gray },
+                                        startAngle = startAngle,
+                                        sweepAngle = sweepAngle,
+                                        useCenter = false,
+                                        topLeft = Offset((size.width - arcSize) / 2f, (size.height - arcSize) / 2f),
+                                        size = Size(arcSize, arcSize),
+                                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                                    )
+                                    startAngle += sweepAngle
+                                }
+                            }
+                        }
+                    }
+
+                    // Legends list
+                    Column(
+                        modifier = Modifier.weight(1.8f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        pieSlices.take(5).forEachIndexed { idx, (stock, qty) ->
+                            val color = colorsList.getOrElse(idx) { Color.Gray }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                )
+                                Text(
+                                    text = "$stock: ${decFormat.format(qty)} sh (${((qty / total) * 100).toInt()}%)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (pieSlices.size > 5) {
+                            Text(
+                                text = "+ ${pieSlices.size - 5} more tickers",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StockPerformanceExtremesChart(trades: List<StockTradeEntity>) {
+    var toggleMode by remember { mutableStateOf(0) } // 0: Day/W, 1: Day/M, 2: Week/M, 3: Month/Y
+    val decFormat = remember { java.text.DecimalFormat("#,##0") }
+
+    val extremes = remember(trades, toggleMode) {
+        val today = TrackWiseUtils.getTodayString()
+        val currentYear = if (today.length >= 4) today.substring(0, 4) else ""
+
+        val aggregatedList = when (toggleMode) {
+            0 -> { // Day in Week: Last 7 daily aggregates
+                trades.groupBy { it.date }
+                    .mapValues { (_, list) -> list.sumOf { it.netProfit } }
+                    .toList()
+                    .sortedBy { it.first }
+                    .takeLast(7)
+            }
+            1 -> { // Day in Month: Last 30 daily aggregates
+                trades.groupBy { it.date }
+                    .mapValues { (_, list) -> list.sumOf { it.netProfit } }
+                    .toList()
+                    .sortedBy { it.first }
+                    .takeLast(30)
+            }
+            2 -> { // Week in Month: Split trades by day blocks (1-7, 8-14, 15-21, 22-31) in current month
+                val monthPrefix = if (today.length >= 7) today.substring(0, 7) else ""
+                val monthlyTrades = trades.filter { it.date.startsWith(monthPrefix) }
+                val w1 = monthlyTrades.filter { it.date.endsWith("01") || it.date.endsWith("02") || it.date.endsWith("03") || it.date.endsWith("04") || it.date.endsWith("05") || it.date.endsWith("06") || it.date.endsWith("07") }.sumOf { it.netProfit }
+                val w2 = monthlyTrades.filter { it.date.endsWith("08") || it.date.endsWith("09") || it.date.endsWith("10") || it.date.endsWith("11") || it.date.endsWith("12") || it.date.endsWith("13") || it.date.endsWith("14") }.sumOf { it.netProfit }
+                val w3 = monthlyTrades.filter { it.date.endsWith("15") || it.date.endsWith("16") || it.date.endsWith("17") || it.date.endsWith("18") || it.date.endsWith("19") || it.date.endsWith("20") || it.date.endsWith("21") }.sumOf { it.netProfit }
+                val w4 = monthlyTrades.filter { !(it.date.endsWith("01") || it.date.endsWith("02") || it.date.endsWith("03") || it.date.endsWith("04") || it.date.endsWith("05") || it.date.endsWith("06") || it.date.endsWith("07") || it.date.endsWith("08") || it.date.endsWith("09") || it.date.endsWith("10") || it.date.endsWith("11") || it.date.endsWith("12") || it.date.endsWith("13") || it.date.endsWith("14") || it.date.endsWith("15") || it.date.endsWith("16") || it.date.endsWith("17") || it.date.endsWith("18") || it.date.endsWith("19") || it.date.endsWith("20") || it.date.endsWith("21")) }.sumOf { it.netProfit }
+
+                listOf("Week 1" to w1, "Week 2" to w2, "Week 3" to w3, "Week 4" to w4)
+            }
+            else -> { // Month in Year: Monthly performance for the current year
+                trades.filter { it.date.startsWith(currentYear) }
+                    .groupBy { if (it.date.length >= 7) it.date.substring(5, 7) else "Unknown" }
+                    .mapValues { (_, list) -> list.sumOf { it.netProfit } }
+                    .toList()
+                    .sortedBy { it.first }
+                    .map { (month, sum) ->
+                        val mLabel = when (month) {
+                            "01" -> "Jan"
+                            "02" -> "Feb"
+                            "03" -> "Mar"
+                            "04" -> "Apr"
+                            "05" -> "May"
+                            "06" -> "Jun"
+                            "07" -> "Jul"
+                            "08" -> "Aug"
+                            "09" -> "Sep"
+                            "10" -> "Oct"
+                            "11" -> "Nov"
+                            "12" -> "Dec"
+                            else -> month
+                        }
+                        mLabel to sum
+                    }
+            }
+        }
+
+        val best = aggregatedList.maxByOrNull { it.second } ?: ("None" to 0.0)
+        val worst = aggregatedList.minByOrNull { it.second } ?: ("None" to 0.0)
+        Pair(best, worst)
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(16.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Performance Extremes ⚖️",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Compare best vs worst trading slots",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Sub-category Selector
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(2.dp)
+            ) {
+                listOf("Day/W", "Day/M", "Week/M", "Month/Y").forEachIndexed { idx, label ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (toggleMode == idx) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .clickable { toggleMode = idx }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (toggleMode == idx) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Best Performance Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(BrandGreen.copy(alpha = 0.08f))
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.TrendingUp,
+                    contentDescription = null,
+                    tint = BrandGreen,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "BEST PERFORMANCE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                    Text(text = extremes.first.first, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Text(
+                    text = "+₹${decFormat.format(extremes.first.second)}",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black,
+                    color = BrandGreen
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Worst Performance Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(BrandRose.copy(alpha = 0.08f))
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.TrendingDown,
+                    contentDescription = null,
+                    tint = BrandRose,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "WORST PERFORMANCE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                    Text(text = extremes.second.first, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Text(
+                    text = if (extremes.second.second >= 0) "₹${decFormat.format(extremes.second.second)}" else "-₹${decFormat.format(kotlin.math.abs(extremes.second.second))}",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Black,
+                    color = BrandRose
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun StockWinLossChart(trades: List<StockTradeEntity>) {
+    val stats = remember(trades) {
+        val winningCount = trades.count { it.netProfit > 0 }
+        val losingCount = trades.count { it.netProfit <= 0 }
+        val total = winningCount + losingCount
+        Triple(winningCount, losingCount, total)
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(16.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Trading Win Ratio 🏆",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Wins vs Losses historical count",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (stats.third == 0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No logs available", fontSize = 12.sp)
+                }
+            } else {
+                val winPercent = ((stats.first.toFloat() / stats.third.toFloat()) * 100).toInt()
+                val lossPercent = 100 - winPercent
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    // Winning Bar
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(text = "${stats.first} ($winPercent%)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+                        Box(
+                            modifier = Modifier
+                                .width(45.dp)
+                                .height(androidx.compose.ui.unit.max(10.dp, (100 * (stats.first.toFloat() / stats.third.toFloat())).dp))
+                                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                .background(BrandGreen)
+                        )
+                        Text(text = "Wins", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Losing Bar
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(text = "${stats.second} ($lossPercent%)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                        Box(
+                            modifier = Modifier
+                                .width(45.dp)
+                                .height(androidx.compose.ui.unit.max(10.dp, (100 * (stats.second.toFloat() / stats.third.toFloat())).dp))
+                                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                .background(BrandRose)
+                        )
+                        Text(text = "Losses", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StockGrossVsNetChart(trades: List<StockTradeEntity>) {
+    val monthlyStats = remember(trades) {
+        trades.groupBy {
+            if (it.date.length >= 7) it.date.substring(0, 7) else "Unknown"
+        }
+        .mapValues { (_, list) ->
+            val gross = list.sumOf { it.profit }
+            val net = list.sumOf { it.netProfit }
+            Pair(gross, net)
+        }
+        .toList()
+        .sortedBy { it.first }
+        .takeLast(6) // Last 6 months with trades
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(16.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Gross vs Net Profit ⚖️",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Brokerage & loss subtractive breakdown",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (monthlyStats.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No transactions logged yet", fontSize = 12.sp)
+                }
+            } else {
+                val maxAbsValue = remember(monthlyStats) {
+                    val allVals = monthlyStats.flatMap { listOf(it.second.first, kotlin.math.abs(it.second.second)) }
+                    kotlin.math.max(allVals.maxOrNull() ?: 100.0, 100.0)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    monthlyStats.forEach { (yearMonth, stat) ->
+                        val grossAmount = stat.first
+                        val netAmount = stat.second
+
+                        // Format YYYY-MM label to e.g. "Aug"
+                        val monthLabel = try {
+                            val sdfIn = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US)
+                            val sdfOut = java.text.SimpleDateFormat("MMM", java.util.Locale.US)
+                            sdfOut.format(sdfIn.parse(yearMonth) ?: java.util.Date())
+                        } catch (e: Exception) {
+                            yearMonth
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                // Gross bar (BrandCyan)
+                                val grossHeightRatio = (grossAmount / maxAbsValue).coerceIn(0.0, 1.0).toFloat()
+                                Box(
+                                    modifier = Modifier
+                                        .width(16.dp)
+                                        .height(androidx.compose.ui.unit.max(4.dp, (100 * grossHeightRatio).dp))
+                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                        .background(BrandCyan)
+                                )
+
+                                // Net bar (BrandGreen if >= 0, BrandRose if < 0)
+                                val netHeightRatio = (kotlin.math.abs(netAmount) / maxAbsValue).coerceIn(0.0, 1.0).toFloat()
+                                Box(
+                                    modifier = Modifier
+                                        .width(16.dp)
+                                        .height(androidx.compose.ui.unit.max(4.dp, (100 * netHeightRatio).dp))
+                                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                        .background(if (netAmount >= 0) BrandGreen else BrandRose)
+                                )
+                            }
+                            Text(text = monthLabel, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Guide/Legend
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(BrandCyan))
+                        Text(text = "Gross Profit", fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(BrandGreen))
+                        Text(text = "Net Profit/Loss", fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
 

@@ -698,4 +698,19 @@ class TrackWiseRepository(private val dao: TrackWiseDao) {
     suspend fun clearUserData(userId: String) {
         dao.clearUserData(userId)
     }
+
+    // --- Stock Market ---
+    fun getStockTradesFlow(userId: String): Flow<List<com.example.data.StockTradeEntity>> = dao.getStockTradesForUserFlow(userId)
+
+    suspend fun insertStockTrade(trade: com.example.data.StockTradeEntity) {
+        dao.insertStockTrade(trade)
+    }
+
+    suspend fun deleteStockTrade(id: String) {
+        dao.deleteStockTradeById(id)
+    }
+
+    suspend fun clearStockTrades(userId: String) {
+        dao.clearStockTradesForUser(userId)
+    }
 }

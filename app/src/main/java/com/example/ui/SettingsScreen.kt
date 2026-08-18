@@ -1622,22 +1622,86 @@ fun AllLogsExplorerDialog(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchExpanded by remember { mutableStateOf(false) }
 
+    // Helper function to check if a string represents a real date/time format
+    fun isRealDate(ts: String?): Boolean {
+        if (ts.isNullOrBlank()) return false
+        val cleaned = ts.trim().uppercase()
+        if (cleaned == "N/A" || cleaned == "-" || cleaned == "PENDING" || cleaned == "PENDING COMPLETION" || cleaned == "NOT COMPLETED" || cleaned == "ACTIVE GOAL (NO COMPLETIONS YET)" || cleaned == "ACTIVE DEFENSE (NO SLIPS)") {
+            return false
+        }
+        return cleaned.any { it.isDigit() }
+    }
+
+    // Log Entry Comparator prioritizing latest real date above, and empty/no-date elements at the very last
+    val PlainLogEntryComparator = Comparator<PlainLogEntry> { a, b ->
+        val aHasDate = isRealDate(a.sortTimestamp)
+        val bHasDate = isRealDate(b.sortTimestamp)
+        when {
+            aHasDate && bHasDate -> b.sortTimestamp.compareTo(a.sortTimestamp) // descending
+            aHasDate && !bHasDate -> -1
+            !aHasDate && bHasDate -> 1
+            else -> a.activityName.compareTo(b.activityName)
+        }
+    }
+
     // 1. Task entries
     val taskItems = remember(tasks) {
         tasks.map { task ->
             val dueStr = if (task.deadline.isNotBlank()) {
                 "${task.deadline}${if (!task.dueTime.isNullOrBlank()) " ${task.dueTime}" else if (!task.reminderTime.isNullOrBlank()) " ${task.reminderTime}" else ""}".trim()
             } else "N/A"
+            val completedTime = if (task.completed) {
+                task.completedAt ?: "${task.deadline} 00:00:00"
+            } else {
+                "Pending Completion"
+            }
+            val sortTime = if (task.completed) {
+                task.completedAt ?: "${task.deadline} 00:00:00"
+            } else {
+                "" // Blank so it will be sorted at the very end
+            }
+            val detailsStr = buildString {
+                append("Status: ${if (task.completed) "COMPLETED" else "PENDING"}")
+                if (task.completed && !task.completedAt.isNullOrBlank()) {
+                    append(" | Completed At: ${task.completedAt}")
+                }
+                append(" | Priority: ${task.priority.uppercase()}")
+                append(" | Points: ${task.points}")
+                append(" | Project/Folder: ${task.project.ifBlank { "General" }}")
+                append(" | Deadline: ${task.deadline.ifBlank { "N/A" }}")
+                if (!task.dueTime.isNullOrBlank()) append(" | Due Time: ${task.dueTime}")
+                if (!task.startDate.isNullOrBlank()) append(" | Start Date: ${task.startDate}")
+                if (!task.endDate.isNullOrBlank()) append(" | End Date: ${task.endDate}")
+                append(" | Recurrence: ${task.repeatType}")
+                if (task.repeatType == "custom") {
+                    append(" (Every ${task.customRepeatValue} ${task.customRepeatUnit}")
+                    if (!task.customRepeatDaysOfWeek.isNullOrBlank()) append(" on ${task.customRepeatDaysOfWeek}")
+                    append(")")
+                }
+                append(" | Remind Me: ${if (task.remindMe) "YES" else "NO"}")
+                if (!task.reminderDate.isNullOrBlank()) append(" (Date: ${task.reminderDate})")
+                if (!task.reminderTime.isNullOrBlank()) append(" (Time: ${task.reminderTime})")
+                if (task.description.isNotBlank()) append(" | Description: ${task.description}")
+                if (task.notes.isNotBlank()) append(" | Notes: ${task.notes}")
+                val sub = TrackWiseUtils.deserializeSubTasks(task.subtasksJson)
+                if (sub.isNotEmpty()) {
+                    append(" | Subtasks: ")
+                    sub.forEachIndexed { i, s ->
+                        append("${i + 1}) ${s.title} [${if (s.completed) "Done" else "Pending"}]")
+                        if (i < sub.lastIndex) append(", ")
+                    }
+                }
+            }
             PlainLogEntry(
-                dateTime = if (!task.startDate.isNullOrBlank()) task.startDate else if (task.deadline.isNotBlank()) task.deadline else "2026-08-15",
+                dateTime = completedTime,
                 activityName = task.title,
                 type = "Task",
                 dueDateTime = dueStr,
                 folderName = task.project.ifBlank { "General" },
                 streak = "-",
                 habitBreakerCostType = "-",
-                details = "Status: ${if (task.completed) "COMPLETED" else "PENDING"} | Priority: ${task.priority.uppercase()} | Points: ${task.points}${if (task.notes.isNotBlank()) " | Notes: ${task.notes}" else ""}",
-                sortTimestamp = if (task.deadline.isNotBlank()) task.deadline else "2026-08-15"
+                details = detailsStr,
+                sortTimestamp = sortTime
             )
         }
     }
@@ -1648,6 +1712,38 @@ fun AllLogsExplorerDialog(
         habits.forEach { habit ->
             val completedDays = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
             val dueStr = if (!habit.reminderTime.isNullOrBlank()) "Daily ${habit.reminderTime}" else habit.frequency
+            val habitDetails = buildString {
+                append("Category: ${habit.category.ifBlank { "Wellness" }}")
+                append(" | Frequency: ${habit.frequency}")
+                append(" | Streak: ${habit.streak} Days (Max: ${habit.maxStreak}d)")
+                append(" | Goal Type: ${habit.goalType}")
+                append(" | Goal Days: ${habit.goalDays}")
+                append(" | Created At: ${habit.createdAt}")
+                if (!habit.startDate.isNullOrBlank()) append(" | Start Date: ${habit.startDate}")
+                if (!habit.endDate.isNullOrBlank()) append(" | End Date: ${habit.endDate}")
+                append(" | Time Bound: ${if (habit.isTimeBound) "YES (${habit.timeBoundDuration})" else "NO"}")
+                append(" | Recurrence: ${habit.repeatType}")
+                if (habit.repeatType == "custom") {
+                    append(" (Every ${habit.customRepeatValue} ${habit.customRepeatUnit}")
+                    if (!habit.customRepeatDaysOfWeek.isNullOrBlank()) append(" on ${habit.customRepeatDaysOfWeek}")
+                    append(")")
+                }
+                append(" | Remind Me: ${if (habit.remindMe) "YES" else "NO"}")
+                if (!habit.reminderDate.isNullOrBlank()) append(" (Date: ${habit.reminderDate})")
+                if (!habit.reminderTime.isNullOrBlank()) append(" (Time: ${habit.reminderTime})")
+                if (!habit.dueTime.isNullOrBlank()) append(" (Due: ${habit.dueTime})")
+                if (habit.notes.isNotBlank()) append(" | Notes: ${habit.notes}")
+                if (habit.quote.isNotBlank()) append(" | Quote: ${habit.quote}")
+                append(" | Section: ${habit.section}")
+                append(" | Auto Popup: ${if (habit.autoPopup) "YES" else "NO"}")
+                if (completedDays.isNotEmpty()) {
+                    append(" | Completed Days: ${completedDays.joinToString(", ")}")
+                }
+                val badges = TrackWiseUtils.deserializeIntList(habit.badgesEarnedJson)
+                if (badges.isNotEmpty()) {
+                    append(" | Badges Earned (Days): ${badges.joinToString(", ")}")
+                }
+            }
             if (completedDays.isNotEmpty()) {
                 completedDays.forEach { dateStr ->
                     list.add(
@@ -1659,7 +1755,7 @@ fun AllLogsExplorerDialog(
                             folderName = habit.category.ifBlank { "Wellness" },
                             streak = "${habit.streak} Days (Max: ${habit.maxStreak}d)",
                             habitBreakerCostType = "-",
-                            details = "Frequency: ${habit.frequency} | Goal: ${habit.goalType}${if (habit.notes.isNotBlank()) " | Notes: ${habit.notes}" else ""}",
+                            details = habitDetails,
                             sortTimestamp = dateStr
                         )
                     )
@@ -1667,15 +1763,15 @@ fun AllLogsExplorerDialog(
             } else {
                 list.add(
                     PlainLogEntry(
-                        dateTime = "${habit.createdAt}${if (!habit.reminderTime.isNullOrBlank()) " ${habit.reminderTime}" else ""}".trim(),
+                        dateTime = "Active Goal (No completions yet)",
                         activityName = habit.name,
                         type = "Habit: Active Goal",
                         dueDateTime = dueStr,
                         folderName = habit.category.ifBlank { "Wellness" },
                         streak = "${habit.streak} Days (Max: ${habit.maxStreak}d)",
                         habitBreakerCostType = "-",
-                        details = "Frequency: ${habit.frequency} | Goal: ${habit.goalType} | Status: In Progress",
-                        sortTimestamp = habit.createdAt
+                        details = habitDetails,
+                        sortTimestamp = "" // no completion date, keep it at the last
                     )
                 )
             }
@@ -1689,6 +1785,20 @@ fun AllLogsExplorerDialog(
         badHabits.forEach { breaker ->
             val costStr = "${breaker.costType}${if (breaker.costValue.isNotBlank()) " (${breaker.costValue})" else ""}"
             val surveillanceDue = if (breaker.reminderTime.isNotBlank()) "Surveillance: ${breaker.reminderTime}" else "Continuous"
+            val breakerDetails = buildString {
+                append("Avoid Type: ${breaker.avoidType.ifBlank { "Habit Breaker" }}")
+                append(" | Priority: ${breaker.priority.uppercase()}")
+                append(" | Cost: $costStr")
+                append(" | Total Slips: ${breaker.logs.size}")
+                append(" | Avoid Count: ${breaker.avoidCount}")
+                append(" | Recurring: ${if (breaker.isRecurring) "YES" else "NO"}")
+                if (breaker.eventDate.isNotBlank()) append(" | Event/Start Date: ${breaker.eventDate}")
+                if (breaker.reminderTime.isNotBlank()) append(" | Reminder/Surveillance Time: ${breaker.reminderTime}")
+                if (breaker.tags.isNotEmpty()) append(" | Tags: ${breaker.tags.joinToString(", ")}")
+                if (breaker.logs.isNotEmpty()) {
+                    append(" | Slip Timestamps: ${breaker.logs.joinToString(", ")}")
+                }
+            }
             if (breaker.logs.isNotEmpty()) {
                 breaker.logs.forEach { timestamp ->
                     list.add(
@@ -1700,7 +1810,7 @@ fun AllLogsExplorerDialog(
                             folderName = breaker.avoidType.ifBlank { "Habit Breaker" },
                             streak = "Clean: 0 Days",
                             habitBreakerCostType = costStr,
-                            details = "Slip logged | Avoided: ${breaker.avoidCount} times | Priority: ${breaker.priority.uppercase()}",
+                            details = breakerDetails,
                             sortTimestamp = timestamp
                         )
                     )
@@ -1708,15 +1818,15 @@ fun AllLogsExplorerDialog(
             }
             list.add(
                 PlainLogEntry(
-                    dateTime = breaker.eventDate.ifBlank { "2026-08-15" },
+                    dateTime = "Active Defense (No Slips)",
                     activityName = breaker.name,
                     type = "Habit Breaker: Defense",
                     dueDateTime = surveillanceDue,
                     folderName = breaker.avoidType.ifBlank { "Habit Breaker" },
                     streak = "Avoided: ${breaker.avoidCount} times",
                     habitBreakerCostType = costStr,
-                    details = "Total Slips: ${breaker.logs.size} | Avoid Count: ${breaker.avoidCount} | Priority: ${breaker.priority.uppercase()}",
-                    sortTimestamp = breaker.eventDate.ifBlank { "2026-08-15" }
+                    details = breakerDetails,
+                    sortTimestamp = "" // no slips, keep it at the last
                 )
             )
         }
@@ -1727,6 +1837,14 @@ fun AllLogsExplorerDialog(
     val financeItems = remember(financeLogs) {
         financeLogs.map { log ->
             val amountFormatted = String.format(Locale.getDefault(), "%.2f", log.amount)
+            val financeDetails = buildString {
+                append("Type: ${log.type.uppercase()}")
+                append(" | Category: ${log.category}")
+                append(" | Amount: ₹$amountFormatted")
+                if (!log.spendSource.isNullOrBlank()) append(" | Source/Account: ${log.spendSource}")
+                if (!log.notes.isNullOrBlank()) append(" | Notes: ${log.notes}")
+                append(" | Date: ${log.date}")
+            }
             PlainLogEntry(
                 dateTime = log.date,
                 activityName = log.title.ifBlank { log.category },
@@ -1735,7 +1853,7 @@ fun AllLogsExplorerDialog(
                 folderName = log.category,
                 streak = "-",
                 habitBreakerCostType = "-",
-                details = "Amount: ₹$amountFormatted${if (!log.spendSource.isNullOrBlank()) " | Source: ${log.spendSource}" else ""}${if (!log.notes.isNullOrBlank()) " | Notes: ${log.notes}" else ""}",
+                details = financeDetails,
                 sortTimestamp = log.date
             )
         }

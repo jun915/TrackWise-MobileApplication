@@ -890,6 +890,12 @@ class TrackWiseViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allStockTrades: StateFlow<List<com.example.data.StockTradeEntity>> = _sessionUser
+        .flatMapLatest { user ->
+            if (user != null) repository.getStockTradesFlow(user.id) else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // --- Workspace Navigation & Grocery Check List State ---
     private val _workspaceSubTab = MutableStateFlow(0)
     val workspaceSubTab: StateFlow<Int> = _workspaceSubTab.asStateFlow()
@@ -1799,7 +1805,16 @@ class TrackWiseViewModel(
 
     fun toggleTaskCompletion(task: TaskEntity) {
         viewModelScope.launch(Dispatchers.IO) {
-            val updated = task.copy(completed = !task.completed)
+            val isCompletedNow = !task.completed
+            val completedTimeStr = if (isCompletedNow) {
+                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+            } else {
+                null
+            }
+            val updated = task.copy(
+                completed = isCompletedNow,
+                completedAt = completedTimeStr
+            )
             repository.insertTask(updated)
             if (updated.completed) {
                 playTaskCompletionSound()
@@ -3564,6 +3579,20 @@ class TrackWiseViewModel(
         }
     }
 
+    fun insertStockTrade(trade: com.example.data.StockTradeEntity) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertStockTrade(trade)
+            triggerFakeSync()
+        }
+    }
+
+    fun deleteStockTrade(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteStockTrade(id)
+            triggerFakeSync()
+        }
+    }
+
     fun updateGroceryItem(item: GroceryItemEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.insertGroceryItem(item)
@@ -3756,6 +3785,7 @@ class TrackWiseViewModel(
             obj.put("remindMe", item.remindMe)
             obj.put("reminderDate", item.reminderDate ?: "")
             obj.put("dueTime", item.dueTime ?: "")
+            obj.put("completedAt", item.completedAt ?: "")
             tasksArray.put(obj)
         }
         rootJson.put("tasks", tasksArray)
@@ -4141,7 +4171,359 @@ class TrackWiseViewModel(
         }
         rootJson.put("badHabits", badHabitsArray)
 
+        // Stock Market Trades Backup
+        val stockTradesArray = org.json.JSONArray()
+        try {
+            repository.getStockTradesFlow(user.id).first().forEach { item ->
+                val obj = org.json.JSONObject()
+                obj.put("id", item.id)
+                obj.put("stockName", item.stockName)
+                obj.put("quantity", item.quantity)
+                obj.put("profit", item.profit)
+                obj.put("loss", item.loss)
+                obj.put("taxAmount", item.taxAmount)
+                obj.put("netProfit", item.netProfit)
+                obj.put("date", item.date)
+                stockTradesArray.put(obj)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        rootJson.put("stockTrades", stockTradesArray)
+
+        try {
+            rootJson.put("historicalLogs", generateHistoricalLogsJsonArray(user.id))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         return rootJson.toString(2)
+    }
+
+    suspend fun generateHistoricalLogsJsonArray(userId: String): org.json.JSONArray {
+        val array = org.json.JSONArray()
+        try {
+            val tasks = repository.getTasksFlow(userId).first()
+            val habits = repository.getHabitsFlow(userId).first()
+            val badHabits = _badHabits.value
+            val financeLogs = repository.getFinanceLogsFlow(userId).first()
+            val sleepLogs = repository.getSleepLogsFlow(userId).first()
+            val waterLogs = repository.getWaterLogsFlow(userId).first()
+            val exerciseLogs = repository.getExerciseLogsFlow(userId).first()
+            val weightEntries = repository.getWeightEntriesFlow(userId).first()
+            val vitalReadings = repository.getVitalsFlow(userId).first()
+            val healthIssueLogs = repository.getHealthIssueLogsFlow(userId).first()
+            val tabletReminders = repository.getTabletRemindersFlow(userId).first()
+            val notes = repository.getAllNotesFlow(userId).first()
+            val birthdays = repository.getBirthdaysFlow(userId).first()
+            val stockTrades = repository.getStockTradesFlow(userId).first()
+
+            fun isRealDateLocal(ts: String?): Boolean {
+                if (ts.isNullOrBlank()) return false
+                val cleaned = ts.trim().uppercase()
+                if (cleaned == "N/A" || cleaned == "-" || cleaned == "PENDING" || cleaned == "PENDING COMPLETION" || cleaned == "NOT COMPLETED" || cleaned == "ACTIVE GOAL (NO COMPLETIONS YET)" || cleaned == "ACTIVE DEFENSE (NO SLIPS)") {
+                    return false
+                }
+                return cleaned.any { it.isDigit() }
+            }
+
+            val list = mutableListOf<org.json.JSONObject>()
+
+            tasks.forEach { task ->
+                val dueStr = if (task.deadline.isNotBlank()) {
+                    "${task.deadline}${if (!task.dueTime.isNullOrBlank()) " ${task.dueTime}" else if (!task.reminderTime.isNullOrBlank()) " ${task.reminderTime}" else ""}".trim()
+                } else "N/A"
+                val detailsStr = buildString {
+                    append("Status: ${if (task.completed) "COMPLETED" else "PENDING"}")
+                    if (task.completed && !task.completedAt.isNullOrBlank()) {
+                        append(" | Completed At: ${task.completedAt}")
+                    }
+                    append(" | Priority: ${task.priority.uppercase()}")
+                    append(" | Points: ${task.points}")
+                    append(" | Project/Folder: ${task.project.ifBlank { "General" }}")
+                    append(" | Deadline: ${task.deadline.ifBlank { "N/A" }}")
+                    if (!task.dueTime.isNullOrBlank()) append(" | Due Time: ${task.dueTime}")
+                    if (!task.startDate.isNullOrBlank()) append(" | Start Date: ${task.startDate}")
+                    if (!task.endDate.isNullOrBlank()) append(" | End Date: ${task.endDate}")
+                    append(" | Recurrence: ${task.repeatType}")
+                    if (task.repeatType == "custom") {
+                        append(" (Every ${task.customRepeatValue} ${task.customRepeatUnit}")
+                        if (!task.customRepeatDaysOfWeek.isNullOrBlank()) append(" on ${task.customRepeatDaysOfWeek}")
+                        append(")")
+                    }
+                    append(" | Remind Me: ${if (task.remindMe) "YES" else "NO"}")
+                    if (!task.reminderDate.isNullOrBlank()) append(" (Date: ${task.reminderDate})")
+                    if (!task.reminderTime.isNullOrBlank()) append(" (Time: ${task.reminderTime})")
+                    if (task.description.isNotBlank()) append(" | Description: ${task.description}")
+                    if (task.notes.isNotBlank()) append(" | Notes: ${task.notes}")
+                }
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", if (task.completed) (task.completedAt ?: "${task.deadline} 00:00:00") else "Pending Completion")
+                obj.put("activityName", task.title)
+                obj.put("type", "Task")
+                obj.put("dueDateTime", dueStr)
+                obj.put("folderName", task.project.ifBlank { "General" })
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", detailsStr)
+                obj.put("sortTimestamp", if (task.completed) (task.completedAt ?: "${task.deadline} 00:00:00") else "")
+                list.add(obj)
+            }
+
+            habits.forEach { habit ->
+                val completedDays = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                val dueStr = if (!habit.reminderTime.isNullOrBlank()) "Daily ${habit.reminderTime}" else habit.frequency
+                val habitDetails = buildString {
+                    append("Category: ${habit.category.ifBlank { "Wellness" }}")
+                    append(" | Frequency: ${habit.frequency}")
+                    append(" | Streak: ${habit.streak} Days (Max: ${habit.maxStreak}d)")
+                    append(" | Goal Type: ${habit.goalType}")
+                    append(" | Goal Days: ${habit.goalDays}")
+                    append(" | Created At: ${habit.createdAt}")
+                }
+                if (completedDays.isNotEmpty()) {
+                    completedDays.forEach { dateStr ->
+                        val obj = org.json.JSONObject()
+                        obj.put("dateTime", "$dateStr${if (!habit.reminderTime.isNullOrBlank()) " ${habit.reminderTime}" else ""}".trim())
+                        obj.put("activityName", "${habit.name} (Completed)")
+                        obj.put("type", "Habit: Completion")
+                        obj.put("dueDateTime", dueStr)
+                        obj.put("folderName", habit.category.ifBlank { "Wellness" })
+                        obj.put("streak", "${habit.streak} Days (Max: ${habit.maxStreak}d)")
+                        obj.put("habitBreakerCostType", "-")
+                        obj.put("details", habitDetails)
+                        obj.put("sortTimestamp", dateStr)
+                        list.add(obj)
+                    }
+                } else {
+                    val obj = org.json.JSONObject()
+                    obj.put("dateTime", "Active Goal (No completions yet)")
+                    obj.put("activityName", habit.name)
+                    obj.put("type", "Habit: Active Goal")
+                    obj.put("dueDateTime", dueStr)
+                    obj.put("folderName", habit.category.ifBlank { "Wellness" })
+                    obj.put("streak", "${habit.streak} Days (Max: ${habit.maxStreak}d)")
+                    obj.put("habitBreakerCostType", "-")
+                    obj.put("details", habitDetails)
+                    obj.put("sortTimestamp", "")
+                    list.add(obj)
+                }
+            }
+
+            badHabits.forEach { breaker ->
+                val costStr = "${breaker.costType}${if (breaker.costValue.isNotBlank()) " (${breaker.costValue})" else ""}"
+                val surveillanceDue = if (breaker.reminderTime.isNotBlank()) "Surveillance: ${breaker.reminderTime}" else "Continuous"
+                val breakerDetails = buildString {
+                    append("Avoid Type: ${breaker.avoidType.ifBlank { "Habit Breaker" }}")
+                    append(" | Priority: ${breaker.priority.uppercase()}")
+                    append(" | Cost: $costStr")
+                }
+                if (breaker.logs.isNotEmpty()) {
+                    breaker.logs.forEach { timestamp ->
+                        val obj = org.json.JSONObject()
+                        obj.put("dateTime", timestamp)
+                        obj.put("activityName", "${breaker.name} (Slip-Up)")
+                        obj.put("type", "Habit Breaker: Slip-Up")
+                        obj.put("dueDateTime", surveillanceDue)
+                        obj.put("folderName", breaker.avoidType.ifBlank { "Habit Breaker" })
+                        obj.put("streak", "Clean: 0 Days")
+                        obj.put("habitBreakerCostType", costStr)
+                        obj.put("details", breakerDetails)
+                        obj.put("sortTimestamp", timestamp)
+                        list.add(obj)
+                    }
+                }
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", "Active Defense (No Slips)")
+                obj.put("activityName", breaker.name)
+                obj.put("type", "Habit Breaker: Defense")
+                obj.put("dueDateTime", surveillanceDue)
+                obj.put("folderName", breaker.avoidType.ifBlank { "Habit Breaker" })
+                obj.put("streak", "Avoided: ${breaker.avoidCount} times")
+                obj.put("habitBreakerCostType", costStr)
+                obj.put("details", breakerDetails)
+                obj.put("sortTimestamp", "")
+                list.add(obj)
+            }
+
+            financeLogs.forEach { log ->
+                val amountFormatted = String.format(java.util.Locale.getDefault(), "%.2f", log.amount)
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", log.date)
+                obj.put("activityName", log.title.ifBlank { log.category })
+                obj.put("type", "Finance: ${log.type.uppercase()}")
+                obj.put("dueDateTime", "N/A")
+                obj.put("folderName", log.category)
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Type: ${log.type.uppercase()} | Category: ${log.category} | Amount: ₹$amountFormatted | Account: ${log.spendSource ?: ""}")
+                obj.put("sortTimestamp", log.date)
+                list.add(obj)
+            }
+
+            sleepLogs.forEach {
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", "${it.date} ${it.startTime}")
+                obj.put("activityName", "Sleep Session")
+                obj.put("type", "Health: Sleep")
+                obj.put("dueDateTime", "Wake: ${it.endTime}")
+                obj.put("folderName", "Sleep & Recovery")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Sleep Date: ${it.date} | Duration: ${it.hoursSlept} hrs (${it.startTime} - ${it.endTime})")
+                obj.put("sortTimestamp", it.date)
+                list.add(obj)
+            }
+
+            waterLogs.forEach {
+                val pct = (it.glasses.toFloat() / it.goal.coerceAtLeast(1) * 100).toInt()
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", it.date)
+                obj.put("activityName", "Water Hydration")
+                obj.put("type", "Health: Water")
+                obj.put("dueDateTime", "Goal: ${it.goal} glasses")
+                obj.put("folderName", "Hydration")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Hydration Date: ${it.date} | Glasses Drank: ${it.glasses} / ${it.goal} glasses ($pct%)")
+                obj.put("sortTimestamp", it.date)
+                list.add(obj)
+            }
+
+            exerciseLogs.forEach {
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", "${it.date}${if (!it.time.isNullOrBlank()) " ${it.time}" else ""}".trim())
+                obj.put("activityName", it.exerciseType)
+                obj.put("type", "Health: Exercise")
+                obj.put("dueDateTime", "N/A")
+                obj.put("folderName", "Fitness")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Exercise Date: ${it.date} | Type: ${it.exerciseType} | Duration: ${it.durationMinutes} mins | Completed: ${it.completed}")
+                obj.put("sortTimestamp", it.date)
+                list.add(obj)
+            }
+
+            weightEntries.forEach {
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", "${it.date}${if (!it.time.isNullOrBlank()) " ${it.time}" else ""}".trim())
+                obj.put("activityName", "Weight Measurement")
+                obj.put("type", "Health: Weight")
+                obj.put("dueDateTime", "N/A")
+                obj.put("folderName", "Body Metrics")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Measurement Date: ${it.date} | Weight: ${it.weightKg} kg")
+                obj.put("sortTimestamp", it.date)
+                list.add(obj)
+            }
+
+            vitalReadings.forEach {
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", "${it.date}${if (!it.time.isNullOrBlank()) " ${it.time}" else ""}".trim())
+                obj.put("activityName", "Vital: ${it.type.uppercase()}")
+                obj.put("type", "Health: Vital")
+                obj.put("dueDateTime", "N/A")
+                obj.put("folderName", "Clinical Readings")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Reading Date: ${it.date} | Type: ${it.type} | Value: ${it.value}")
+                obj.put("sortTimestamp", it.date)
+                list.add(obj)
+            }
+
+            healthIssueLogs.forEach {
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", "${it.date}${if (!it.time.isNullOrBlank()) " ${it.time}" else ""}".trim())
+                obj.put("activityName", it.issueName)
+                obj.put("type", "Health: Issue")
+                obj.put("dueDateTime", "N/A")
+                obj.put("folderName", "Symptom Journal")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Date: ${it.date} | Issue: ${it.issueName} | Severity: ${it.severity.uppercase()}")
+                obj.put("sortTimestamp", it.date)
+                list.add(obj)
+            }
+
+            tabletReminders.forEach {
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", "Daily ${it.timeOfDay}")
+                obj.put("activityName", it.tabletName)
+                obj.put("type", "Health: Medication")
+                obj.put("dueDateTime", it.timeOfDay)
+                obj.put("folderName", "Medication Tracker")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Medication Name: ${it.tabletName} | Dosage: ${it.dosage}")
+                obj.put("sortTimestamp", "")
+                list.add(obj)
+            }
+
+            notes.forEach { note ->
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", note.updatedAt.ifBlank { note.createdAt })
+                obj.put("activityName", note.title.ifBlank { "Untitled Note" })
+                obj.put("type", "Note")
+                obj.put("dueDateTime", "N/A")
+                obj.put("folderName", "Notes")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Title: ${note.title} | Content length: ${note.content.length} chars")
+                obj.put("sortTimestamp", note.updatedAt.ifBlank { note.createdAt })
+                list.add(obj)
+            }
+
+            birthdays.forEach { occ ->
+                val dueStr = "${occ.date}${if (!occ.reminderTime.isNullOrBlank()) " ${occ.reminderTime}" else ""}".trim()
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", occ.date)
+                obj.put("activityName", occ.name)
+                obj.put("type", "Occasion / Milestone")
+                obj.put("dueDateTime", dueStr)
+                obj.put("folderName", occ.category.ifBlank { "Occasions" })
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", "Name: ${occ.name} | Date: ${occ.date} | Category: ${occ.category}")
+                obj.put("sortTimestamp", occ.date)
+                list.add(obj)
+            }
+
+            stockTrades.forEach { trade ->
+                val typeStr = if (trade.netProfit >= 0) "PROFIT" else "LOSS"
+                val amountStr = if (trade.profit > 0) "Profit: ₹${trade.profit}" else if (trade.loss > 0) "Loss: ₹${trade.loss}" else "No change"
+                val detailsStr = "Stock: ${trade.stockName} | Quantity: ${trade.quantity} | Net P&L: ₹${trade.netProfit} ($amountStr | Tax: ₹${trade.taxAmount}) | Date: ${trade.date}"
+                val obj = org.json.JSONObject()
+                obj.put("dateTime", trade.date)
+                obj.put("activityName", "${trade.stockName} (${typeStr})")
+                obj.put("type", "Stock Trade")
+                obj.put("dueDateTime", "N/A")
+                obj.put("folderName", "Stock Market")
+                obj.put("streak", "-")
+                obj.put("habitBreakerCostType", "-")
+                obj.put("details", detailsStr)
+                obj.put("sortTimestamp", trade.date)
+                list.add(obj)
+            }
+
+            val sortedList = list.sortedWith { a, b ->
+                val aTimestamp = a.optString("sortTimestamp", "")
+                val bTimestamp = b.optString("sortTimestamp", "")
+                val aHasDate = isRealDateLocal(aTimestamp)
+                val bHasDate = isRealDateLocal(bTimestamp)
+                when {
+                    aHasDate && bHasDate -> bTimestamp.compareTo(aTimestamp)
+                    aHasDate && !bHasDate -> -1
+                    !aHasDate && bHasDate -> 1
+                    else -> a.optString("activityName", "").compareTo(b.optString("activityName", ""))
+                }
+            }
+
+            sortedList.forEach { array.put(it) }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return array
     }
 
     fun exportData() {
@@ -4368,7 +4750,8 @@ class TrackWiseViewModel(
                             notes = obj.optString("notes", ""),
                             remindMe = obj.optBoolean("remindMe", false),
                             reminderDate = if (obj.has("reminderDate") && obj.getString("reminderDate").isNotBlank()) obj.getString("reminderDate") else null,
-                            dueTime = if (obj.has("dueTime") && obj.getString("dueTime").isNotBlank()) obj.getString("dueTime") else null
+                            dueTime = if (obj.has("dueTime") && obj.getString("dueTime").isNotBlank()) obj.getString("dueTime") else null,
+                            completedAt = if (obj.has("completedAt") && obj.getString("completedAt").isNotBlank()) obj.getString("completedAt") else null
                         )
                         repository.insertTask(entity)
                     }
@@ -4855,6 +5238,26 @@ class TrackWiseViewModel(
                     }
                     _badHabits.value = restoredBadHabits
                     saveBadHabitsList(restoredBadHabits)
+                }
+
+                // Restore Stock Trades
+                if (rootJson.has("stockTrades")) {
+                    val array = rootJson.getJSONArray("stockTrades")
+                    for (i in 0 until array.length()) {
+                        val obj = array.getJSONObject(i)
+                        val entity = com.example.data.StockTradeEntity(
+                            id = obj.getString("id"),
+                            userId = user.id,
+                            stockName = obj.getString("stockName"),
+                            quantity = obj.getInt("quantity"),
+                            profit = obj.getDouble("profit"),
+                            loss = obj.getDouble("loss"),
+                            taxAmount = obj.getDouble("taxAmount"),
+                            netProfit = obj.getDouble("netProfit"),
+                            date = obj.getString("date")
+                        )
+                        repository.insertStockTrade(entity)
+                    }
                 }
 
                 getSharedPrefs().edit().putBoolean("net_worth_defaults_populated", true).apply()

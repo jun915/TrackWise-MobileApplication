@@ -84,6 +84,7 @@ fun DashboardScreen(
     val allAlarms by viewModel.allAlarms.collectAsState()
     val waterLogs by viewModel.waterLogs.collectAsState()
     val streakHistory by viewModel.streakHistory.collectAsState()
+    val allStockTrades by viewModel.allStockTrades.collectAsState()
 
     val reminderWishlist = remember(allWishlist) {
         allWishlist.filter { !it.purchased && (it.remindMe || !it.reminderDate.isNullOrEmpty()) }
@@ -419,6 +420,16 @@ fun DashboardScreen(
             StaggeredItem(index = 5) {
                 DashboardFinanceSummaryWidget(
                     financeLogs = allFinanceLogs,
+                    onNavigate = onNavigate
+                )
+            }
+        }
+
+        // --- Stock Market Portfolio P&L Widget ---
+        item {
+            StaggeredItem(index = 105) {
+                DashboardStockPnLWidget(
+                    stockTrades = allStockTrades,
                     onNavigate = onNavigate
                 )
             }
@@ -2680,6 +2691,53 @@ fun DashboardFinanceSummaryWidget(
     }
 }
 
+private fun daysUntilBirthday(storedDate: String): Int {
+    val parts = storedDate.split("-")
+    val (month, day) = if (parts.size == 3) {
+        Pair(parts[1].toIntOrNull() ?: 1, parts[2].toIntOrNull() ?: 1)
+    } else if (parts.size == 2) {
+        Pair(parts[0].toIntOrNull() ?: 1, parts[1].toIntOrNull() ?: 1)
+    } else {
+        return 999
+    }
+
+    val today = Calendar.getInstance()
+    today.set(Calendar.HOUR_OF_DAY, 0)
+    today.set(Calendar.MINUTE, 0)
+    today.set(Calendar.SECOND, 0)
+    today.set(Calendar.MILLISECOND, 0)
+
+    val bdayThisYear = Calendar.getInstance()
+    bdayThisYear.set(Calendar.YEAR, today.get(Calendar.YEAR))
+    bdayThisYear.set(Calendar.MONTH, month - 1)
+    bdayThisYear.set(Calendar.DAY_OF_MONTH, day)
+    bdayThisYear.set(Calendar.HOUR_OF_DAY, 0)
+    bdayThisYear.set(Calendar.MINUTE, 0)
+    bdayThisYear.set(Calendar.SECOND, 0)
+    bdayThisYear.set(Calendar.MILLISECOND, 0)
+
+    if (bdayThisYear.timeInMillis == today.timeInMillis) {
+        return 0
+    }
+
+    if (bdayThisYear.before(today)) {
+        val bdayNextYear = Calendar.getInstance()
+        bdayNextYear.set(Calendar.YEAR, today.get(Calendar.YEAR) + 1)
+        bdayNextYear.set(Calendar.MONTH, month - 1)
+        bdayNextYear.set(Calendar.DAY_OF_MONTH, day)
+        bdayNextYear.set(Calendar.HOUR_OF_DAY, 0)
+        bdayNextYear.set(Calendar.MINUTE, 0)
+        bdayNextYear.set(Calendar.SECOND, 0)
+        bdayNextYear.set(Calendar.MILLISECOND, 0)
+        
+        val diffMs = bdayNextYear.timeInMillis - today.timeInMillis
+        return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+    } else {
+        val diffMs = bdayThisYear.timeInMillis - today.timeInMillis
+        return (diffMs / (1000 * 60 * 60 * 24)).toInt()
+    }
+}
+
 private fun calculateDashboardOccasionDays(bday: com.example.data.BirthdayEntity): Int {
     val dateStr = bday.date
     val parts = dateStr.split("-")
@@ -2716,7 +2774,7 @@ private fun calculateDashboardOccasionDays(bday: com.example.data.BirthdayEntity
                 val diffMs = eventDate.timeInMillis - today.timeInMillis
                 return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
             } else {
-                return -1 // Past target
+                return 999 // Past target
             }
         }
 
@@ -2749,7 +2807,7 @@ private fun calculateDashboardOccasionDays(bday: com.example.data.BirthdayEntity
             return Math.round(diffMs.toDouble() / (1000 * 60 * 60 * 24)).toInt()
         }
     }
-    return 999
+    return daysUntilBirthday(bday.date)
 }
 
 @Composable
@@ -3428,6 +3486,172 @@ private fun MasteryItemGridCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
+
+@Composable
+fun DashboardStockPnLWidget(
+    stockTrades: List<com.example.data.StockTradeEntity>,
+    onNavigate: (String) -> Unit
+) {
+    val todayStr = remember { TrackWiseUtils.getTodayString() }
+    val currentMonthKey = remember { java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.US).format(java.util.Date()) }
+    val currentMonthName = remember { java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.US).format(java.util.Date()) }
+    val decimalFormat = remember { java.text.DecimalFormat("#,##,##0.00") }
+
+    val todayTrades = remember(stockTrades, todayStr) {
+        stockTrades.filter { it.date == todayStr }
+    }
+    val monthTrades = remember(stockTrades, currentMonthKey) {
+        stockTrades.filter { it.date.startsWith(currentMonthKey) }
+    }
+
+    val todayPnL = remember(todayTrades) {
+        todayTrades.sumOf { it.netProfit }
+    }
+    val monthPnL = remember(monthTrades) {
+        monthTrades.sumOf { it.netProfit }
+    }
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onNavigate("stock_market") }
+            .border(
+                1.dp,
+                BrandCyan.copy(alpha = 0.5f),
+                RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(BrandCyan.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TrendingUp,
+                            contentDescription = null,
+                            tint = BrandCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "STOCK MARKET PORTFOLIO",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BrandCyan,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "Daily & Monthly P&L Ledger",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = "View Stock Market",
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Today PnL Card
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(
+                            if (todayPnL >= 0) BrandGreen.copy(alpha = 0.08f) else BrandRose.copy(alpha = 0.08f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .border(
+                            0.5.dp,
+                            if (todayPnL >= 0) BrandGreen.copy(alpha = 0.3f) else BrandRose.copy(alpha = 0.3f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = "TODAY'S P&L",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = (if (todayPnL >= 0) "+" else "") + "₹${decimalFormat.format(todayPnL)}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (todayPnL >= 0) BrandGreen else BrandRose
+                    )
+                    Text(
+                        text = "Today (${todayTrades.size} trades)",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+
+                // Month PnL Card
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(
+                            if (monthPnL >= 0) BrandGreen.copy(alpha = 0.08f) else BrandRose.copy(alpha = 0.08f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .border(
+                            0.5.dp,
+                            if (monthPnL >= 0) BrandGreen.copy(alpha = 0.3f) else BrandRose.copy(alpha = 0.3f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = "MONTHLY P&L",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = (if (monthPnL >= 0) "+" else "") + "₹${decimalFormat.format(monthPnL)}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (monthPnL >= 0) BrandGreen else BrandRose
+                    )
+                    Text(
+                        text = currentMonthName,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }

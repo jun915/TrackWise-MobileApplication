@@ -254,6 +254,7 @@ interface TrackWiseDao {
         clearNetWorthItemsForUser(userId)
         clearNotebooksForUser(userId)
         clearNotesForUser(userId)
+        clearStockTradesForUser(userId)
     }
 
     @Query("DELETE FROM net_worth_items WHERE userId = :userId")
@@ -360,4 +361,20 @@ interface TrackWiseDao {
 
     @Query("DELETE FROM notes WHERE userId = :userId")
     suspend fun clearNotesForUser(userId: String)
+
+    // --- Stock Market ---
+    @Query("SELECT * FROM stock_trades WHERE userId = :userId ORDER BY date DESC")
+    fun getStockTradesForUserFlow(userId: String): kotlinx.coroutines.flow.Flow<List<StockTradeEntity>>
+
+    @Query("SELECT * FROM stock_trades WHERE userId = :userId ORDER BY date DESC")
+    suspend fun getStockTradesForUser(userId: String): List<StockTradeEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStockTrade(trade: StockTradeEntity)
+
+    @Query("DELETE FROM stock_trades WHERE id = :id")
+    suspend fun deleteStockTradeById(id: String)
+
+    @Query("DELETE FROM stock_trades WHERE userId = :userId")
+    suspend fun clearStockTradesForUser(userId: String)
 }

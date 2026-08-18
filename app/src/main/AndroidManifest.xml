@@ -31,13 +31,14 @@
             </intent-filter>
         </activity>
 
-        <receiver
+         <receiver
             android:name="com.example.widget.TrackWiseWidgetProvider"
             android:label="@string/widget_overview_label"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.example.widget.ACTION_TAB_CLICK" />
+                <action android:name="com.example.widget.ACTION_WIDGET_AUTOREFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -51,6 +52,7 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.example.widget.ACTION_CHANGE_ANALYTICS_TAB" />
+                <action android:name="com.example.widget.ACTION_ANALYTICS_WIDGET_AUTOREFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

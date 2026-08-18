@@ -257,6 +257,7 @@ class ReminderReceiver : BroadcastReceiver() {
             val wakeLock = pm?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "TrackWise:ReminderWakeLock")
             wakeLock?.acquire(10000L)
             try {
+                triggerWidgetUpdate(context)
                 checkAndTriggerNotifications(context)
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -268,6 +269,38 @@ class ReminderReceiver : BroadcastReceiver() {
                 scheduleBackgroundReminderAlarm(context)
                 pendingResult.finish()
             }
+        }
+    }
+
+    private fun triggerWidgetUpdate(context: Context) {
+        try {
+            val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+            
+            // Update Summary Widget
+            val summaryIntent = Intent(context, com.example.widget.TrackWiseWidgetProvider::class.java).apply {
+                action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            }
+            val summaryIds = appWidgetManager.getAppWidgetIds(
+                android.content.ComponentName(context, com.example.widget.TrackWiseWidgetProvider::class.java)
+            )
+            if (summaryIds != null && summaryIds.isNotEmpty()) {
+                summaryIntent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, summaryIds)
+                context.sendBroadcast(summaryIntent)
+            }
+
+            // Update Analytics Widget
+            val analyticsIntent = Intent(context, com.example.widget.TrackWiseAnalyticsWidgetProvider::class.java).apply {
+                action = android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            }
+            val analyticsIds = appWidgetManager.getAppWidgetIds(
+                android.content.ComponentName(context, com.example.widget.TrackWiseAnalyticsWidgetProvider::class.java)
+            )
+            if (analyticsIds != null && analyticsIds.isNotEmpty()) {
+                analyticsIntent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, analyticsIds)
+                context.sendBroadcast(analyticsIntent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 

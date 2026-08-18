@@ -40,6 +40,30 @@ val MIGRATION_18_19 = object : Migration(18, 19) {
     }
 }
 
+val MIGRATION_19_20 = object : Migration(19, 20) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Safe placeholder migration
+    }
+}
+
+val MIGRATION_20_21 = object : Migration(20, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `stock_trades` (
+                `id` TEXT NOT NULL PRIMARY KEY, 
+                `userId` TEXT NOT NULL, 
+                `stockName` TEXT NOT NULL, 
+                `quantity` INTEGER NOT NULL, 
+                `profit` REAL NOT NULL, 
+                `loss` REAL NOT NULL, 
+                `taxAmount` REAL NOT NULL, 
+                `netProfit` REAL NOT NULL, 
+                `date` TEXT NOT NULL
+            )
+        """)
+    }
+}
+
 @Database(
     entities = [
         UserEntity::class,
@@ -63,9 +87,10 @@ val MIGRATION_18_19 = object : Migration(18, 19) {
         FinanceLogEntity::class,
         NetWorthItemEntity::class,
         NotebookEntity::class,
-        NoteEntity::class
+        NoteEntity::class,
+        StockTradeEntity::class
     ],
-    version = 19,
+    version = 21,
     exportSchema = false
 )
 abstract class TrackWiseDatabase : RoomDatabase() {
@@ -82,7 +107,14 @@ abstract class TrackWiseDatabase : RoomDatabase() {
                     TrackWiseDatabase::class.java,
                     "trackwise_database"
                 )
-                .addMigrations(MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addMigrations(
+                    MIGRATION_15_16, 
+                    MIGRATION_16_17, 
+                    MIGRATION_17_18, 
+                    MIGRATION_18_19,
+                    MIGRATION_19_20,
+                    MIGRATION_20_21
+                )
                 .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()

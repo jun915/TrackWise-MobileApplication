@@ -56,7 +56,8 @@ data class TaskEntity(
     val notes: String = "",
     val remindMe: Boolean = false,
     val reminderDate: String? = null,
-    val dueTime: String? = null // Optional due time
+    val dueTime: String? = null, // Optional due time
+    val completedAt: String? = null // YYYY-MM-DD HH:MM:SS format when completed
 )
 
 @Entity(tableName = "habits")
@@ -356,6 +357,19 @@ data class NoteEntity(
     val reminderDate: String? = null,
     val reminderTime: String? = null,
     val isPinned: Boolean = false
+)
+
+@Entity(tableName = "stock_trades")
+data class StockTradeEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val stockName: String,
+    val quantity: Int,
+    val profit: Double,
+    val loss: Double,
+    val taxAmount: Double,
+    val netProfit: Double,
+    val date: String // YYYY-MM-DD
 )
 
 

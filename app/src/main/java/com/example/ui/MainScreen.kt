@@ -628,6 +628,7 @@ fun MainScreen(
                         "seerah" -> SeerahScreen(viewModel = viewModel, onBack = { navigateBack() })
                         "habit_breaker" -> HabitBreakerScreen(viewModel = viewModel, onBack = { navigateBack() })
                         "notes" -> NotesScreen(viewModel = viewModel, onBack = { navigateBack() })
+                        "stock_market" -> StockMarketScreen(viewModel = viewModel, onBack = { navigateBack() })
                     }
                 }
 
@@ -1231,7 +1232,7 @@ fun MainScreen(
 
         // --- Floating Action Button & Speed Dials Rendered at Root level above the Scrims ---
         val showNetWorthAddSheet by viewModel.showNetWorthAddSheet.collectAsState()
-        if (activeDetailHabit == null && !needsOnboarding && !showNetWorthAddSheet && (!isShowAddFinanceSheet || activeTab != "finance") && !leftDrawerOpen) {
+        if (activeDetailHabit == null && !needsOnboarding && !showNetWorthAddSheet && (!isShowAddFinanceSheet || activeTab != "finance") && !leftDrawerOpen && activeTab != "stock_market") {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -2154,6 +2155,7 @@ fun HeaderToolbar(
         "seerah" -> "Seerah"
         "habit_breaker" -> "Habit Breaker"
         "notes" -> "Notebooks"
+        "stock_market" -> "Stock Market"
         else -> "TrackWise"
     }
 
@@ -3183,6 +3185,52 @@ fun LeftDrawerPane(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
                                 tint = if (activeTab == "social") BrandViolet else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+
+                // --- Stock Market Navigation Link ---
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeTab == "stock_market") BrandGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigate("stock_market")
+                                onClose()
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.TrendingUp,
+                                    contentDescription = null,
+                                    tint = BrandGreen
+                                )
+                                Text(
+                                    text = "STOCK MARKET",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (activeTab == "stock_market") BrandGreen else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = if (activeTab == "stock_market") BrandGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                         }
                     }
