@@ -548,6 +548,64 @@ fun HelpScreen(
             item {
                 Card(
                     shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = BrandViolet,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "TrackWise Application Info",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        val infoItems = listOf(
+                            "App Name" to "TrackWise (Personal Life Companion)",
+                            "Version" to "v2.5.0-release",
+                            "Active Profile" to "syedjunaid915@gmail.com",
+                            "Architecture" to "Asynchronous StateFlow MVVM Architecture",
+                            "Database Engine" to "Local Room SQLite Database (Version 21)",
+                            "Core Features" to "Habit Tracker, Task Checklists, Finance Ledger & Net Worth sheets, Clinical Health logs, Multi-faith Hijri Calendars, Custom Background Styling & Launcher Widgets"
+                        )
+                        
+                        infoItems.forEach { (label, value) ->
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    text = label.uppercase(),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                    letterSpacing = 0.8.sp
+                                )
+                                Text(
+                                    text = value,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Card(
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -564,7 +622,7 @@ fun HelpScreen(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Welcome to the official 10-Chapter TrackWise Comprehensive Guidebook. This manual covers every mathematical equation, database architecture flow, routine streaks, and balanced budgeting module in deep detail. Select a chapter below to open the complete reference guide.",
+                            text = "Welcome to the official 16-Chapter TrackWise Comprehensive Guidebook. This manual covers every mathematical equation, database architecture flow, routine streaks, and balanced budgeting module in deep detail. Select a chapter below to open the complete reference guide.",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             lineHeight = 18.sp

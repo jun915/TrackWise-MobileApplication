@@ -315,6 +315,9 @@ fun WaterTrackerCard(viewModel: TrackWiseViewModel, logs: List<WaterLogEntity>, 
     val glasses = todayLog?.glasses ?: 0
     val goal = todayLog?.goal ?: 8
 
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(20.dp),
@@ -333,31 +336,45 @@ fun WaterTrackerCard(viewModel: TrackWiseViewModel, logs: List<WaterLogEntity>, 
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(vertical = 8.dp)
-            ) {
-                IconButton(
-                    onClick = { viewModel.adjustWaterLog(-1) },
-                    modifier = Modifier.size(32.dp)
+            Box(contentAlignment = Alignment.Center) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Decrement", tint = BrandCyan)
+                    IconButton(
+                        onClick = {
+                            if (glasses > 0) {
+                                xpAmount = -3
+                                xpTrigger++
+                            }
+                            viewModel.adjustWaterLog(-1)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Decrement", tint = BrandCyan)
+                    }
+
+                    Text(
+                        text = "$glasses/$goal",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+
+                    IconButton(
+                        onClick = {
+                            xpAmount = 3
+                            xpTrigger++
+                            viewModel.adjustWaterLog(1)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Increment", tint = BrandCyan)
+                    }
                 }
 
-                Text(
-                    text = "$glasses/$goal",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-
-                IconButton(
-                    onClick = { viewModel.adjustWaterLog(1) },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Increment", tint = BrandCyan)
-                }
+                com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
             }
 
             Text(
@@ -456,6 +473,9 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
 
     var showErrors by remember { mutableStateOf(false) }
+
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
 
     var editingWeightEntry by remember { mutableStateOf<WeightEntryEntity?>(null) }
     if (editingWeightEntry != null) {
@@ -617,25 +637,31 @@ fun WeightLogSection(viewModel: TrackWiseViewModel, entries: List<WeightEntryEnt
                 }
             }
 
-            Button(
-                onClick = {
-                    if (weightError == null) {
-                        val w = weightInput.toDoubleOrNull()
-                        if (w != null) {
-                            viewModel.logWeight(w, if (notesInput.isBlank()) null else notesInput, selectedDate)
-                            weightInput = ""
-                            notesInput = ""
-                            showErrors = false
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        if (weightError == null) {
+                            val w = weightInput.toDoubleOrNull()
+                            if (w != null) {
+                                xpAmount = 5
+                                xpTrigger++
+                                viewModel.logWeight(w, if (notesInput.isBlank()) null else notesInput, selectedDate)
+                                weightInput = ""
+                                notesInput = ""
+                                showErrors = false
+                            }
+                        } else {
+                            showErrors = true
                         }
-                    } else {
-                        showErrors = true
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Save Weight Entry", color = Color.White)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandPink),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save Weight Entry", color = Color.White)
+                }
+
+                com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
             }
 
             val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
@@ -703,6 +729,9 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
     var contextExpanded by remember { mutableStateOf(false) }
 
     var showVitalsErrors by remember { mutableStateOf(false) }
+
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
 
     var editingVitalReading by remember { mutableStateOf<VitalReadingEntity?>(null) }
     if (editingVitalReading != null) {
@@ -1137,37 +1166,43 @@ fun VitalsLogSection(viewModel: TrackWiseViewModel, readings: List<VitalReadingE
                 }
             }
 
-            Button(
-                onClick = {
-                    val hasError = if (vitalType == "blood_sugar") sugarError != null else bpError != null
-                    if (!hasError) {
-                        val finalValue = if (vitalType == "blood_sugar") {
-                            sugarInput
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        val hasError = if (vitalType == "blood_sugar") sugarError != null else bpError != null
+                        if (!hasError) {
+                            val finalValue = if (vitalType == "blood_sugar") {
+                                sugarInput
+                            } else {
+                                bpInput
+                            }
+                            if (finalValue.isNotBlank()) {
+                                xpAmount = 5
+                                xpTrigger++
+                                viewModel.logVital(
+                                    type = vitalType,
+                                    value = finalValue,
+                                    context = if (vitalType == "blood_sugar") contextInput else "resting",
+                                    notes = null,
+                                    date = selectedDate,
+                                    time = selectedTime
+                                )
+                                sugarInput = ""
+                                bpInput = ""
+                                showVitalsErrors = false
+                            }
                         } else {
-                            bpInput
+                            showVitalsErrors = true
                         }
-                        if (finalValue.isNotBlank()) {
-                            viewModel.logVital(
-                                type = vitalType,
-                                value = finalValue,
-                                context = if (vitalType == "blood_sugar") contextInput else "resting",
-                                notes = null,
-                                date = selectedDate,
-                                time = selectedTime
-                            )
-                            sugarInput = ""
-                            bpInput = ""
-                            showVitalsErrors = false
-                        }
-                    } else {
-                        showVitalsErrors = true
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Save Vital Log", color = Color.White)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandCyan),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save Vital Log", color = Color.White)
+                }
+
+                com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
             }
 
             val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
@@ -1232,6 +1267,9 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
     var dropdownExpanded by remember { mutableStateOf(false) }
 
     var showExerciseErrors by remember { mutableStateOf(false) }
+
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
 
     var editingExerciseLog by remember { mutableStateOf<ExerciseLogEntity?>(null) }
     if (editingExerciseLog != null) {
@@ -1489,27 +1527,33 @@ fun ExerciseLogSection(viewModel: TrackWiseViewModel, logs: List<ExerciseLogEnti
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            Button(
-                onClick = {
-                    val hasError = durationError != null || (selectedType == "Others" && customTypeError != null)
-                    if (!hasError) {
-                        val d = durationInput.toIntOrNull() ?: 0
-                        val finalType = if (selectedType == "Others") customTypeInput else selectedType
-                        if (finalType.isNotBlank()) {
-                            viewModel.logExercise(finalType, d, true, null, selectedDate)
-                            durationInput = ""
-                            customTypeInput = ""
-                            showExerciseErrors = false
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        val hasError = durationError != null || (selectedType == "Others" && customTypeError != null)
+                        if (!hasError) {
+                            val d = durationInput.toIntOrNull() ?: 0
+                            val finalType = if (selectedType == "Others") customTypeInput else selectedType
+                            if (finalType.isNotBlank()) {
+                                xpAmount = 8
+                                xpTrigger++
+                                viewModel.logExercise(finalType, d, true, null, selectedDate)
+                                durationInput = ""
+                                customTypeInput = ""
+                                showExerciseErrors = false
+                            }
+                        } else {
+                            showExerciseErrors = true
                         }
-                    } else {
-                        showExerciseErrors = true
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Log Activity Session", color = Color.White)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Log Activity Session", color = Color.White)
+                }
+
+                com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
             }
 
             val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
@@ -1566,6 +1610,9 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
     var issueName by remember { mutableStateOf("") }
     var severity by remember { mutableStateOf("mild") } // "mild", "moderate", "severe"
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
+
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
 
     var editingHealthIssueLog by remember { mutableStateOf<HealthIssueLogEntity?>(null) }
     if (editingHealthIssueLog != null) {
@@ -1735,24 +1782,30 @@ fun SymptomLogSection(viewModel: TrackWiseViewModel, logs: List<HealthIssueLogEn
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            Button(
-                onClick = {
-                    if (issueName.isNotBlank()) {
-                        viewModel.logHealthIssue(
-                            issueId = "issue-${System.currentTimeMillis()}",
-                            issueName = issueName,
-                            severity = severity,
-                            notes = null,
-                            date = selectedDate
-                        )
-                        issueName = ""
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Log Symptom", color = Color.White)
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        if (issueName.isNotBlank()) {
+                            xpAmount = 4
+                            xpTrigger++
+                            viewModel.logHealthIssue(
+                                issueId = "issue-${System.currentTimeMillis()}",
+                                issueName = issueName,
+                                severity = severity,
+                                notes = null,
+                                date = selectedDate
+                            )
+                            issueName = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandRose),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Log Symptom", color = Color.White)
+                }
+
+                com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
             }
 
             val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()
@@ -1820,6 +1873,9 @@ fun SleepLogSection(
     var selectedDate by remember { mutableStateOf(TrackWiseUtils.getTodayString()) }
 
     var showSleepErrors by remember { mutableStateOf(false) }
+
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
 
     var editingSleepLog by remember { mutableStateOf<SleepLogEntity?>(null) }
     if (editingSleepLog != null) {
@@ -2026,28 +2082,34 @@ fun SleepLogSection(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Button(
-                onClick = {
-                    val hasError = startError != null || endError != null
-                    if (!hasError) {
-                        viewModel.addSleepLog(
-                            hoursSlept = calculatedHours,
-                            startTime = sleepStart,
-                            endTime = sleepEnd,
-                            notes = notes.ifBlank { "Logged sleep" },
-                            date = selectedDate
-                        )
-                        notes = ""
-                        showSleepErrors = false
-                    } else {
-                        showSleepErrors = true
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Log Sleep", color = Color.White, fontWeight = FontWeight.Bold)
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        val hasError = startError != null || endError != null
+                        if (!hasError) {
+                            xpAmount = 40
+                            xpTrigger++
+                            viewModel.addSleepLog(
+                                hoursSlept = calculatedHours,
+                                startTime = sleepStart,
+                                endTime = sleepEnd,
+                                notes = notes.ifBlank { "Logged sleep" },
+                                date = selectedDate
+                            )
+                            notes = ""
+                            showSleepErrors = false
+                        } else {
+                            showSleepErrors = true
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandViolet),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Log Sleep", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
             }
 
             val pinnedHealthLogIds by viewModel.pinnedHealthLogIds.collectAsState()

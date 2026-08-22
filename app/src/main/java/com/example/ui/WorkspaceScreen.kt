@@ -586,20 +586,17 @@ fun TaskSection(
         }
 
         // Tasks Grid/List
-        var taskFilterTab by remember { mutableStateOf("my_day") } // "my_day" or "all"
+        var taskFilterTab by remember { mutableStateOf("this_month") } // "this_month", "my_day", or "all"
         val todayStr = TrackWiseUtils.getTodayString()
+        val currentMonthPrefix = if (todayStr.length >= 7) todayStr.substring(0, 7) else ""
         val dismissedTaskIdsToday by viewModel.dismissedTaskIdsToday.collectAsState()
         val pinnedTaskIds by viewModel.pinnedTaskIds.collectAsState()
 
-        val myDayTasksCount = remember(tasks, todayStr) {
+        val thisMonthTasksCount = remember(tasks, currentMonthPrefix) {
             tasks.count { task ->
-                !task.notes.contains("[ARCHIVED]") && (
-                    task.deadline == todayStr ||
-                    (task.startDate != null && task.startDate.startsWith(todayStr)) ||
-                    task.reminderDate == todayStr ||
-                    (!task.completed && task.deadline.isNotBlank() && task.deadline <= todayStr) ||
-                    TrackWiseUtils.shouldShowTaskOnDate(task, todayStr)
-                )
+                !task.notes.contains("[ARCHIVED]") &&
+                task.deadline.isNotBlank() &&
+                task.deadline.startsWith(currentMonthPrefix)
             }
         }
         val allTasksCount = remember(tasks) {
@@ -613,11 +610,11 @@ fun TaskSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FilterChip(
-                selected = taskFilterTab == "my_day",
-                onClick = { taskFilterTab = "my_day" },
-                label = { Text("My Day ($myDayTasksCount)", fontWeight = FontWeight.Bold) },
+                selected = taskFilterTab == "this_month",
+                onClick = { taskFilterTab = "this_month" },
+                label = { Text("This Month ($thisMonthTasksCount)", fontWeight = FontWeight.Bold) },
                 leadingIcon = {
-                    Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
                 },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = BrandViolet,
@@ -642,18 +639,14 @@ fun TaskSection(
             )
         }
 
-        val filteredTasks = remember(tasks, selectedFolder, selectedTag, dismissedTaskIdsToday, pinnedTaskIds, taskFilterTab, todayStr) {
+        val filteredTasks = remember(tasks, selectedFolder, selectedTag, dismissedTaskIdsToday, pinnedTaskIds, taskFilterTab, todayStr, currentMonthPrefix) {
             tasks.filter { task ->
                 if (dismissedTaskIdsToday.contains(task.id)) return@filter false
                 if (task.notes.contains("[ARCHIVED]")) return@filter false
 
-                if (taskFilterTab == "my_day") {
-                    val isForToday = task.deadline == todayStr ||
-                                     (task.startDate != null && task.startDate.startsWith(todayStr)) ||
-                                     task.reminderDate == todayStr ||
-                                     (!task.completed && task.deadline.isNotBlank() && task.deadline <= todayStr) ||
-                                     TrackWiseUtils.shouldShowTaskOnDate(task, todayStr)
-                    if (!isForToday) return@filter false
+                if (taskFilterTab == "this_month") {
+                    val isForThisMonth = task.deadline.isNotBlank() && task.deadline.startsWith(currentMonthPrefix)
+                    if (!isForThisMonth) return@filter false
                 }
 
                 if (selectedFolder != null) {
@@ -854,6 +847,11 @@ fun TaskCard(
     val pinnedTaskIds by viewModel.pinnedTaskIds.collectAsState()
     val isPinned = pinnedTaskIds.contains(task.id) || task.notes.contains("[PINNED]")
 
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
+    val wishlistItems by viewModel.allWishlist.collectAsState()
+    val wishlistCount = wishlistItems.size
+
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -929,37 +927,47 @@ fun TaskCard(
                 verticalAlignment = Alignment.Top
             ) {
                 // Task Checkbox (Radio button with 6-dot burst animation)
-                com.example.utils.CompletionBurstWrapper(
-                    onClick = { viewModel.toggleTaskCompletion(task) },
-                    dotColor = priorityColor,
-                    dotCount = 6,
-                    initialRadiusDp = 10.dp,
-                    burstRadiusMaxDp = 24.dp,
-                    modifier = Modifier.padding(top = 4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .border(
-                                1.5.dp,
-                                if (task.completed) priorityColor.copy(alpha = 0.5f) else priorityColor,
-                                CircleShape
-                            )
-                            .background(
-                                if (task.completed) priorityColor.copy(alpha = 0.2f) else Color.Transparent,
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
+                Box(contentAlignment = Alignment.Center) {
+                    com.example.utils.CompletionBurstWrapper(
+                        onClick = {
+                            val nextCompleted = !task.completed
+                            val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
+                            xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicTaskXp(task, nextCompleted, todayStr, wishlistCount)
+                            xpTrigger++
+                            viewModel.toggleTaskCompletion(task)
+                        },
+                        dotColor = priorityColor,
+                        dotCount = 6,
+                        initialRadiusDp = 10.dp,
+                        burstRadiusMaxDp = 24.dp,
+                        modifier = Modifier.padding(top = 4.dp)
                     ) {
-                        if (task.completed) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                tint = priorityColor,
-                                modifier = Modifier.size(10.dp)
-                            )
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .border(
+                                    1.5.dp,
+                                    if (task.completed) priorityColor.copy(alpha = 0.5f) else priorityColor,
+                                    CircleShape
+                                )
+                                .background(
+                                    if (task.completed) priorityColor.copy(alpha = 0.2f) else Color.Transparent,
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (task.completed) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = priorityColor,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
                         }
                     }
+
+                    com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -1783,26 +1791,11 @@ fun HabitSection(
                         folderHabits.forEach { habit ->
                             val index = itemIdx++
                             StaggeredItem(index = index) {
-                                SwipeableHabitCard(
+                                HabitCard(
                                     habit = habit,
-                                    onToggleCompleted = { completed ->
-                                        val todayStr = TrackWiseUtils.getTodayString()
-                                        val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
-                                        val isCurrentlyCompleted = days.contains(todayStr)
-                                        if (isCurrentlyCompleted != completed) {
-                                            viewModel.toggleHabitToday(habit)
-                                        }
-                                    },
-                                    onDismissForToday = {
-                                        viewModel.dismissHabitForCurrentPeriod(habit.id, habit.frequency)
-                                    }
-                                ) {
-                                    HabitCard(
-                                        habit = habit,
-                                        viewModel = viewModel,
-                                        onHabitClick = { onHabitClick(habit) }
-                                    )
-                                }
+                                    viewModel = viewModel,
+                                    onHabitClick = { onHabitClick(habit) }
+                                )
                             }
                         }
                     }
@@ -1833,6 +1826,11 @@ fun HabitCard(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val pinnedHabitIds by viewModel.pinnedHabitIds.collectAsState()
     val isPinned = pinnedHabitIds.contains(habit.id) || habit.notes.contains("[PINNED]")
+
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
+    val wishlistItems by viewModel.allWishlist.collectAsState()
+    val wishlistCount = wishlistItems.size
 
     if (showDeleteConfirm) {
         AlertDialog(
@@ -2172,52 +2170,75 @@ fun HabitCard(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (habit.isMultipleTimesPerDay) {
-                        IconButton(
-                            onClick = { viewModel.decrementHabitToday(habit) },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = BrandOrange, modifier = Modifier.size(18.dp))
-                        }
-                        
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clickable { viewModel.incrementHabitToday(habit) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isCompletedToday) {
-                                Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
-                            } else {
-                                HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
-                            }
-                        }
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (habit.isMultipleTimesPerDay) {
+                                IconButton(
+                                    onClick = {
+                                        xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicHabitXp(habit, false, wishlistCount)
+                                        xpTrigger++
+                                        viewModel.decrementHabitToday(habit)
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = BrandOrange, modifier = Modifier.size(18.dp))
+                                }
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clickable {
+                                            xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicHabitXp(habit, true, wishlistCount)
+                                            xpTrigger++
+                                            viewModel.incrementHabitToday(habit)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isCompletedToday) {
+                                        Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
+                                    } else {
+                                        HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
+                                    }
+                                }
 
-                        IconButton(
-                            onClick = { viewModel.incrementHabitToday(habit) },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Increase", tint = BrandOrange, modifier = Modifier.size(18.dp))
-                        }
-                    } else {
-                        com.example.utils.CompletionBurstWrapper(
-                            onClick = { viewModel.toggleHabitToday(habit) },
-                            dotColor = BrandOrange,
-                            dotCount = 6,
-                            initialRadiusDp = 14.dp,
-                            burstRadiusMaxDp = 30.dp
-                        ) {
-                            Box(
-                                modifier = Modifier.size(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isCompletedToday) {
-                                    Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
-                                } else {
-                                    HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
+                                IconButton(
+                                    onClick = {
+                                        xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicHabitXp(habit, true, wishlistCount)
+                                        xpTrigger++
+                                        viewModel.incrementHabitToday(habit)
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Increase", tint = BrandOrange, modifier = Modifier.size(18.dp))
+                                }
+                            } else {
+                                com.example.utils.CompletionBurstWrapper(
+                                    onClick = {
+                                        val nextCompleted = !isCompletedToday
+                                        xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicHabitXp(habit, nextCompleted, wishlistCount)
+                                        xpTrigger++
+                                        viewModel.toggleHabitToday(habit)
+                                    },
+                                    dotColor = BrandOrange,
+                                    dotCount = 6,
+                                    initialRadiusDp = 14.dp,
+                                    burstRadiusMaxDp = 30.dp
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(32.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isCompletedToday) {
+                                            Icon(Icons.Default.Check, contentDescription = "Done", tint = BrandOrange, modifier = Modifier.size(24.dp))
+                                        } else {
+                                            HabitIconView(icon = habit.icon, tint = BrandOrange, size = 24.dp)
+                                        }
+                                    }
                                 }
                             }
                         }
+
+                        com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))
@@ -4474,7 +4495,8 @@ fun BirthdaySection(viewModel: TrackWiseViewModel) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .navigationBarsPadding(),
+                                .navigationBarsPadding()
+                                .padding(bottom = 128.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {

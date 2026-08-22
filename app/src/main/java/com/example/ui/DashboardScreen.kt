@@ -227,11 +227,70 @@ fun DashboardScreen(
                         }
                     }
 
-                    Text(
-                        text = "Your analytics, today's focus, and priority runways at a glance.",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
+                    val todayStr = TrackWiseUtils.getTodayString()
+                    val religionLower = currentUser?.religion?.lowercase(Locale.ROOT) ?: ""
+
+                    if (religionLower.contains("muslim") || religionLower.contains("islam")) {
+                        val allahNameObj = TrackWiseUtils.getAllahNameForDate(todayStr)
+                        val hijriInfo = TrackWiseUtils.getHijriInfo(todayStr)
+                        val urduDate = "${hijriInfo.day} ${hijriInfo.monthNameUr} ${hijriInfo.year} AH"
+                        
+                        Column(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Allah: ${allahNameObj.ar} (${allahNameObj.en}) — ${allahNameObj.meaning}",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandOrange
+                            )
+                            Text(
+                                text = "Urdu/Hijri Date: $urduDate",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = "The beautiful name of the day is ${allahNameObj.en} (${allahNameObj.meaning}).",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                            )
+                        }
+                    } else if (religionLower.contains("hindu")) {
+                        val hinduInfo = TrackWiseUtils.getHinduCalendarInfo(todayStr)
+                        val hinduDate = "Vikram Samvat ${hinduInfo.vsYear}, ${hinduInfo.vsMonth}"
+                        val detail = "Tithi: ${hinduInfo.tithi} (${hinduInfo.paksha} Paksha)"
+                        
+                        Column(
+                            modifier = Modifier.padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Hindu Calendar: $hinduDate",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandOrange
+                            )
+                            Text(
+                                text = detail,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = "Wishing you a peaceful day governed by ${hinduInfo.tithi} in the ${hinduInfo.paksha} phase.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "Your analytics, today's focus, and priority runways at a glance.",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        )
+                    }
                 }
             }
         }
@@ -476,7 +535,8 @@ fun DashboardScreen(
                     onToggleHabit = { viewModel.toggleHabitToday(it) },
                     onHabitClick = { viewModel.setActiveDetailHabit(it) },
                     onAddHabit = { viewModel.openHabitCreationSheet() },
-                    onOpenHabitTab = { onNavigate("habits") }
+                    onOpenHabitTab = { onNavigate("habits") },
+                    wishlistCount = allWishlist.size
                 )
             }
         }
@@ -509,7 +569,8 @@ fun DashboardScreen(
                         }
                         viewModel.updateTask(task.copy(notes = newNotes))
                     },
-                    onPostponeTask = { activePostponeTask = it }
+                    onPostponeTask = { activePostponeTask = it },
+                    wishlistCount = allWishlist.size
                 )
             }
         }
@@ -654,6 +715,11 @@ fun DailyScoresOverviewWidget(
             if (streakHistory.isEmpty()) {
                 EmptyProgressPlaceholder("Complete tasks and habits to populate historical analytics charts.")
             } else {
+                val maxScore = remember(streakHistory) {
+                    val scores = streakHistory.take(7).map { it.score }
+                    if (scores.isEmpty()) 100f else maxOf(scores.maxOrNull()?.toFloat() ?: 100f, 100f)
+                }
+
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         text = "Daily XP Gained (Last 7 Days)",
@@ -673,24 +739,28 @@ fun DailyScoresOverviewWidget(
                                 modifier = Modifier.width(48.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Box(
+                            Row(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(16.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                             ) {
-                                val fillWidthFraction = (history.score / 30f).coerceIn(0f, 1f)
+                                val fillWidthFraction = (history.score.toFloat() / maxScore).coerceIn(0.001f, 1f)
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight()
-                                        .fillMaxWidth(fillWidthFraction)
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .weight(fillWidthFraction)
                                         .background(
                                             Brush.horizontalGradient(
                                                 listOf(BrandViolet, BrandPink)
                                             )
                                         )
+                                )
+                                Spacer(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .weight((1f - fillWidthFraction).coerceIn(0.001f, 1f))
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
@@ -917,6 +987,9 @@ fun WaterIntakeWidget(
     val waterGoal = todayWater?.goal ?: 8
     val waterFraction = (waterGlasses.toFloat() / waterGoal).coerceIn(0f, 1f)
 
+    var xpTrigger by remember { mutableStateOf(0) }
+    var xpAmount by remember { mutableStateOf(0) }
+
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -938,28 +1011,42 @@ fun WaterIntakeWidget(
                     letterSpacing = 1.sp
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = { viewModel.adjustWaterLog(-1) },
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                Box(contentAlignment = Alignment.Center) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Remove, contentDescription = "Decrement water", tint = BrandCyan, modifier = Modifier.size(14.dp))
+                        IconButton(
+                            onClick = {
+                                if (waterGlasses > 0) {
+                                    xpAmount = -3
+                                    xpTrigger++
+                                }
+                                viewModel.adjustWaterLog(-1)
+                            },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                        ) {
+                            Icon(Icons.Default.Remove, contentDescription = "Decrement water", tint = BrandCyan, modifier = Modifier.size(14.dp))
+                        }
+                        IconButton(
+                            onClick = {
+                                xpAmount = 3
+                                xpTrigger++
+                                viewModel.adjustWaterLog(1)
+                            },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Increment water", tint = BrandCyan, modifier = Modifier.size(14.dp))
+                        }
                     }
-                    IconButton(
-                        onClick = { viewModel.adjustWaterLog(1) },
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Increment water", tint = BrandCyan, modifier = Modifier.size(14.dp))
-                    }
+
+                    com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
                 }
             }
 
@@ -1340,6 +1427,7 @@ fun PriorityItemsWidget(
     onArchiveTask: (TaskEntity) -> Unit,
     onPinTask: (TaskEntity) -> Unit,
     onPostponeTask: (TaskEntity) -> Unit,
+    wishlistCount: Int,
     modifier: Modifier = Modifier
 ) {
     val today = TrackWiseUtils.getTodayString()
@@ -1423,227 +1511,254 @@ fun PriorityItemsWidget(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     tasks.forEach { task ->
                         val isOverdue = task.deadline < today && !task.completed
-                        SwipeableTaskItem(
-                            task = task,
-                            onToggleTask = { onToggleTask(task) },
-                            onDeleteTask = { onDeleteTask(task) },
-                            onArchiveTask = { onArchiveTask(task) },
-                            onPinTask = { onPinTask(task) },
-                            onPostponeTask = { onPostponeTask(task) }
-                        ) {
-                            val isDark = MaterialTheme.colorScheme.onBackground.red > 0.5f
-                            val gradientBrush = if (task.completed) {
-                                Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
-                            } else {
-                                when (task.priority.lowercase()) {
-                                    "high" -> if (isDark) {
-                                        Brush.linearGradient(colors = listOf(Color(0xFF4C0519), Color(0xFF881337)))
-                                    } else {
-                                        Brush.linearGradient(colors = listOf(Color(0xFFFFF1F2), Color(0xFFFFD1D3)))
-                                    }
-                                    "medium" -> if (isDark) {
-                                        Brush.linearGradient(colors = listOf(Color(0xFF431407), Color(0xFF7C2D12)))
-                                    } else {
-                                        Brush.linearGradient(colors = listOf(Color(0xFFFFF7ED), Color(0xFFFFEDD5)))
-                                    }
-                                    "low" -> if (isDark) {
-                                        Brush.linearGradient(colors = listOf(Color(0xFF172554), Color(0xFF1E3A8A)))
-                                    } else {
-                                        Brush.linearGradient(colors = listOf(Color(0xFFEFF6FF), Color(0xFFDBEAFE)))
-                                    }
-                                    else -> if (isDark) {
-                                        Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
-                                    } else {
-                                        Brush.linearGradient(colors = listOf(Color.White, Color(0xFFF9FAFB)))
+                        var xpTrigger by remember(task.id) { mutableStateOf(0) }
+                        var xpAmount by remember(task.id) { mutableStateOf(0) }
+
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            SwipeableTaskItem(
+                                task = task,
+                                onToggleTask = {
+                                    val nextCompleted = !task.completed
+                                    val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
+                                    xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicTaskXp(task, nextCompleted, todayStr, wishlistCount)
+                                    xpTrigger++
+                                    onToggleTask(task)
+                                },
+                                onDeleteTask = { onDeleteTask(task) },
+                                onArchiveTask = { onArchiveTask(task) },
+                                onPinTask = { onPinTask(task) },
+                                onPostponeTask = { onPostponeTask(task) }
+                            ) {
+                                val isDark = MaterialTheme.colorScheme.onBackground.red > 0.5f
+                                val gradientBrush = if (task.completed) {
+                                    Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
+                                } else {
+                                    when (task.priority.lowercase()) {
+                                        "high" -> if (isDark) {
+                                            Brush.linearGradient(colors = listOf(Color(0xFF4C0519), Color(0xFF881337)))
+                                        } else {
+                                            Brush.linearGradient(colors = listOf(Color(0xFFFFF1F2), Color(0xFFFFD1D3)))
+                                        }
+                                        "medium" -> if (isDark) {
+                                            Brush.linearGradient(colors = listOf(Color(0xFF431407), Color(0xFF7C2D12)))
+                                        } else {
+                                            Brush.linearGradient(colors = listOf(Color(0xFFFFF7ED), Color(0xFFFFEDD5)))
+                                        }
+                                        "low" -> if (isDark) {
+                                            Brush.linearGradient(colors = listOf(Color(0xFF172554), Color(0xFF1E3A8A)))
+                                        } else {
+                                            Brush.linearGradient(colors = listOf(Color(0xFFEFF6FF), Color(0xFFDBEAFE)))
+                                        }
+                                        else -> if (isDark) {
+                                            Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
+                                        } else {
+                                            Brush.linearGradient(colors = listOf(Color.White, Color(0xFFF9FAFB)))
+                                        }
                                     }
                                 }
-                            }
-                            Card(
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(gradientBrush, RoundedCornerShape(16.dp))
-                                    .border(
-                                        1.dp,
-                                        if (isOverdue) BrandRose.copy(alpha = 0.2f)
-                                        else if (task.completed) Color.Transparent
-                                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
-                                        RoundedCornerShape(16.dp)
-                                    )
-                                    .clickable { onToggleTask(task) }
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    // Header Row
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = task.title,
-                                                    fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                                    color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                if (isOverdue) {
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(
-                                                        text = "OVERDUE",
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.Black,
-                                                        color = BrandRose,
-                                                        modifier = Modifier
-                                                            .background(BrandRose.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-                                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                            Text(
-                                                text = "${task.project} · ${task.priority.uppercase()}",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                                fontWeight = FontWeight.Medium
-                                            )
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(gradientBrush, RoundedCornerShape(16.dp))
+                                        .border(
+                                            1.dp,
+                                            if (isOverdue) BrandRose.copy(alpha = 0.2f)
+                                            else if (task.completed) Color.Transparent
+                                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                                            RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable {
+                                            val nextCompleted = !task.completed
+                                            val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
+                                            xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicTaskXp(task, nextCompleted, todayStr, wishlistCount)
+                                            xpTrigger++
+                                            onToggleTask(task)
                                         }
-
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        // Header Row
                                         Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            val diffDays = remember(task.deadline) {
-                                                if (task.deadline.isBlank()) null else {
-                                                    try {
-                                                        val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
-                                                        val dDate = com.example.utils.TrackWiseUtils.parseDate(task.deadline)
-                                                        val tDate = com.example.utils.TrackWiseUtils.parseDate(todayStr)
-                                                        val diffMs = dDate.time - tDate.time
-                                                        java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
-                                                    } catch(e: Exception) {
-                                                        0
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = task.title,
+                                                        fontSize = 15.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                                        color = if (task.completed) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f) else MaterialTheme.colorScheme.onBackground,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f, fill = false)
+                                                    )
+                                                    if (isOverdue) {
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text(
+                                                            text = "OVERDUE",
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Black,
+                                                            color = BrandRose,
+                                                            modifier = Modifier
+                                                                .background(BrandRose.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                        )
                                                     }
                                                 }
-                                            }
-                                            diffDays?.let { days ->
-                                                val isOverdue = days < 0
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
-                                                        contentDescription = null,
-                                                        tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandRose,
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                    Text(
-                                                        text = "$days",
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (isOverdue) MaterialTheme.colorScheme.error else BrandRose
-                                                    )
-                                                }
-                                            }
-
-                                            // XP capsule tag
-                                            Card(
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
-                                                                    else BrandRose.copy(alpha = 0.12f)
-                                                ),
-                                                shape = RoundedCornerShape(6.dp)
-                                            ) {
                                                 Text(
-                                                    text = "+${task.points} XP",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (task.completed) BrandGreen else BrandRose,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    text = "${task.project} · ${task.priority.uppercase()}",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                                    fontWeight = FontWeight.Medium
                                                 )
                                             }
-                                        }
-                                    }
 
-                                    if (task.notes.isNotBlank()) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "📝 ${task.notes}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = BrandViolet.copy(alpha = 0.8f),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-
-                                    // Subtle separator line inside card
-                                    Spacer(
-                                        modifier = Modifier
-                                            .padding(vertical = 10.dp)
-                                            .fillMaxWidth()
-                                            .height(1.dp)
-                                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
-                                    )
-
-                                    // Footer Row
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        // Left: Calendar indicator / reminder
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.CalendarToday,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                            Text(
-                                                text = "Due: ${task.deadline}",
-                                                fontSize = 11.sp,
-                                                color = if (isOverdue) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                                fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal,
-                                                modifier = Modifier.padding(start = 4.dp)
-                                            )
-                                        }
-
-                                        // Right: Complete Toggle Circle button (colored BrandRose)
-                                        com.example.utils.CompletionBurstWrapper(
-                                            onClick = { onToggleTask(task) },
-                                            dotColor = BrandRose,
-                                            dotCount = 6,
-                                            initialRadiusDp = 12.dp,
-                                            burstRadiusMaxDp = 26.dp
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .border(
-                                                        2.dp,
-                                                        if (task.completed) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                                        CircleShape
-                                                    )
-                                                    .background(
-                                                        if (task.completed) BrandRose.copy(alpha = 0.2f) else Color.Transparent,
-                                                        CircleShape
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                if (task.completed) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = null,
-                                                        tint = BrandRose,
-                                                        modifier = Modifier.size(14.dp)
+                                                val diffDays = remember(task.deadline) {
+                                                    if (task.deadline.isBlank()) null else {
+                                                        try {
+                                                            val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
+                                                            val dDate = com.example.utils.TrackWiseUtils.parseDate(task.deadline)
+                                                            val tDate = com.example.utils.TrackWiseUtils.parseDate(todayStr)
+                                                            val diffMs = dDate.time - tDate.time
+                                                            java.lang.Math.round(diffMs.toDouble() / (1000.0 * 60 * 60 * 24)).toInt()
+                                                        } catch(e: Exception) {
+                                                            0
+                                                        }
+                                                    }
+                                                }
+                                                diffDays?.let { days ->
+                                                    val isOverdue = days < 0
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                    ) {
+                                                        Icon(
+                                                          imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Schedule,
+                                                          contentDescription = null,
+                                                          tint = if (isOverdue) MaterialTheme.colorScheme.error else BrandRose,
+                                                          modifier = Modifier.size(13.dp)
+                                                        )
+                                                        Text(
+                                                            text = "$days",
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isOverdue) MaterialTheme.colorScheme.error else BrandRose
+                                                        )
+                                                    }
+                                                }
+
+                                                // XP capsule tag
+                                                Card(
+                                                    colors = CardDefaults.cardColors(
+                                                        containerColor = if (task.completed) BrandGreen.copy(alpha = 0.1f)
+                                                                        else BrandRose.copy(alpha = 0.12f)
+                                                    ),
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "+${task.points} XP",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (task.completed) BrandGreen else BrandRose,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                                     )
                                                 }
+                                            }
+                                        }
+
+                                        if (task.notes.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "📝 ${task.notes}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = BrandViolet.copy(alpha = 0.8f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+
+                                        // Subtle separator line inside card
+                                        Spacer(
+                                            modifier = Modifier
+                                                .padding(vertical = 10.dp)
+                                                .fillMaxWidth()
+                                                .height(1.dp)
+                                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                                        )
+
+                                        // Footer Row
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Left: Calendar indicator / reminder
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CalendarToday,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Text(
+                                                    text = "Due: ${task.deadline}",
+                                                    fontSize = 11.sp,
+                                                    color = if (isOverdue) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                                                    fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Normal,
+                                                    modifier = Modifier.padding(start = 4.dp)
+                                                )
+                                            }
+
+                                            // Right: Complete Toggle Circle button (colored BrandRose)
+                                            Box(contentAlignment = Alignment.Center) {
+                                                com.example.utils.CompletionBurstWrapper(
+                                                    onClick = {
+                                                        val nextCompleted = !task.completed
+                                                        val todayStr = com.example.utils.TrackWiseUtils.getTodayString()
+                                                        xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicTaskXp(task, nextCompleted, todayStr, wishlistCount)
+                                                        xpTrigger++
+                                                        onToggleTask(task)
+                                                    },
+                                                    dotColor = BrandRose,
+                                                    dotCount = 6,
+                                                    initialRadiusDp = 12.dp,
+                                                    burstRadiusMaxDp = 26.dp
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(24.dp)
+                                                            .border(
+                                                                2.dp,
+                                                                if (task.completed) BrandRose else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                                                CircleShape
+                                                            )
+                                                            .background(
+                                                                if (task.completed) BrandRose.copy(alpha = 0.2f) else Color.Transparent,
+                                                                CircleShape
+                                                            ),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (task.completed) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Check,
+                                                                contentDescription = null,
+                                                                tint = BrandRose,
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
                                             }
                                         }
                                     }
@@ -1665,6 +1780,7 @@ fun DailyHabitsWidget(
     onHabitClick: (HabitEntity) -> Unit,
     onAddHabit: () -> Unit = {},
     onOpenHabitTab: () -> Unit = {},
+    wishlistCount: Int,
     modifier: Modifier = Modifier
 ) {
     val today = TrackWiseUtils.getTodayString()
@@ -1760,20 +1876,10 @@ fun DailyHabitsWidget(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     dashboardHabits.forEach { habit ->
                         val isDone = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson).contains(today)
-                        SwipeableHabitCard(
-                            habit = habit,
-                            onToggleCompleted = { completed ->
-                                val todayStr = TrackWiseUtils.getTodayString()
-                                val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
-                                val isCurrentlyCompleted = days.contains(todayStr)
-                                if (isCurrentlyCompleted != completed) {
-                                    onToggleHabit(habit)
-                                }
-                            },
-                            onDismissForToday = {
-                                viewModel?.dismissHabitForCurrentPeriod(habit.id, habit.frequency)
-                            }
-                        ) {
+                        var xpTrigger by remember(habit.id) { mutableStateOf(0) }
+                        var xpAmount by remember(habit.id) { mutableStateOf(0) }
+
+                        Box(modifier = Modifier.fillMaxWidth()) {
                             Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
@@ -1794,32 +1900,41 @@ fun DailyHabitsWidget(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     // Left: Habit icon / checkmark
-                                    com.example.utils.CompletionBurstWrapper(
-                                        onClick = { onToggleHabit(habit) },
-                                        dotColor = BrandOrange,
-                                        dotCount = 6,
-                                        initialRadiusDp = 14.dp,
-                                        burstRadiusMaxDp = 28.dp
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.size(28.dp),
-                                            contentAlignment = Alignment.Center
+                                    Box(contentAlignment = Alignment.Center) {
+                                        com.example.utils.CompletionBurstWrapper(
+                                            onClick = {
+                                                val nextCompleted = !isDone
+                                                xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicHabitXp(habit, nextCompleted, wishlistCount)
+                                                xpTrigger++
+                                                onToggleHabit(habit)
+                                            },
+                                            dotColor = BrandOrange,
+                                            dotCount = 6,
+                                            initialRadiusDp = 14.dp,
+                                            burstRadiusMaxDp = 28.dp
                                         ) {
-                                            if (isDone) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Check,
-                                                    contentDescription = "Done",
-                                                    tint = BrandOrange,
-                                                    modifier = Modifier.size(22.dp)
-                                                )
-                                            } else {
-                                                HabitIconView(
-                                                    icon = habit.icon,
-                                                    tint = BrandOrange,
-                                                    size = 22.dp
-                                                )
+                                            Box(
+                                                modifier = Modifier.size(28.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isDone) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Done",
+                                                        tint = BrandOrange,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                } else {
+                                                    HabitIconView(
+                                                        icon = habit.icon,
+                                                        tint = BrandOrange,
+                                                        size = 22.dp
+                                                    )
+                                                }
                                             }
                                         }
+
+                                        com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
                                     }
 
                                     Spacer(modifier = Modifier.width(14.dp))
@@ -2859,17 +2974,10 @@ fun DashboardOccasionsCountdownWidget(
                     }
                     Column {
                         Text(
-                            text = "UPCOMING COUNTDOWNS & OCCASIONS",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = BrandOrange,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = if (countdownItems.isNotEmpty()) "Upcoming in the next 5 days" else "Countdowns & Milestones",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            text = "Upcoming Occasions",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandOrange
                         )
                     }
                 }
@@ -2910,15 +3018,10 @@ fun DashboardOccasionsCountdownWidget(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "No Occasions in Next 5 Days",
+                                text = "No occasions in next 5 days",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Milestones and occasions will appear here when due within 5 days. Tap View All to see all countdowns.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         }
                     }

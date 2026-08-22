@@ -1605,6 +1605,7 @@ fun AllLogsExplorerDialog(
     val habits by viewModel.allHabits.collectAsState()
     val badHabits by viewModel.badHabits.collectAsState()
     val financeLogs by viewModel.allFinanceLogs.collectAsState()
+    val stockTrades by viewModel.allStockTrades.collectAsState()
     
     val sleepLogs by viewModel.sleepLogs.collectAsState()
     val waterLogs by viewModel.waterLogs.collectAsState()
@@ -2011,9 +2012,29 @@ fun AllLogsExplorerDialog(
         }
     }
 
+    // 8. Stock Trade entries
+    val stockItems = remember(stockTrades) {
+        stockTrades.map { trade ->
+            val pnlFormatted = String.format(Locale.getDefault(), "%.2f", trade.netProfit)
+            val actionLabel = if (trade.netProfit >= 0) "PROFITABLE TRADE" else "LOSS TRADE"
+            val typeLabel = if (trade.netProfit >= 0) "Profit" else "Loss"
+            PlainLogEntry(
+                dateTime = trade.date,
+                activityName = "$actionLabel: ${trade.stockName}",
+                type = "Stocks: Trade",
+                dueDateTime = "N/A",
+                folderName = "Stock Market",
+                streak = "-",
+                habitBreakerCostType = "-",
+                details = "Stock: ${trade.stockName} | Quantity: ${trade.quantity} | Gross Profit: ₹${trade.profit} | Gross Loss: ₹${trade.loss} | Tax: ₹${trade.taxAmount} | Net Profit/Loss: ₹$pnlFormatted ($typeLabel)",
+                sortTimestamp = trade.date
+            )
+        }
+    }
+
     // All combined master logs list
-    val allCombinedItems = remember(taskItems, habitItems, breakerItems, financeItems, healthItems, noteItems, occasionItems) {
-        (taskItems + habitItems + breakerItems + financeItems + healthItems + noteItems + occasionItems)
+    val allCombinedItems = remember(taskItems, habitItems, breakerItems, financeItems, healthItems, noteItems, occasionItems, stockItems) {
+        (taskItems + habitItems + breakerItems + financeItems + healthItems + noteItems + occasionItems + stockItems)
             .sortedByDescending { it.sortTimestamp }
     }
 
@@ -2026,6 +2047,7 @@ fun AllLogsExplorerDialog(
         5 -> healthItems.sortedByDescending { it.sortTimestamp }
         6 -> noteItems.sortedByDescending { it.sortTimestamp }
         7 -> occasionItems.sortedByDescending { it.sortTimestamp }
+        8 -> stockItems.sortedByDescending { it.sortTimestamp }
         else -> allCombinedItems
     }
 
@@ -2051,7 +2073,8 @@ fun AllLogsExplorerDialog(
         "Finance (${financeItems.size})",
         "Health (${healthItems.size})",
         "Notes (${noteItems.size})",
-        "Occasions (${occasionItems.size})"
+        "Occasions (${occasionItems.size})",
+        "Stocks (${stockItems.size})"
     )
 
     Dialog(

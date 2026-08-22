@@ -708,7 +708,7 @@ fun MainScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    text = "${if (state.type == "task") "Task" else "Habit"} ${if (state.isCompleted) "completed" else "updated"} • UNDO",
+                                    text = "Undo",
                                     color = MaterialTheme.colorScheme.inverseOnSurface,
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 13.sp,

@@ -1553,74 +1553,86 @@ class MarkdownVisualTransformation : VisualTransformation {
         
         val lines = original.split("\n")
         var currentOriginalOffset = 0
+        var activeAlignment: TextAlign? = null
         
         lines.forEachIndexed { lineIdx, line ->
             val lineStartTransformed = builder.length
             
-            var alignment: TextAlign? = null
+            var alignment: TextAlign? = activeAlignment
             var cleanLine = line
             
-            if (line.startsWith("<div align=\"center\">")) {
+            if (line.contains("<div align=\"center\">")) {
+                activeAlignment = TextAlign.Center
                 alignment = TextAlign.Center
-                cleanLine = line.removePrefix("<div align=\"center\">")
-                if (cleanLine.endsWith("</div>")) {
-                    cleanLine = cleanLine.removeSuffix("</div>")
-                }
-            } else if (line.startsWith("<div align=\"right\">")) {
+                cleanLine = cleanLine.replace("<div align=\"center\">", "")
+            } else if (line.contains("<div align=\"right\">")) {
+                activeAlignment = TextAlign.Right
                 alignment = TextAlign.Right
-                cleanLine = line.removePrefix("<div align=\"right\">")
-                if (cleanLine.endsWith("</div>")) {
-                    cleanLine = cleanLine.removeSuffix("</div>")
-                }
-            } else if (line.startsWith("<div align=\"left\">")) {
+                cleanLine = cleanLine.replace("<div align=\"right\">", "")
+            } else if (line.contains("<div align=\"left\">")) {
+                activeAlignment = TextAlign.Left
                 alignment = TextAlign.Left
-                cleanLine = line.removePrefix("<div align=\"left\">")
-                if (cleanLine.endsWith("</div>")) {
-                    cleanLine = cleanLine.removeSuffix("</div>")
+                cleanLine = cleanLine.replace("<div align=\"left\">", "")
+            }
+            
+            if (cleanLine.contains("</div>")) {
+                cleanLine = cleanLine.replace("</div>", "")
+                activeAlignment = null
+            }
+            
+            val isTableLine = cleanLine.trim().startsWith("|") && cleanLine.trim().endsWith("|")
+            val tableFormattedLine = if (isTableLine) {
+                val isDivider = cleanLine.all { it == '|' || it == '-' || it == ':' || it == ' ' }
+                if (isDivider) {
+                    cleanLine.replace('|', '┼').replace('-', '─')
+                } else {
+                    cleanLine.replace('|', '│')
                 }
+            } else {
+                cleanLine
             }
             
             var processedLine = ""
             val inlineOriginalIndices = ArrayList<Int>()
             
             var i = 0
-            val lineLen = cleanLine.length
+            val lineLen = tableFormattedLine.length
             
             while (i < lineLen) {
-                if (cleanLine.startsWith("**", i)) {
+                if (tableFormattedLine.startsWith("**", i)) {
                     i += 2
                     continue
                 }
-                if (cleanLine.startsWith("~~", i)) {
+                if (tableFormattedLine.startsWith("~~", i)) {
                     i += 2
                     continue
                 }
-                if (cleanLine.startsWith("*", i)) {
+                if (tableFormattedLine.startsWith("*", i)) {
                     i += 1
                     continue
                 }
-                if (cleanLine.startsWith("<u>", i)) {
+                if (tableFormattedLine.startsWith("<u>", i)) {
                     i += 3
                     continue
                 }
-                if (cleanLine.startsWith("</u>", i)) {
+                if (tableFormattedLine.startsWith("</u>", i)) {
                     i += 4
                     continue
                 }
-                if (cleanLine.startsWith("[ ]", i)) {
+                if (tableFormattedLine.startsWith("[ ]", i)) {
                     processedLine += "☐"
                     inlineOriginalIndices.add(i)
                     i += 3
                     continue
                 }
-                if (cleanLine.startsWith("[x]", i)) {
+                if (tableFormattedLine.startsWith("[x]", i)) {
                     processedLine += "☑"
                     inlineOriginalIndices.add(i)
                     i += 3
                     continue
                 }
                 
-                processedLine += cleanLine[i]
+                processedLine += tableFormattedLine[i]
                 inlineOriginalIndices.add(i)
                 i++
             }
@@ -1652,7 +1664,7 @@ class MarkdownVisualTransformation : VisualTransformation {
                     else k++
                 }
                 
-                if (activeBold) builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), startStyle, endStyle)
+                if (activeBold || isTableLine) builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), startStyle, endStyle)
                 if (activeItalic) builder.addStyle(SpanStyle(fontStyle = FontStyle.Italic), startStyle, endStyle)
                 if (activeUnderline) builder.addStyle(SpanStyle(textDecoration = TextDecoration.Underline), startStyle, endStyle)
                 if (activeStrike) builder.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), startStyle, endStyle)
@@ -1702,56 +1714,68 @@ class MarkdownVisualTransformation : VisualTransformation {
 fun parseMarkdownToAnnotatedString(original: String): AnnotatedString {
     val builder = AnnotatedString.Builder()
     val lines = original.split("\n")
+    var activeAlignment: TextAlign? = null
     
     lines.forEachIndexed { lineIdx, line ->
         val lineStartTransformed = builder.length
-        var alignment: TextAlign? = null
+        var alignment: TextAlign? = activeAlignment
         var cleanLine = line
         
-        if (line.startsWith("<div align=\"center\">")) {
+        if (line.contains("<div align=\"center\">")) {
+            activeAlignment = TextAlign.Center
             alignment = TextAlign.Center
-            cleanLine = line.removePrefix("<div align=\"center\">")
-            if (cleanLine.endsWith("</div>")) {
-                cleanLine = cleanLine.removeSuffix("</div>")
-            }
-        } else if (line.startsWith("<div align=\"right\">")) {
+            cleanLine = cleanLine.replace("<div align=\"center\">", "")
+        } else if (line.contains("<div align=\"right\">")) {
+            activeAlignment = TextAlign.Right
             alignment = TextAlign.Right
-            cleanLine = line.removePrefix("<div align=\"right\">")
-            if (cleanLine.endsWith("</div>")) {
-                cleanLine = cleanLine.removeSuffix("</div>")
-            }
-        } else if (line.startsWith("<div align=\"left\">")) {
+            cleanLine = cleanLine.replace("<div align=\"right\">", "")
+        } else if (line.contains("<div align=\"left\">")) {
+            activeAlignment = TextAlign.Left
             alignment = TextAlign.Left
-            cleanLine = line.removePrefix("<div align=\"left\">")
-            if (cleanLine.endsWith("</div>")) {
-                cleanLine = cleanLine.removeSuffix("</div>")
+            cleanLine = cleanLine.replace("<div align=\"left\">", "")
+        }
+        
+        if (cleanLine.contains("</div>")) {
+            cleanLine = cleanLine.replace("</div>", "")
+            activeAlignment = null
+        }
+        
+        val isTableLine = cleanLine.trim().startsWith("|") && cleanLine.trim().endsWith("|")
+        val tableFormattedLine = if (isTableLine) {
+            val isDivider = cleanLine.all { it == '|' || it == '-' || it == ':' || it == ' ' }
+            if (isDivider) {
+                cleanLine.replace('|', '┼').replace('-', '─')
+            } else {
+                cleanLine.replace('|', '│')
             }
+        } else {
+            cleanLine
         }
         
         var processedLine = ""
         val inlineOriginalIndices = ArrayList<Int>()
         var i = 0
-        val lineLen = cleanLine.length
+        val lineLen = tableFormattedLine.length
         
         while (i < lineLen) {
-            if (cleanLine.startsWith("**", i)) { i += 2; continue }
-            if (cleanLine.startsWith("~~", i)) { i += 2; continue }
-            if (cleanLine.startsWith("*", i)) { i += 1; continue }
-            if (cleanLine.startsWith("<u>", i)) { i += 3; continue }
-            if (cleanLine.startsWith("</u>", i)) { i += 4; continue }
-            if (cleanLine.startsWith("[ ]", i)) {
+            if (tableFormattedLine.startsWith("**", i)) { i += 2; continue }
+            if (tableFormattedLine.startsWith("~~", i)) { i += 2; continue }
+            if (tableFormattedLine.startsWith("*", i)) { i += 1; continue }
+            if (tableFormattedLine.startsWith("<u>", i)) { i += 3; continue }
+            if (tableFormattedLine.startsWith("</u>", i)) { i += 4; continue }
+            if (tableFormattedLine.startsWith("[ ]", i)) {
                 processedLine += "☐"
                 inlineOriginalIndices.add(i)
                 i += 3
                 continue
             }
-            if (cleanLine.startsWith("[x]", i)) {
+            if (tableFormattedLine.startsWith("[x]", i)) {
                 processedLine += "☑"
                 inlineOriginalIndices.add(i)
                 i += 3
                 continue
             }
-            processedLine += cleanLine[i]
+            processedLine += tableFormattedLine[i]
             inlineOriginalIndices.add(i)
             i++
         }
@@ -1776,7 +1800,7 @@ fun parseMarkdownToAnnotatedString(original: String): AnnotatedString {
                 else k++
             }
             
-            if (activeBold) builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), startStyle, endStyle)
+            if (activeBold || isTableLine) builder.addStyle(SpanStyle(fontWeight = FontWeight.Bold), startStyle, endStyle)
             if (activeItalic) builder.addStyle(SpanStyle(fontStyle = FontStyle.Italic), startStyle, endStyle)
             if (activeUnderline) builder.addStyle(SpanStyle(textDecoration = TextDecoration.Underline), startStyle, endStyle)
             if (activeStrike) builder.addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), startStyle, endStyle)

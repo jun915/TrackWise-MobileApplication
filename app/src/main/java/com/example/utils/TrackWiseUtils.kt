@@ -867,6 +867,88 @@ object TrackWiseUtils {
             else -> true
         }
     }
+
+    fun calculateDynamicTaskXp(
+        task: com.example.data.TaskEntity,
+        isCompleted: Boolean,
+        todayStr: String,
+        wishlistCount: Int = 0
+    ): Int {
+        if (!isCompleted) {
+            return -25
+        }
+        var base = when (task.priority.lowercase()) {
+            "high" -> 40
+            "medium" -> 25
+            "low" -> 15
+            else -> 20
+        }
+        val deadline = task.deadline.trim()
+        if (deadline.isNotBlank()) {
+            if (deadline == todayStr) {
+                base += 5
+            } else if (deadline > todayStr) {
+                base += 10
+            } else {
+                base = (base * 0.6).toInt().coerceAtLeast(5)
+            }
+        }
+        base += wishlistCount.coerceIn(0, 10)
+        val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        if (currentHour < 12) {
+            base += 3
+        }
+        return base
+    }
+
+    fun calculateDynamicHabitXp(
+        habit: com.example.data.HabitEntity,
+        isCompleted: Boolean,
+        wishlistCount: Int = 0
+    ): Int {
+        if (!isCompleted) {
+            return -15 - (habit.streak * 2).coerceAtMost(20)
+        }
+        var base = if (habit.frequency.lowercase() == "weekly") 30 else 15
+        val streak = habit.streak
+        if (streak > 0) {
+            base += (streak * 2).coerceAtMost(30)
+        }
+        base += wishlistCount.coerceIn(0, 10)
+        val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        if (currentHour < 10) {
+            base += 5
+        }
+        return base
+    }
+
+    fun calculateDynamicBadHabitXp(
+        habitName: String,
+        isAvoidance: Boolean,
+        logsCount: Int,
+        avoidCount: Int,
+        wishlistCount: Int = 0
+    ): Int {
+        return if (isAvoidance) {
+            var base = 30
+            if (logsCount > 5) {
+                base += (logsCount * 3).coerceAtMost(40)
+            }
+            if (avoidCount > 0) {
+                base += (avoidCount / 2).coerceAtMost(15)
+            }
+            base += wishlistCount.coerceIn(0, 5)
+            base
+        } else {
+            var deduction = -50
+            if (logsCount < 2) {
+                deduction -= 20
+            } else {
+                deduction += (logsCount * 2).coerceAtMost(20)
+            }
+            deduction
+        }
+    }
 }
 
 data class FlatColorIconSpec(val emoji: String, val name: String)

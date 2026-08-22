@@ -509,6 +509,48 @@ fun CalendarScreen(
                                         )
                                     }
                                 }
+                                
+                                val selectedSunniEvents = getSunniIslamicEvents().filter { it.hijriMonth == hijriInfo.month && it.hijriDay == hijriInfo.day }
+                                if (selectedSunniEvents.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    selectedSunniEvents.forEach { event ->
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(BrandGreen.copy(alpha = 0.15f))
+                                                .border(1.dp, BrandGreen.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                                .padding(8.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "🕌 " + event.title,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = BrandGreen
+                                                )
+                                                if (event.arabicTitle.isNotBlank()) {
+                                                    Text(
+                                                        text = event.arabicTitle,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = BrandGreen
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = event.description,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                         }
@@ -516,6 +558,76 @@ fun CalendarScreen(
                         // --- Integrated Seerah Events for the Current Hijri Month ---
                         if (overlay == "islamic" || userReligion.equals("Islam", ignoreCase = true)) {
                             val hijriInfo = TrackWiseUtils.getHijriInfo(selectedDateStr)
+                            
+                            // 1. Sunni Islamic Events of this Month
+                            val monthlySunniEvents = getSunniIslamicEvents().filter { it.hijriMonth == hijriInfo.month }
+                            if (monthlySunniEvents.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(BrandCyan.copy(alpha = 0.08f))
+                                        .border(1.dp, BrandCyan.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "SUNNI ISLAMIC EVENTS IN ${hijriInfo.monthNameEn.uppercase()}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandCyan
+                                        )
+                                        Text(
+                                            text = "🕌 اِسْلَامِی تَقْرِیبَات",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = BrandCyan
+                                        )
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    
+                                    monthlySunniEvents.forEachIndexed { idx, event ->
+                                        if (idx > 0) {
+                                            Divider(color = BrandCyan.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
+                                        }
+                                        Column {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "${event.hijriDay?.let { "$it " } ?: ""}· ${event.title}",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = BrandCyan
+                                                )
+                                                if (event.arabicTitle.isNotBlank()) {
+                                                    Text(
+                                                        text = event.arabicTitle,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = BrandCyan
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = event.description,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                            
                             val seerahEvents = getSeerahEvents().filter { it.hijriMonth == hijriInfo.month }
                             if (seerahEvents.isNotEmpty()) {
                                 Column(
@@ -1509,6 +1621,16 @@ fun CalendarGrid(
                                                 modifier = Modifier.align(Alignment.BottomEnd)
                                             )
                                         }
+                                        val hasSunniEvent = remember(hijriInfo.month, hijriInfo.day) {
+                                            getSunniIslamicEvents().any { it.hijriMonth == hijriInfo.month && it.hijriDay == hijriInfo.day }
+                                        }
+                                        if (hasSunniEvent) {
+                                            Text(
+                                                text = "🕌",
+                                                fontSize = 8.sp,
+                                                modifier = Modifier.align(Alignment.BottomStart)
+                                            )
+                                        }
                                         Text(
                                             text = TrackWiseUtils.toUrduNumerals(hijriInfo.day),
                                             fontSize = 11.sp,
@@ -1585,4 +1707,31 @@ fun CalendarGrid(
             }
         }
     }
+}
+
+data class SunniIslamicEvent(
+    val hijriMonth: Int,
+    val hijriDay: Int?,
+    val title: String,
+    val description: String,
+    val arabicTitle: String = ""
+)
+
+fun getSunniIslamicEvents(): List<SunniIslamicEvent> {
+    return listOf(
+        SunniIslamicEvent(1, 1, "Islamic Hijri New Year", "First day of the Islamic Calendar year (1st of Muharram). Celebrates the Hijrah of the Prophet ﷺ.", "رأس السنة الهجرية"),
+        SunniIslamicEvent(1, 10, "Day of Ashura", "Fasting of Ashura; Noah's Ark resting on Mount Judi, and Prophet Moses' deliverance from Pharaoh.", "يوم عاشوراء"),
+        SunniIslamicEvent(2, 27, "Start of Prophet's Hijrah", "Prophet Muhammad ﷺ leaves his home in Makkah migrating to Madinah.", "بداية الهجرة النبوية"),
+        SunniIslamicEvent(3, 12, "Mawlid al-Nabi (Milad-un-Nabi)", "The blessed birth anniversary of the Holy Prophet Muhammad ﷺ, widely celebrated across the Sunni world.", "المولد النبوي الشريف"),
+        SunniIslamicEvent(4, 11, "Giyarwee Shareef (Urs Ghaus-e-Azam)", "Commemoration of Sheikh Abdul Qadir Jilani, the highly revered Sunni saint and founder of the Qadiriyyah order.", "الغوث الأعظم"),
+        SunniIslamicEvent(7, 27, "Isra' and Mi'raj (The Night Journey)", "The miraculous night journey of Prophet Muhammad ﷺ from Makkah to Jerusalem and ascension to the Heavens.", "الإسراء والمعراج"),
+        SunniIslamicEvent(8, 15, "Laylat al-Bara'ah (Shab-e-Barat)", "Night of Salvation/Records. A night of intense prayer, seeking forgiveness, and worship.", "ليلة البراءة"),
+        SunniIslamicEvent(9, 1, "Start of Ramadan", "The first day of the holy month of fasting, prayer, and reading the Holy Quran.", "بداية شهر رمضان"),
+        SunniIslamicEvent(9, 17, "Battle of Badr", "The first major historic defensive battle of Islam, resulting in victory for the companions.", "غزوة بدر"),
+        SunniIslamicEvent(9, 27, "Laylat al-Qadr (Night of Power)", "The highly blessed odd night of Ramadan in which the Holy Quran was first revealed to the Prophet ﷺ.", "ليلة القدر"),
+        SunniIslamicEvent(10, 1, "Eid al-Fitr", "The joyous festival marking the successful completion of fasting in the Holy month of Ramadan.", "عيد الفطر المبارك"),
+        SunniIslamicEvent(12, 1, "Blessed Ten Days of Dhu al-Hijjah", "The beginning of the first 10 blessed days of Dhu al-Hijjah, highly recommended for fasting and devotions.", "عشر ذي الحجة"),
+        SunniIslamicEvent(12, 9, "Day of Arafah (Hajj Day)", "The peak day of the Hajj pilgrimage at Mount Arafah, highly recommended for fasting for non-pilgrims.", "يوم عرفة"),
+        SunniIslamicEvent(12, 10, "Eid al-Adha", "Festival of Sacrifice, commemorating Prophet Ibrahim's (Abraham) submission to Allah's will.", "عيد الأضحى المبارك")
+    )
 }

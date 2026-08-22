@@ -1283,7 +1283,10 @@ class TrackWiseViewModel(
         if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@combine 0
         
         // 1. Dynamic Task Points (High: 50 pts, Medium: 30 pts, Low: 15 pts + early/late proportional bonus)
-        val taskPoints = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && it.completed }.sumOf { 
+        val completedTasks = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && it.completed }
+        val uncompletedTasks = tasks.filter { TrackWiseUtils.shouldShowTaskOnDate(it, todayStr) && !it.completed }
+        
+        val taskPointsCompleted = completedTasks.sumOf { 
             val base = when (it.priority.lowercase()) {
                 "high" -> 50
                 "medium" -> 30
@@ -1308,9 +1311,12 @@ class TrackWiseViewModel(
                 scaledPoints.toInt()
             }
         }
+        // Left uncompleted tasks: 2 XP per active task for planning/committing
+        val taskPointsUncompleted = uncompletedTasks.size * 2
+        val taskPoints = taskPointsCompleted + taskPointsUncompleted
         
         // 2. Dynamic Habit Points: 10 pts per completion count, plus streak/early proportional bonuses
-        val habitPoints = habits.sumOf { habit ->
+        val completedHabitsXP = habits.sumOf { habit ->
             val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
             val completionsToday = days.count { it == todayStr }
             if (completionsToday > 0) {
@@ -1333,9 +1339,15 @@ class TrackWiseViewModel(
                 0
             }
         }
+        // Left uncompleted habits: 1 XP per uncompleted habit for encouragement
+        val uncompletedHabitsCount = habits.count { habit ->
+            val days = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+            !days.contains(todayStr)
+        }
+        val habitPoints = completedHabitsXP + (uncompletedHabitsCount * 1)
 
         // 3. Dynamic Wishlist Points: 100 points + soon purchase proportional rewards
-        val wishPoints = wishlist.filter { it.purchased }.sumOf { item ->
+        val completedWishXP = wishlist.filter { it.purchased }.sumOf { item ->
             val base = 100
             if (!item.reminderDate.isNullOrBlank()) {
                 val daysDiff = try {
@@ -1359,34 +1371,98 @@ class TrackWiseViewModel(
                 base
             }
         }
+        // Left uncompleted wishlist items (still saving/hoping): 2 XP each
+        val uncompletedWishCount = wishlist.count { !it.purchased }
+        val wishPoints = completedWishXP + (uncompletedWishCount * 2)
 
-        // 4. Dynamic Grocery Points: 10 points for each completed grocery item
-        val groceryPoints = groceries.filter { it.completed }.size * 10
+        // 4. Dynamic Grocery Points: 10 points for each completed grocery item, 1 XP for uncompleted
+        val completedGroceriesCount = groceries.count { it.completed }
+        val uncompletedGroceriesCount = groceries.count { !it.completed }
+        val groceryPoints = (completedGroceriesCount * 10) + (uncompletedGroceriesCount * 1)
 
-        // 5. Dynamic Birthday Points: 150 points if celebrating a birthday today
+        // 5. Dynamic Birthday Points: 150 points if celebrating a birthday today, 2 XP for anticipation
         val todayMMDD = todayStr.substring(5) // from YYYY-MM-DD to MM-DD
-        val birthdayPoints = birthdays.filter { 
-            it.date.endsWith(todayMMDD) 
-        }.size * 150
+        val celebratedBirthdays = birthdays.count { it.date.endsWith(todayMMDD) }
+        val upcomingBirthdays = birthdays.count { !it.date.endsWith(todayMMDD) }
+        val birthdayPoints = (celebratedBirthdays * 150) + (upcomingBirthdays * 2)
 
         taskPoints + habitPoints + wishPoints + groceryPoints + birthdayPoints
     }
 
+    private val healthPointsFlow: Flow<Int> = combine(
+        combine(waterLogs, weightEntries, vitalReadings, exerciseLogs) { water, weight, vitals, exercise ->
+            val todayStr = TrackWiseUtils.getTodayString()
+            val todayWater = water.find { it.date == todayStr }
+            
+            // Water/Hydration: 3 XP per glass logged + 15 XP goal complete bonus (>=8 glasses). Left uncompleted: 1-2 XP baseline dynamic
+            val glasses = todayWater?.glasses ?: 0
+            val waterXP = if (glasses >= 8) {
+                (glasses * 3) + 15
+            } else if (glasses > 0) {
+                (glasses * 3) + 2
+            } else {
+                1 // 1 XP dynamic baseline for uncompleted/0 glasses water
+            }
+            
+            // Weight log: 5 XP completed. Left uncompleted: 1 XP baseline
+            val weightXP = if (weight.any { it.date == todayStr }) 5 else 1
+            
+            // Vitals: 5 XP per logged. Left uncompleted: 1 XP baseline
+            val todayVitals = vitals.filter { it.date == todayStr }
+            val vitalsXP = if (todayVitals.isNotEmpty()) (todayVitals.size * 5) else 1
+            
+            // Exercise: 8 XP per logged. Left uncompleted: 1 XP baseline
+            val todayExercise = exercise.filter { it.date == todayStr }
+            val exerciseXP = if (todayExercise.isNotEmpty()) (todayExercise.size * 8) else 1
+            
+            waterXP + weightXP + vitalsXP + exerciseXP
+        },
+        combine(healthIssueLogs, tabletReminders, periodCycles) { symptoms, tablets, period ->
+            val todayStr = TrackWiseUtils.getTodayString()
+            
+            // Symptoms/Logs: 4 XP completed. Left uncompleted: 1 XP baseline
+            val todaySymptoms = symptoms.filter { it.date == todayStr }
+            val symptomsXP = if (todaySymptoms.isNotEmpty()) (todaySymptoms.size * 4) else 1
+            
+            // Tablet reminders: 4 XP completed per tablet taken. Left uncompleted: 1 XP baseline per scheduled tablet not taken
+            var completedTablets = 0
+            var uncompletedTablets = 0
+            tablets.forEach { tablet ->
+                val dates = TrackWiseUtils.deserializeStringList(tablet.completedDatesJson)
+                if (dates.contains(todayStr)) {
+                    completedTablets++
+                } else {
+                    uncompletedTablets++
+                }
+            }
+            val tabletXP = (completedTablets * 4) + (uncompletedTablets * 1)
+            
+            // Period: 5 XP completed (if cycle start date is today). Left uncompleted: 1 XP baseline
+            val isPeriodToday = period.any { it.startDate == todayStr }
+            val periodXP = if (isPeriodToday) 5 else 1
+            
+            symptomsXP + tabletXP + periodXP
+        }
+    ) { p1, p2 -> p1 + p2 }
+
     val todayScore: StateFlow<Int> = combine(
         corePointsFlow,
         allFinanceLogs,
-        sleepLogs
-    ) { corePoints, finance, sleep ->
+        sleepLogs,
+        healthPointsFlow
+    ) { corePoints, finance, sleep, healthPoints ->
         val todayStr = TrackWiseUtils.getTodayString()
         if (todayStr < TrackWiseUtils.APP_LAUNCH_DATE) return@combine 0
 
-        // 6. Dynamic Sleep Logging Points: 40 points if sleep is logged for today
-        val sleepPoints = sleep.filter { it.date == todayStr }.size * 40
+        // 6. Dynamic Sleep Logging Points: 40 points if sleep is logged for today. Left uncompleted: 3 XP baseline
+        val todaySleep = sleep.filter { it.date == todayStr }
+        val sleepPoints = if (todaySleep.isNotEmpty()) (todaySleep.size * 40) else 3
 
-        // 7. Dynamic Finance Logging Points: 25 points for each transaction logged today
-        val financePoints = finance.filter { it.date == todayStr }.size * 25
+        // 7. Dynamic Finance Logging Points: 25 points for each transaction logged today. Left uncompleted: 2 XP baseline
+        val todayFinance = finance.filter { it.date == todayStr }
+        val financePoints = if (todayFinance.isNotEmpty()) (todayFinance.size * 25) else 2
         
-        val total = corePoints + sleepPoints + financePoints
+        val total = corePoints + sleepPoints + financePoints + healthPoints
         
         // Auto-save this updated score to Streak History in database background
         _sessionUser.value?.let { user ->
@@ -4197,6 +4273,27 @@ class TrackWiseViewModel(
             e.printStackTrace()
         }
 
+        // Seerah Guide Bookmarks and Event Notes
+        try {
+            val seerahPrefs = getApplication<Application>().getSharedPreferences("seerah_preferences", android.content.Context.MODE_PRIVATE)
+            val seerahJson = org.json.JSONObject()
+            val bookmarksArr = org.json.JSONArray()
+            val bookmarksSet = seerahPrefs.getStringSet("seerah_bookmarks", emptySet()) ?: emptySet()
+            bookmarksSet.forEach { bookmarksArr.put(it) }
+            seerahJson.put("bookmarks", bookmarksArr)
+
+            val notesObj = org.json.JSONObject()
+            seerahPrefs.all.forEach { (key, value) ->
+                if (key.startsWith("note_") && value is String) {
+                    notesObj.put(key, value)
+                }
+            }
+            seerahJson.put("notes", notesObj)
+            rootJson.put("seerahPreferences", seerahJson)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         return rootJson.toString(2)
     }
 
@@ -5260,6 +5357,34 @@ class TrackWiseViewModel(
                     }
                 }
 
+                // Restore Seerah Preferences (Bookmarks & Notes)
+                try {
+                    if (rootJson.has("seerahPreferences")) {
+                        val seerahJson = rootJson.getJSONObject("seerahPreferences")
+                        val seerahPrefs = getApplication<Application>().getSharedPreferences("seerah_preferences", android.content.Context.MODE_PRIVATE)
+                        val edit = seerahPrefs.edit()
+                        
+                        if (seerahJson.has("bookmarks")) {
+                            val bookmarksArr = seerahJson.getJSONArray("bookmarks")
+                            val bookmarksSet = mutableSetOf<String>()
+                            for (j in 0 until bookmarksArr.length()) {
+                                bookmarksSet.add(bookmarksArr.getString(j))
+                            }
+                            edit.putStringSet("seerah_bookmarks", bookmarksSet)
+                        }
+                        
+                        if (seerahJson.has("notes")) {
+                            val notesObj = seerahJson.getJSONObject("notes")
+                            notesObj.keys().forEach { k ->
+                                edit.putString(k, notesObj.getString(k))
+                            }
+                        }
+                        edit.apply()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
                 getSharedPrefs().edit().putBoolean("net_worth_defaults_populated", true).apply()
 
                 _isSyncing.value = false
@@ -5505,7 +5630,19 @@ class TrackWiseViewModel(
                         val notesList = repository.getAllNotesFlow(activeUid).first()
                         notesList.forEach { note ->
                             val rDate = note.reminderDate?.take(10)
-                            val rTime = note.reminderTime?.trim()
+                            val rTimeRaw = note.reminderTime?.trim() ?: ""
+                            val rTime = if (rTimeRaw.contains("AM") || rTimeRaw.contains("PM") || rTimeRaw.contains("am") || rTimeRaw.contains("pm")) {
+                                try {
+                                    val inputFormat = SimpleDateFormat("hh:mm a", Locale.US)
+                                    val outputFormat = SimpleDateFormat("HH:mm", Locale.US)
+                                    val parsed = inputFormat.parse(rTimeRaw)
+                                    if (parsed != null) outputFormat.format(parsed) else rTimeRaw
+                                } catch (e: Exception) {
+                                    rTimeRaw
+                                }
+                            } else {
+                                rTimeRaw
+                            }
                             if (!rDate.isNullOrBlank() && rDate == todayStr && rTime == currentTimeStr) {
                                 val key = "note-${note.id}-$rDate-$rTime"
                                 if (!triggeredReminders.contains(key)) {

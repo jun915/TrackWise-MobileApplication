@@ -93,6 +93,7 @@ fun AnalyticsScreen(
     val currentUser by viewModel.sessionUser.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val periodCycles by viewModel.periodCycles.collectAsState()
+    val tabletReminders by viewModel.tabletReminders.collectAsState()
 
     val isFemale = remember(currentUser, userProfile) {
         val g = (userProfile?.gender ?: currentUser?.gender ?: "").lowercase().trim()
@@ -577,6 +578,20 @@ fun AnalyticsScreen(
                         item {
                             AnimatedTileContainer {
                                 SleepHistoryCard(sleepLogs = sleepLogs)
+                            }
+                        }
+
+                        // Chart 6: Symptom Burden Chart
+                        item {
+                            AnimatedTileContainer {
+                                SymptomSeverityTrendCard(healthIssues = healthIssues)
+                            }
+                        }
+
+                        // Chart 7: Medicine Adherence Chart
+                        item {
+                            AnimatedTileContainer {
+                                MedicineAdherenceCard(tabletReminders = tabletReminders)
                             }
                         }
 
@@ -1446,51 +1461,262 @@ fun OverdueTasksCard(tasks: List<TaskEntity>) {
 }
 
 // ==========================================
-// 4. Average Weight Chart (Previous 5 Months)
+// Reusable Custom Line Chart Canvas Components
 // ==========================================
-@Composable
-fun AverageWeightCard(weightLogs: List<WeightEntryEntity>, defaultWeight: Double) {
-    // We want the average weight in previous 5 months (Jul, Jun, May, Apr, Mar 2026)
-    val monthlyAverages = remember(weightLogs, defaultWeight) {
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val cal = Calendar.getInstance()
-        
-        // Let's establish the 5 months labels
-        // Index 0: current month, 1: -1 month, ..., 4: -4 months
-        val labels = mutableListOf<String>()
-        val yearMonths = mutableListOf<String>() // format: "YYYY-MM"
-        val sums = DoubleArray(5)
-        val counts = IntArray(5)
 
-        for (i in 0..4) {
-            val tempCal = Calendar.getInstance()
-            tempCal.add(Calendar.MONTH, -i)
-            val monthLabel = tempCal.getDisplayName(Calendar.MONTH, Calendar.SHORT, Locale.US) ?: ""
-            val year = tempCal.get(Calendar.YEAR)
-            val monthNum = tempCal.get(Calendar.MONTH) + 1
-            labels.add(monthLabel)
-            yearMonths.add(String.format(Locale.US, "%04d-%02d", year, monthNum))
+@Composable
+fun CustomLineChart(
+    points: List<Pair<String, Float>>,
+    lineColor: Color,
+    areaColor: Color,
+    yMax: Float = 0f
+) {
+    if (points.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxWidth().height(150.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("No data available", fontSize = 12.sp, color = Color.Gray)
+        }
+        return
+    }
+
+    val maxVal = if (yMax > 0f) yMax else max(1f, points.map { it.second }.maxOrNull() ?: 10f)
+    
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .padding(top = 16.dp, bottom = 20.dp, start = 24.dp, end = 16.dp)
+    ) {
+        val width = size.width
+        val height = size.height
+        val stepX = if (points.size > 1) width / (points.size - 1) else width
+        
+        // Draw Y-Axis grid lines
+        val gridCount = 4
+        for (i in 0..gridCount) {
+            val y = height * (1f - i.toFloat() / gridCount)
+            drawLine(
+                color = Color.Gray.copy(alpha = 0.15f),
+                start = Offset(0f, y),
+                end = Offset(width, y),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+        
+        // Create Path for line and filled area
+        val path = Path()
+        val areaPath = Path()
+        
+        points.forEachIndexed { index, pair ->
+            val x = index * stepX
+            val ratio = if (maxVal > 0f) (pair.second / maxVal) else 0f
+            val y = height * (1f - ratio.coerceIn(0f, 1f))
+            
+            if (index == 0) {
+                path.moveTo(x, y)
+                areaPath.moveTo(x, height)
+                areaPath.lineTo(x, y)
+            } else {
+                path.lineTo(x, y)
+                areaPath.lineTo(x, y)
+            }
+            
+            if (index == points.size - 1) {
+                areaPath.lineTo(x, height)
+                areaPath.close()
+            }
+        }
+        
+        // Draw area fill
+        drawPath(
+            path = areaPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(areaColor.copy(alpha = 0.35f), areaColor.copy(alpha = 0.0f))
+            )
+        )
+        
+        // Draw main line
+        drawPath(
+            path = path,
+            color = lineColor,
+            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+        )
+        
+        // Draw data circles
+        points.forEachIndexed { index, pair ->
+            val x = index * stepX
+            val ratio = if (maxVal > 0f) (pair.second / maxVal) else 0f
+            val y = height * (1f - ratio.coerceIn(0f, 1f))
+            
+            // Circle border & fill
+            drawCircle(
+                color = lineColor,
+                radius = 4.dp.toPx(),
+                center = Offset(x, y)
+            )
+            drawCircle(
+                color = Color.White,
+                radius = 2.dp.toPx(),
+                center = Offset(x, y)
+            )
+        }
+    }
+}
+
+@Composable
+fun MultiLineChartCanvas(
+    categories: List<String>,
+    colors: List<Color>,
+    dataPoints: Map<String, List<Pair<String, Float>>>,
+    labels: List<String>
+) {
+    if (labels.isEmpty() || dataPoints.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxWidth().height(150.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("No exercise data available for this scale", fontSize = 12.sp, color = Color.Gray)
+        }
+        return
+    }
+
+    val maxVal = max(10f, dataPoints.values.flatten().map { it.second }.maxOrNull() ?: 60f)
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp)
+            .padding(top = 16.dp, bottom = 20.dp, start = 24.dp, end = 16.dp)
+    ) {
+        val width = size.width
+        val height = size.height
+        val stepX = if (labels.size > 1) width / (labels.size - 1) else width
+
+        // Grid lines
+        val gridCount = 4
+        for (i in 0..gridCount) {
+            val y = height * (1f - i.toFloat() / gridCount)
+            drawLine(
+                color = Color.Gray.copy(alpha = 0.15f),
+                start = Offset(0f, y),
+                end = Offset(width, y),
+                strokeWidth = 1.dp.toPx()
+            )
         }
 
-        // Aggregate actual entries
-        weightLogs.forEach { log ->
-            if (log.date.length >= 7) {
-                val logYearMonth = log.date.substring(0, 7)
-                val idx = yearMonths.indexOf(logYearMonth)
-                if (idx != -1) {
-                    sums[idx] += log.weightKg
-                    counts[idx]++
+        // Draw a line for each category
+        categories.forEachIndexed { catIdx, category ->
+            val color = colors.getOrElse(catIdx) { Color.Gray }
+            val points = dataPoints[category] ?: emptyList()
+            if (points.isNotEmpty()) {
+                val path = Path()
+                points.forEachIndexed { index, pair ->
+                    val x = index * stepX
+                    val ratio = pair.second / maxVal
+                    val y = height * (1f - ratio.coerceIn(0f, 1f))
+                    if (index == 0) {
+                        path.moveTo(x, y)
+                    } else {
+                        path.lineTo(x, y)
+                    }
+                }
+                drawPath(
+                    path = path,
+                    color = color,
+                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+                )
+
+                // Circles
+                points.forEachIndexed { index, pair ->
+                    val x = index * stepX
+                    val ratio = pair.second / maxVal
+                    val y = height * (1f - ratio.coerceIn(0f, 1f))
+                    drawCircle(
+                        color = color,
+                        radius = 3.dp.toPx(),
+                        center = Offset(x, y)
+                    )
                 }
             }
         }
+    }
+}
 
-        // Map results. If no logs, fallback to default weight or preceding month average
-        val result = mutableListOf<Pair<String, Double>>()
-        var lastValidWeight = defaultWeight
-        for (i in 4 downTo 0) {
-            val avg = if (counts[i] > 0) sums[i] / counts[i] else lastValidWeight
-            result.add(labels[i] to avg)
-            lastValidWeight = avg
+// ==========================================
+// 4. Average Weight Chart (Month/Year Line Chart)
+// ==========================================
+@Composable
+fun AverageWeightCard(weightLogs: List<WeightEntryEntity>, defaultWeight: Double) {
+    var timeScale by remember { mutableStateOf("month") } // "month", "year"
+
+    val points = remember(weightLogs, timeScale, defaultWeight) {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val cal = Calendar.getInstance()
+        val result = mutableListOf<Pair<String, Float>>()
+
+        if (timeScale == "month") {
+            // Last 30 days grouped in 6 intervals of 5 days
+            val labels = MutableList(6) { "" }
+            val blocks = List(6) { mutableListOf<Double>() }
+            
+            for (i in 0..5) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.DAY_OF_YEAR, -((5 - i) * 5))
+                labels[i] = SimpleDateFormat("MMM d", Locale.US).format(tempCal.time)
+            }
+
+            weightLogs.forEach { log ->
+                try {
+                    val logDate = sdf.parse(log.date) ?: return@forEach
+                    val diffMs = cal.time.time - logDate.time
+                    val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
+                    if (diffDays in 0..29) {
+                        val blockIdx = (5 - (diffDays / 5)).coerceIn(0, 5)
+                        blocks[blockIdx].add(log.weightKg)
+                    }
+                } catch (e: Exception) {}
+            }
+
+            var lastWeight = defaultWeight
+            for (i in 0..5) {
+                val avg = if (blocks[i].isNotEmpty()) blocks[i].average() else lastWeight
+                result.add(labels[i] to avg.toFloat())
+                lastWeight = avg
+            }
+        } else {
+            // "year" - Average weight of last 6 months
+            val labels = mutableListOf<String>()
+            val yearMonths = mutableListOf<String>()
+            val monthlySums = DoubleArray(6)
+            val monthlyCounts = IntArray(6)
+
+            for (i in 0..5) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.MONTH, -i)
+                val monthLabel = tempCal.getDisplayName(Calendar.MONTH, Calendar.SHORT, Locale.US) ?: ""
+                labels.add(0, monthLabel)
+                yearMonths.add(0, String.format(Locale.US, "%04d-%02d", tempCal.get(Calendar.YEAR), tempCal.get(Calendar.MONTH) + 1))
+            }
+
+            weightLogs.forEach { log ->
+                if (log.date.length >= 7) {
+                    val logYearMonth = log.date.substring(0, 7)
+                    val idx = yearMonths.indexOf(logYearMonth)
+                    if (idx != -1) {
+                        monthlySums[idx] += log.weightKg
+                        monthlyCounts[idx]++
+                    }
+                }
+            }
+
+            var lastWeight = defaultWeight
+            for (i in 0..5) {
+                val avg = if (monthlyCounts[i] > 0) monthlySums[i] / monthlyCounts[i] else lastWeight
+                result.add(labels[i] to avg.toFloat())
+                lastWeight = avg
+            }
         }
         result
     }
@@ -1504,62 +1730,69 @@ fun AverageWeightCard(weightLogs: List<WeightEntryEntity>, defaultWeight: Double
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 14.dp)
-            ) {
-                Icon(Icons.Default.Scale, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
-                Text("WEIGHT TREND (5-MONTHS AVERAGE)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
-            }
-
-            val minWeight = remember(monthlyAverages) { max(0.0, (monthlyAverages.map { it.second }.minOrNull() ?: 50.0) - 5) }
-            val maxWeight = remember(monthlyAverages) { (monthlyAverages.map { it.second }.maxOrNull() ?: 100.0) + 5 }
-            val weightSpan = max(1.0, maxWeight - minWeight)
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-                    .padding(horizontal = 4.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                monthlyAverages.forEach { (label, avg) ->
-                    val normalizedVal = ((avg - minWeight) / weightSpan).toFloat()
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Bottom,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = String.format(Locale.US, "%.1f", avg),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandOrange
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Scale, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(20.dp))
+                    Text("WEIGHT TREND LINE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandOrange)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(2.dp)
+                ) {
+                    listOf("month" to "Month", "year" to "Year").forEach { (id, label) ->
+                        val isSelected = timeScale == id
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(0.5f)
-                                .height(80.dp * normalizedVal.coerceIn(0.15f, 1f))
-                                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                                        .background(
-                                            Brush.verticalGradient(
-                                                listOf(
-                                                    BrandOrange,
-                                                    BrandOrange.copy(alpha = 0.3f)
-                                                )
-                                            )
-                                        )
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = label,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) BrandOrange else Color.Transparent)
+                                .clickable { timeScale = id }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            val minVal = max(0f, (points.map { it.second }.minOrNull() ?: 60f) - 5f)
+            val maxVal = (points.map { it.second }.maxOrNull() ?: 100f) + 5f
+
+            CustomLineChart(
+                points = points,
+                lineColor = BrandOrange,
+                areaColor = BrandOrange,
+                yMax = maxVal
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                points.forEach { (label, _) ->
+                    Text(
+                        text = label,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
                 }
             }
         }
@@ -1567,28 +1800,86 @@ fun AverageWeightCard(weightLogs: List<WeightEntryEntity>, defaultWeight: Double
 }
 
 // ==========================================
-// 5. Least Hydrated Days Chart (Toggle Month/Year)
+// 5. Hydration Days Chart (Week/Month/Year Line Chart)
 // ==========================================
 @Composable
 fun LeastHydrationCard(waterLogs: List<WaterLogEntity>) {
-    var period by remember { mutableStateOf("month") } // "month", "year"
+    var timeScale by remember { mutableStateOf("week") } // "week", "month", "year"
 
-    val leastHydrationDays = remember(waterLogs, period) {
+    val points = remember(waterLogs, timeScale) {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val cal = Calendar.getInstance()
-        val currentYear = cal.get(Calendar.YEAR).toString()
-        val currentMonth = String.format(Locale.US, "%04d-%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
+        val result = mutableListOf<Pair<String, Float>>()
 
-        val filtered = waterLogs.filter { log ->
-            if (period == "month") {
-                log.date.startsWith(currentMonth)
-            } else {
-                log.date.startsWith(currentYear)
+        if (timeScale == "week") {
+            // Last 7 days
+            val dayLabels = mutableListOf<String>()
+            val dayStrings = mutableListOf<String>()
+            for (i in 0..6) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.DAY_OF_YEAR, -i)
+                dayLabels.add(0, SimpleDateFormat("E", Locale.US).format(tempCal.time))
+                dayStrings.add(0, sdf.format(tempCal.time))
+            }
+            val glassMap = waterLogs.associate { it.date to it.glasses }
+            for (i in 0..6) {
+                result.add(dayLabels[i] to (glassMap[dayStrings[i]] ?: 0).toFloat())
+            }
+        } else if (timeScale == "month") {
+            // Last 30 days in 6 blocks
+            val labels = MutableList(6) { "" }
+            val sums = FloatArray(6)
+            for (i in 0..5) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.DAY_OF_YEAR, -((5 - i) * 5))
+                labels[i] = SimpleDateFormat("MMM d", Locale.US).format(tempCal.time)
+            }
+
+            waterLogs.forEach { log ->
+                try {
+                    val logDate = sdf.parse(log.date) ?: return@forEach
+                    val diffMs = cal.time.time - logDate.time
+                    val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
+                    if (diffDays in 0..29) {
+                        val blockIdx = (5 - (diffDays / 5)).coerceIn(0, 5)
+                        sums[blockIdx] += log.glasses.toFloat()
+                    }
+                } catch (e: Exception) {}
+            }
+            for (i in 0..5) {
+                result.add(labels[i] to sums[i])
+            }
+        } else {
+            // "year" - Average glasses for last 6 months
+            val labels = mutableListOf<String>()
+            val yearMonths = mutableListOf<String>()
+            val monthlySums = FloatArray(6)
+            val monthlyCounts = IntArray(6)
+
+            for (i in 0..5) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.MONTH, -i)
+                labels.add(0, tempCal.getDisplayName(Calendar.MONTH, Calendar.SHORT, Locale.US) ?: "")
+                yearMonths.add(0, String.format(Locale.US, "%04d-%02d", tempCal.get(Calendar.YEAR), tempCal.get(Calendar.MONTH) + 1))
+            }
+
+            waterLogs.forEach { log ->
+                if (log.date.length >= 7) {
+                    val logYearMonth = log.date.substring(0, 7)
+                    val idx = yearMonths.indexOf(logYearMonth)
+                    if (idx != -1) {
+                        monthlySums[idx] += log.glasses.toFloat()
+                        monthlyCounts[idx]++
+                    }
+                }
+            }
+
+            for (i in 0..5) {
+                val avg = if (monthlyCounts[i] > 0) monthlySums[i] / monthlyCounts[i] else 0f
+                result.add(labels[i] to avg)
             }
         }
-
-        // Sort ascending by glasses drank to find LEAST hydration, take 5
-        filtered.sortedBy { it.glasses }.take(5)
+        result
     }
 
     Card(
@@ -1609,7 +1900,7 @@ fun LeastHydrationCard(waterLogs: List<WaterLogEntity>) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(Icons.Default.WaterDrop, contentDescription = null, tint = BrandCyan, modifier = Modifier.size(20.dp))
-                    Text("LEAST 5 HYDRATION DAYS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
+                    Text("HYDRATION TREND LINE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandCyan)
                 }
 
                 Row(
@@ -1618,14 +1909,14 @@ fun LeastHydrationCard(waterLogs: List<WaterLogEntity>) {
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(2.dp)
                 ) {
-                    listOf("month" to "Month", "year" to "Year").forEach { (id, label) ->
-                        val isSelected = period == id
+                    listOf("week" to "W", "month" to "M", "year" to "Y").forEach { (id, label) ->
+                        val isSelected = timeScale == id
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(if (isSelected) BrandCyan else Color.Transparent)
-                                .clickable { period = id }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .clickable { timeScale = id }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = label,
@@ -1640,56 +1931,26 @@ fun LeastHydrationCard(waterLogs: List<WaterLogEntity>) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (leastHydrationDays.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No hydration logs recorded for this period.", fontSize = 12.sp, color = Color.Gray)
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    leastHydrationDays.forEach { log ->
-                        val goal = max(1, log.goal)
-                        val ratio = log.glasses.toFloat() / goal.toFloat()
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = log.date.substring(5), // Show MM-DD
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.width(45.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(14.dp)
-                                    .clip(RoundedCornerShape(7.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(ratio.coerceAtMost(1f))
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(7.dp))
-                                        .background(Brush.horizontalGradient(listOf(BrandCyan, BrandViolet)))
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${log.glasses}/${log.goal} gls",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (log.glasses < log.goal) BrandRose else BrandGreen
-                            )
-                        }
-                    }
+            CustomLineChart(
+                points = points,
+                lineColor = BrandCyan,
+                areaColor = BrandCyan,
+                yMax = if (timeScale == "week") 12f else 0f
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                points.forEach { (label, _) ->
+                    Text(
+                        text = label,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
                 }
             }
         }
@@ -1697,25 +1958,88 @@ fun LeastHydrationCard(waterLogs: List<WaterLogEntity>) {
 }
 
 // ==========================================
-// 6. Exercise Intensity Chart
+// 6. Exercise Intensity Chart (Multi-line Category Trend over Week/Month/Year)
 // ==========================================
 @Composable
 fun ExerciseIntensityCard(exerciseLogs: List<ExerciseLogEntity>) {
-    var sortType by remember { mutableStateOf("most") } // "most" or "least"
+    var timeScale by remember { mutableStateOf("week") } // "week", "month", "year"
 
-    val intensityDays = remember(exerciseLogs, sortType) {
-        // Group exercise logs by date and calculate sum duration (intensity metric)
-        val grouped = exerciseLogs.groupBy { it.date }
-            .mapValues { entry -> entry.value.sumOf { it.durationMinutes } }
-            .toList()
+    val categoriesList = listOf("Gym", "Running", "Walking", "Yoga", "Others")
+    val categoryColors = listOf(BrandViolet, BrandRose, BrandCyan, BrandGreen, BrandOrange)
 
-        if (sortType == "most") {
-            grouped.sortedByDescending { it.second }.take(5)
+    val chartData = remember(exerciseLogs, timeScale) {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val cal = Calendar.getInstance()
+        val labels = mutableListOf<String>()
+        val dateKeys = mutableListOf<String>()
+
+        if (timeScale == "week") {
+            for (i in 0..6) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.DAY_OF_YEAR, -i)
+                labels.add(0, SimpleDateFormat("E", Locale.US).format(tempCal.time))
+                dateKeys.add(0, sdf.format(tempCal.time))
+            }
+        } else if (timeScale == "month") {
+            for (i in 0..5) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.DAY_OF_YEAR, -((5 - i) * 5))
+                labels.add(SimpleDateFormat("MMM d", Locale.US).format(tempCal.time))
+                dateKeys.add(sdf.format(tempCal.time))
+            }
         } else {
-            // "least" intensity: sort ascending
-            grouped.sortedBy { it.second }.take(5)
+            for (i in 0..5) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.MONTH, -i)
+                labels.add(0, tempCal.getDisplayName(Calendar.MONTH, Calendar.SHORT, Locale.US) ?: "")
+                dateKeys.add(0, String.format(Locale.US, "%04d-%02d", tempCal.get(Calendar.YEAR), tempCal.get(Calendar.MONTH) + 1))
+            }
         }
+
+        val pointsMap = categoriesList.associateWith { FloatArray(labels.size) { 0f } }
+
+        exerciseLogs.forEach { log ->
+            val cleanType = when (log.exerciseType.lowercase(Locale.US).trim()) {
+                "gym", "weights", "strength" -> "Gym"
+                "running", "run", "jogging", "cardio" -> "Running"
+                "walking", "walk" -> "Walking"
+                "yoga", "stretching", "pilates" -> "Yoga"
+                else -> "Others"
+            }
+
+            if (timeScale == "week") {
+                val idx = dateKeys.indexOf(log.date)
+                if (idx != -1) {
+                    pointsMap[cleanType]?.set(idx, pointsMap[cleanType]!![idx] + log.durationMinutes)
+                }
+            } else if (timeScale == "month") {
+                try {
+                    val logDate = sdf.parse(log.date) ?: return@forEach
+                    val diffMs = cal.time.time - logDate.time
+                    val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
+                    if (diffDays in 0..29) {
+                        val blockIdx = (5 - (diffDays / 5)).coerceIn(0, 5)
+                        pointsMap[cleanType]?.set(blockIdx, pointsMap[cleanType]!![blockIdx] + log.durationMinutes)
+                    }
+                } catch (e: Exception) {}
+            } else {
+                if (log.date.length >= 7) {
+                    val logYearMonth = log.date.substring(0, 7)
+                    val idx = dateKeys.indexOf(logYearMonth)
+                    if (idx != -1) {
+                        pointsMap[cleanType]?.set(idx, pointsMap[cleanType]!![idx] + log.durationMinutes)
+                    }
+                }
+            }
+        }
+
+        val result = categoriesList.associateWith { cat ->
+            labels.zip(pointsMap[cat]!!.toList()).map { it.first to it.second }
+        }
+        Triple(labels, result, categoriesList)
     }
+
+    val (labels, dataPoints, categories) = chartData
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1735,7 +2059,7 @@ fun ExerciseIntensityCard(exerciseLogs: List<ExerciseLogEntity>) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = BrandAmber, modifier = Modifier.size(20.dp))
-                    Text("EXERCISE INTENSITY (TOP 5)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandAmber)
+                    Text("EXERCISE INTENSITY LINES", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandAmber)
                 }
 
                 Row(
@@ -1744,14 +2068,14 @@ fun ExerciseIntensityCard(exerciseLogs: List<ExerciseLogEntity>) {
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(2.dp)
                 ) {
-                    listOf("most" to "Most", "least" to "Least").forEach { (id, label) ->
-                        val isSelected = sortType == id
+                    listOf("week" to "W", "month" to "M", "year" to "Y").forEach { (id, label) ->
+                        val isSelected = timeScale == id
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(if (isSelected) BrandAmber else Color.Transparent)
-                                .clickable { sortType = id }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .clickable { timeScale = id }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = label,
@@ -1764,58 +2088,53 @@ fun ExerciseIntensityCard(exerciseLogs: List<ExerciseLogEntity>) {
                 }
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Legend Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                categories.forEachIndexed { idx, cat ->
+                    val color = categoryColors.getOrElse(idx) { Color.Gray }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                        )
+                        Text(cat, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (intensityDays.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No exercise sessions recorded.", fontSize = 12.sp, color = Color.Gray)
-                }
-            } else {
-                val maxMinutes = max(1, intensityDays.maxOfOrNull { it.second } ?: 1)
+            MultiLineChartCanvas(
+                categories = categories,
+                colors = categoryColors,
+                dataPoints = dataPoints,
+                labels = labels
+            )
 
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    intensityDays.forEach { (date, minutes) ->
-                        val ratio = minutes.toFloat() / maxMinutes.toFloat()
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = date.substring(5), // MM-DD
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.width(45.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(14.dp)
-                                    .clip(RoundedCornerShape(7.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(ratio.coerceAtLeast(0.08f))
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(7.dp))
-                                        .background(Brush.horizontalGradient(listOf(BrandAmber, BrandOrange)))
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "$minutes min",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandOrange
-                            )
-                        }
-                    }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                labels.forEach { label ->
+                    Text(
+                        text = label,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
                 }
             }
         }
@@ -4060,7 +4379,7 @@ fun TrackWiseHelpDialog(onDismiss: () -> Unit) {
             ) {
                 item {
                     Text(
-                        text = "TrackWise is your unified companion for habits, health, budget, and net worth tracking. Here is how to make the most of it:",
+                        text = "TrackWise (v2.5.0-release) is your unified companion for habits, health, budget, and net worth tracking. Active Profile: syedjunaid915@gmail.com. Here is how to make the most of it:",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                     )
@@ -7796,6 +8115,351 @@ fun StockGrossVsNetChart(trades: List<StockTradeEntity>) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(BrandGreen))
                         Text(text = "Net Profit/Loss", fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// Symptom Severity & Burden Trend Card
+// ==========================================
+@Composable
+fun SymptomSeverityTrendCard(healthIssues: List<HealthIssueLogEntity>) {
+    var timeScale by remember { mutableStateOf("week") } // "week", "month", "year"
+
+    val chartData = remember(healthIssues, timeScale) {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val cal = Calendar.getInstance()
+        val labels = mutableListOf<String>()
+        val dateKeys = mutableListOf<String>()
+        val result = mutableListOf<Pair<String, Float>>()
+
+        if (timeScale == "week") {
+            for (i in 0..6) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.DAY_OF_YEAR, -i)
+                labels.add(0, SimpleDateFormat("E", Locale.US).format(tempCal.time))
+                dateKeys.add(0, sdf.format(tempCal.time))
+            }
+            val severityScore = FloatArray(7) { 0f }
+            healthIssues.forEach { issue ->
+                val idx = dateKeys.indexOf(issue.date)
+                if (idx != -1) {
+                    val score = when (issue.severity.lowercase(Locale.US)) {
+                        "mild" -> 2f
+                        "moderate" -> 5f
+                        "severe" -> 10f
+                        else -> 2f
+                    }
+                    severityScore[idx] += score
+                }
+            }
+            for (i in 0..6) {
+                result.add(labels[i] to severityScore[i])
+            }
+        } else if (timeScale == "month") {
+            for (i in 0..5) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.DAY_OF_YEAR, -((5 - i) * 5))
+                labels.add(SimpleDateFormat("MMM d", Locale.US).format(tempCal.time))
+            }
+            val severityScore = FloatArray(6) { 0f }
+            healthIssues.forEach { issue ->
+                try {
+                    val logDate = sdf.parse(issue.date) ?: return@forEach
+                    val diffMs = cal.time.time - logDate.time
+                    val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
+                    if (diffDays in 0..29) {
+                        val blockIdx = (5 - (diffDays / 5)).coerceIn(0, 5)
+                        val score = when (issue.severity.lowercase(Locale.US)) {
+                            "mild" -> 2f
+                            "moderate" -> 5f
+                            "severe" -> 10f
+                            else -> 2f
+                        }
+                        severityScore[blockIdx] += score
+                    }
+                } catch (e: Exception) {}
+            }
+            for (i in 0..5) {
+                result.add(labels[i] to severityScore[i])
+            }
+        } else {
+            for (i in 0..5) {
+                val tempCal = Calendar.getInstance()
+                tempCal.add(Calendar.MONTH, -i)
+                labels.add(0, tempCal.getDisplayName(Calendar.MONTH, Calendar.SHORT, Locale.US) ?: "")
+                dateKeys.add(0, String.format(Locale.US, "%04d-%02d", tempCal.get(Calendar.YEAR), tempCal.get(Calendar.MONTH) + 1))
+            }
+            val severityScore = FloatArray(6) { 0f }
+            healthIssues.forEach { issue ->
+                if (issue.date.length >= 7) {
+                    val logYearMonth = issue.date.substring(0, 7)
+                    val idx = dateKeys.indexOf(logYearMonth)
+                    if (idx != -1) {
+                        val score = when (issue.severity.lowercase(Locale.US)) {
+                            "mild" -> 2f
+                            "moderate" -> 5f
+                            "severe" -> 10f
+                            else -> 2f
+                        }
+                        severityScore[idx] += score
+                    }
+                }
+            }
+            for (i in 0..5) {
+                result.add(labels[i] to severityScore[i])
+            }
+        }
+        result
+    }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Healing, contentDescription = null, tint = BrandRose, modifier = Modifier.size(20.dp))
+                    Text("SYMPTOM BURDEN & WELLNESS TREND", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandRose)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(2.dp)
+                ) {
+                    listOf("week" to "W", "month" to "M", "year" to "Y").forEach { (id, label) ->
+                        val isSelected = timeScale == id
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) BrandRose else Color.Transparent)
+                                .clickable { timeScale = id }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Tracking overall body load index (Mild: 2, Mod: 5, Severe: 10)",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            CustomLineChart(
+                points = chartData,
+                lineColor = BrandRose,
+                areaColor = BrandRose,
+                yMax = 30f
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                chartData.forEach { (label, _) ->
+                    Text(
+                        text = label,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// Medicine Compliance Adherence Card
+// ==========================================
+@Composable
+fun MedicineAdherenceCard(tabletReminders: List<TabletReminderEntity>) {
+    val complianceData = remember(tabletReminders) {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val cal = Calendar.getInstance()
+        
+        val labels = mutableListOf<String>()
+        val dateKeys = mutableListOf<String>()
+        for (i in 0..6) {
+            val tempCal = Calendar.getInstance()
+            tempCal.add(Calendar.DAY_OF_YEAR, -i)
+            labels.add(0, SimpleDateFormat("E", Locale.US).format(tempCal.time))
+            dateKeys.add(0, sdf.format(tempCal.time))
+        }
+
+        val dailyTakenCounts = FloatArray(7) { 0f }
+        val dailyTotalReminders = FloatArray(7) { 0f }
+
+        tabletReminders.forEach { reminder ->
+            val takenDates = try {
+                val arr = org.json.JSONArray(reminder.completedDatesJson)
+                List(arr.length()) { arr.getString(it) }
+            } catch (e: Exception) {
+                emptyList()
+            }
+
+            dateKeys.forEachIndexed { index, dateKey ->
+                dailyTotalReminders[index] += 1f
+                if (takenDates.contains(dateKey)) {
+                    dailyTakenCounts[index] += 1f
+                }
+            }
+        }
+
+        val trendPoints = mutableListOf<Pair<String, Float>>()
+        for (i in 0..6) {
+            val total = dailyTotalReminders[i]
+            val taken = dailyTakenCounts[i]
+            val pct = if (total > 0) (taken / total) * 100f else 100f
+            trendPoints.add(labels[i] to pct)
+        }
+
+        val medAdherence = tabletReminders.map { reminder ->
+            val takenDates = try {
+                val arr = org.json.JSONArray(reminder.completedDatesJson)
+                List(arr.length()) { arr.getString(it) }
+            } catch (e: Exception) {
+                emptyList()
+            }
+            var takenInLast7Days = 0
+            dateKeys.forEach { dateKey ->
+                if (takenDates.contains(dateKey)) {
+                    takenInLast7Days++
+                }
+            }
+            val rate = (takenInLast7Days / 7f) * 100f
+            reminder.tabletName to rate
+        }
+
+        Pair(trendPoints, medAdherence)
+    }
+
+    val (trendPoints, medAdherence) = complianceData
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp)
+            ) {
+                Icon(Icons.Default.Favorite, contentDescription = null, tint = BrandGreen, modifier = Modifier.size(20.dp))
+                Text("MEDICATION COMPLIANCE ADHERENCE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BrandGreen)
+            }
+
+            if (tabletReminders.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No medications configured in the tracker.", fontSize = 12.sp, color = Color.Gray)
+                }
+            } else {
+                Text(
+                    text = "Weekly Adherence Trend (Overall Completion %)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                CustomLineChart(
+                    points = trendPoints,
+                    lineColor = BrandGreen,
+                    areaColor = BrandGreen,
+                    yMax = 100f
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    trendPoints.forEach { (label, _) ->
+                        Text(
+                            text = label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = "Individual Medicine Adherence (Last 7 Days)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    medAdherence.forEach { (name, rate) ->
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${rate.toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = BrandGreen)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(rate / 100f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(BrandGreen)
+                                )
+                            }
+                        }
                     }
                 }
             }

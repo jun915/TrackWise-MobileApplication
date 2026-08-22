@@ -375,8 +375,10 @@ class ReminderReceiver : BroadcastReceiver() {
         habits.forEach { habit ->
             if (habit.remindMe) {
                 val isDueToday = TrackWiseUtils.shouldShowHabitOnDate(habit, todayStr)
+                val completedDays = TrackWiseUtils.deserializeStringList(habit.daysCompletedJson)
+                val isCompletedToday = completedDays.contains(todayStr)
                 val rTime24 = parseTo24HourTime(habit.reminderTime)
-                if (isDueToday && rTime24 != null && rTime24 <= currentTimeStr) {
+                if (isDueToday && !isCompletedToday && rTime24 != null && rTime24 <= currentTimeStr) {
                     val key = "habit-${habit.id}-$todayStr-$rTime24"
                     if (!notifiedPrefs.getBoolean(key, false)) {
                         notifiedPrefs.edit().putBoolean(key, true).apply()

@@ -202,38 +202,63 @@ fun HabitBreakerScreen(
                         contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
                     ) {
                         items(sortedBadHabits, key = { it.id }) { item ->
-                            SwipeableAvoidCard(
-                                item = item,
-                                isPinned = pinnedHabitBreakerIds.contains(item.id),
-                                onTogglePin = { viewModel.togglePinHabitBreaker(item.id) },
-                                onLogAvoidance = {
-                                    viewModel.logBadHabitAvoidance(item.id)
-                                    viewModel.triggerSwipeVibration()
-                                    undoSwipeData = UndoSwipeData(item.id, item.name, isAvoidance = true)
-                                },
-                                onLogSlipUp = {
-                                    viewModel.logBadHabitOccurrence(item.id)
-                                    viewModel.triggerSwipeVibration()
-                                    undoSwipeData = UndoSwipeData(item.id, item.name, isAvoidance = false)
-                                },
-                                onDelete = { viewModel.removeBadHabit(item.id) },
-                                onCardClick = { selectedItemForOptions = item },
-                                onEdit = {
-                                    editingItemId = item.id
-                                    prefilledName = item.name
-                                    prefilledType = item.avoidType
-                                    prefilledTag = item.tags.firstOrNull() ?: "Health"
-                                    prefilledPriority = item.priority
-                                    prefilledReminderTime = item.reminderTime
-                                    prefilledIsRecurring = item.isRecurring
-                                    prefilledEventDate = item.eventDate
-                                    prefilledCostType = item.costType
-                                    prefilledCostValue = item.costValue
-                                    prefilledIconName = item.iconName
-                                    viewModel.setHabitBreakerViewState("create")
-                                },
-                                tick = tick
-                            )
+                            var xpTrigger by remember(item.id) { mutableStateOf(0) }
+                            var xpAmount by remember(item.id) { mutableStateOf(0) }
+                            val wishlistItems by viewModel.allWishlist.collectAsState()
+                            val wishlistCount = wishlistItems.size
+
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                SwipeableAvoidCard(
+                                    item = item,
+                                    isPinned = pinnedHabitBreakerIds.contains(item.id),
+                                    onTogglePin = { viewModel.togglePinHabitBreaker(item.id) },
+                                    onLogAvoidance = {
+                                        xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicBadHabitXp(
+                                            item.name,
+                                            isAvoidance = true,
+                                            logsCount = item.logs.size,
+                                            avoidCount = item.avoidCount,
+                                            wishlistCount = wishlistCount
+                                        )
+                                        xpTrigger++
+                                        viewModel.logBadHabitAvoidance(item.id)
+                                        viewModel.triggerSwipeVibration()
+                                        undoSwipeData = UndoSwipeData(item.id, item.name, isAvoidance = true)
+                                    },
+                                    onLogSlipUp = {
+                                        xpAmount = com.example.utils.TrackWiseUtils.calculateDynamicBadHabitXp(
+                                            item.name,
+                                            isAvoidance = false,
+                                            logsCount = item.logs.size,
+                                            avoidCount = item.avoidCount,
+                                            wishlistCount = wishlistCount
+                                        )
+                                        xpTrigger++
+                                        viewModel.logBadHabitOccurrence(item.id)
+                                        viewModel.triggerSwipeVibration()
+                                        undoSwipeData = UndoSwipeData(item.id, item.name, isAvoidance = false)
+                                    },
+                                    onDelete = { viewModel.removeBadHabit(item.id) },
+                                    onCardClick = { selectedItemForOptions = item },
+                                    onEdit = {
+                                        editingItemId = item.id
+                                        prefilledName = item.name
+                                        prefilledType = item.avoidType
+                                        prefilledTag = item.tags.firstOrNull() ?: "Health"
+                                        prefilledPriority = item.priority
+                                        prefilledReminderTime = item.reminderTime
+                                        prefilledIsRecurring = item.isRecurring
+                                        prefilledEventDate = item.eventDate
+                                        prefilledCostType = item.costType
+                                        prefilledCostValue = item.costValue
+                                        prefilledIconName = item.iconName
+                                        viewModel.setHabitBreakerViewState("create")
+                                    },
+                                    tick = tick
+                                )
+
+                                com.example.utils.FloatingXpEffect(trigger = xpTrigger, xpAmount = xpAmount)
+                            }
                         }
                     }
                 }
@@ -278,7 +303,7 @@ fun HabitBreakerScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    text = "UNDO LOG",
+                                    text = "Undo",
                                     color = MaterialTheme.colorScheme.inverseOnSurface,
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 13.sp,
