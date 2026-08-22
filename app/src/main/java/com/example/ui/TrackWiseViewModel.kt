@@ -827,6 +827,71 @@ class TrackWiseViewModel(
     private val _lastAutoBackupTime = MutableStateFlow(0L)
     val lastAutoBackupTime: StateFlow<Long> = _lastAutoBackupTime.asStateFlow()
 
+    // --- Google Drive Backup Integration ---
+    val googleDriveBackupHelper by lazy { com.example.utils.GoogleDriveBackupHelper(getApplication()) }
+
+    private val _googleDriveConnected = MutableStateFlow(false)
+    val googleDriveConnected: StateFlow<Boolean> = _googleDriveConnected.asStateFlow()
+
+    private val _googleDriveConnectedEmail = MutableStateFlow<String?>(null)
+    val googleDriveConnectedEmail: StateFlow<String?> = _googleDriveConnectedEmail.asStateFlow()
+
+    private val _googleDriveLastBackupStatus = MutableStateFlow("No backup uploaded yet.")
+    val googleDriveLastBackupStatus: StateFlow<String> = _googleDriveLastBackupStatus.asStateFlow()
+
+    private val _googleDriveSyncing = MutableStateFlow(false)
+    val googleDriveSyncing: StateFlow<Boolean> = _googleDriveSyncing.asStateFlow()
+
+    fun initGoogleDriveStatus() {
+        _googleDriveConnected.value = googleDriveBackupHelper.isConnected()
+        _googleDriveConnectedEmail.value = googleDriveBackupHelper.getConnectedAccountEmail()
+        _googleDriveLastBackupStatus.value = googleDriveBackupHelper.getLastBackupStatus() ?: "No backup uploaded yet."
+    }
+
+    fun startGoogleDriveAuth() {
+        googleDriveBackupHelper.startAuthFlow()
+    }
+
+    fun disconnectGoogleDrive() {
+        googleDriveBackupHelper.disconnect()
+        _googleDriveConnected.value = false
+        _googleDriveConnectedEmail.value = null
+        _googleDriveLastBackupStatus.value = "Disconnected from Google Drive."
+    }
+
+    fun handleGoogleDriveRedirect(uri: android.net.Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _googleDriveSyncing.value = true
+            val success = googleDriveBackupHelper.handleRedirectUri(uri)
+            viewModelScope.launch(Dispatchers.Main) {
+                _googleDriveConnected.value = googleDriveBackupHelper.isConnected()
+                _googleDriveConnectedEmail.value = googleDriveBackupHelper.getConnectedAccountEmail()
+                _googleDriveLastBackupStatus.value = googleDriveBackupHelper.getLastBackupStatus() ?: "Connected successfully!"
+                _googleDriveSyncing.value = false
+            }
+        }
+    }
+
+    fun performGoogleDriveBackupManual() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _googleDriveSyncing.value = true
+            val user = _sessionUser.value
+            if (user != null) {
+                val jsonStr = generateBackupJsonString(user)
+                val (success, message) = googleDriveBackupHelper.performGoogleDriveBackup(jsonStr)
+                viewModelScope.launch(Dispatchers.Main) {
+                    _googleDriveLastBackupStatus.value = message
+                    _googleDriveSyncing.value = false
+                }
+            } else {
+                viewModelScope.launch(Dispatchers.Main) {
+                    _googleDriveLastBackupStatus.value = "Failed: No user logged in."
+                    _googleDriveSyncing.value = false
+                }
+            }
+        }
+    }
+
     // --- Sync UI indicator state ---
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
@@ -4730,6 +4795,14 @@ class TrackWiseViewModel(
                         pubFile.writeText(jsonStr)
                     }
 
+                    // Auto-Backup to Google Drive if connected
+                    if (googleDriveBackupHelper.isConnected()) {
+                        val (driveSuccess, driveMsg) = googleDriveBackupHelper.performGoogleDriveBackup(jsonStr)
+                        viewModelScope.launch(Dispatchers.Main) {
+                            _googleDriveLastBackupStatus.value = driveMsg
+                        }
+                    }
+
                     prefs.edit().putLong("last_auto_backup_time", now).apply()
                     _lastAutoBackupTime.value = now
                     
@@ -5476,6 +5549,7 @@ class TrackWiseViewModel(
         val savedLastBackupTime = prefs.getLong("last_auto_backup_time", 0L)
         _autoBackupFrequency.value = savedBackupFreq
         _lastAutoBackupTime.value = savedLastBackupTime
+        initGoogleDriveStatus()
 
         // Restore custom folders and tags
         val customFoldersStr = prefs.getString("custom_folders_list", "") ?: ""

@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntentExtras(intent)
+        handleOAuthRedirect(intent)
     }
 
     private fun handleIntentExtras(intent: android.content.Intent) {
@@ -55,6 +56,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun handleOAuthRedirect(intent: android.content.Intent) {
+        val data = intent.data
+        if (data != null && data.scheme == "com.aistudio.trackwise.pksqmx") {
+            if (::viewModel.isInitialized) {
+                viewModel.handleGoogleDriveRedirect(data)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -65,6 +75,7 @@ class MainActivity : ComponentActivity() {
         viewModel = TrackWiseViewModel(application, repository)
 
         handleIntentExtras(intent)
+        handleOAuthRedirect(intent)
 
         // Schedule persistent background reminder receiver
         com.example.receiver.ReminderReceiver.scheduleBackgroundReminderAlarm(applicationContext)

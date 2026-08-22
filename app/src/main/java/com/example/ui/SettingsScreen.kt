@@ -1164,8 +1164,17 @@ fun BackupAndSyncSection(
 ) {
     val autoBackupFreq by viewModel.autoBackupFrequency.collectAsState()
     val lastBackupTime by viewModel.lastAutoBackupTime.collectAsState()
+    val googleDriveConnected by viewModel.googleDriveConnected.collectAsState()
+    val googleDriveConnectedEmail by viewModel.googleDriveConnectedEmail.collectAsState()
+    val googleDriveLastBackupStatus by viewModel.googleDriveLastBackupStatus.collectAsState()
+    val googleDriveSyncing by viewModel.googleDriveSyncing.collectAsState()
+
     val themeColor = MaterialTheme.colorScheme.primary
     var showLogExplorer by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.initGoogleDriveStatus()
+    }
 
     if (showLogExplorer) {
         AllLogsExplorerDialog(
@@ -1344,6 +1353,140 @@ fun BackupAndSyncSection(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         modifier = Modifier.padding(top = 2.dp)
                     )
+                }
+            }
+        }
+
+        // --- Google Drive Cloud Sync Card ---
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.Cloud,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "GOOGLE DRIVE AUTO-BACKUP",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = themeColor
+                    )
+                }
+
+                Text(
+                    text = "Securely save your multi-faith Hijri calendars, clinical health logs, habit runway history, and financial ledgers automatically to your own connected Google Drive folder. Size check restricts redundant backups.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    lineHeight = 15.sp
+                )
+
+                if (googleDriveConnected) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = BrandGreen.copy(alpha = 0.1f)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.CloudDone,
+                                contentDescription = null,
+                                tint = BrandGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Connected Account",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandGreen
+                                )
+                                Text(
+                                    text = googleDriveConnectedEmail ?: "Connected",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "LAST CLOUD RUN STATUS:",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                        Text(
+                            text = googleDriveLastBackupStatus,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 14.sp
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.performGoogleDriveBackupManual() },
+                            enabled = !googleDriveSyncing,
+                            colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1.5f),
+                            contentPadding = PaddingValues(vertical = 10.dp)
+                        ) {
+                            if (googleDriveSyncing) {
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Icon(androidx.compose.material.icons.Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Backup Now", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Button(
+                            onClick = { viewModel.disconnectGoogleDrive() },
+                            enabled = !googleDriveSyncing,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(vertical = 10.dp)
+                        ) {
+                            Icon(androidx.compose.material.icons.Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Disconnect", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = { viewModel.startGoogleDriveAuth() },
+                        colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(androidx.compose.material.icons.Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Connect Google Drive", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
